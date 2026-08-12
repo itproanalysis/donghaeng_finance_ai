@@ -13,6 +13,7 @@
 - AI 질문은 Qwen3-TTS Sohee로 재생하고, 실패할 때만 브라우저의 한국어 음성을 보조로 사용합니다. 음성 인터뷰를 새로 시작하면 첫 질문도 자동으로 읽습니다.
 - Claude 사용 시 답변 원문을 먼저 저장하고, 별도 `CLOUD_AI_PROCESSING` 동의 후에만 외부 구조화를 수행합니다. Claude 결과는 서버의 엄격한 스키마·근거·결정론 초안 검증을 통과해야 반영됩니다.
 - PREVIEW 진행 상태는 SSE로 동기화하고, 완료 후에는 불변 FINAL snapshot만으로 데이터 품질 평가를 만듭니다.
+- `feature_schema_v2`는 사업·재무·채무/신용·운영·사장님 계획·외부 맥락·개선가능성 변수를 null-safe artifact로 제공합니다. 현재 모델 입력/신용점수/승인 판단에는 사용하지 않으며, `ENABLE_FEATURE_V2=false`로 비활성화할 수 있습니다. 자세한 정의는 [feature_schema_v2](docs/FEATURE_SCHEMA_V2.md)를 참고하세요.
 
 ## 로컬 실행
 

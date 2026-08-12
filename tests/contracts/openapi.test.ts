@@ -809,7 +809,11 @@ describe("OpenAPI contract", () => {
 
     const liveFeatures = schema("LiveFeaturesProjection");
     expect(asStringArray(liveFeatures.required, "LiveFeaturesProjection.required"))
-      .toEqual(["interviewId", "snapshotType", "version", "features", "summary"]);
+      .toEqual(["interviewId", "snapshotType", "version", "features", "improvementFeatures", "summary"]);
+    expect(property(property(liveFeatures, "properties"), "improvementFeatures").anyOf).toEqual([
+      { $ref: "#/components/schemas/ImprovementFeatureV2Set" },
+      { type: "null" },
+    ]);
 
     for (const [name, collection] of [
       ["EvaluationPillarsProjection", "pillars"],

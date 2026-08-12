@@ -78,6 +78,14 @@ describe("full dev-v1 server pipeline", () => {
       state: "COMPUTED",
       formula: "fixed_operating_costs / monthly_average_sales",
     });
+    expect(snapshot.improvementFeatures).toMatchObject({
+      schemaVersion: "feature_schema_v2",
+      enabled: true,
+      features: expect.arrayContaining([
+        expect.objectContaining({ name: "fin_sales_avg_3m", state: "COMPUTED", value: 23_000_000 }),
+        expect.objectContaining({ name: "imp_plan_specificity", state: "COMPUTED" }),
+      ]),
+    });
     expect(snapshot.goalSnapshot).toMatchObject({ status: "CONFIRMED", numericStatus: "DIRECT" });
 
     const completed = service.completeInterviewCommand(
@@ -107,6 +115,10 @@ describe("full dev-v1 server pipeline", () => {
       completionAssessment: { evaluationEligible: true, blockers: [] },
     });
     expect("features" in completed.snapshot && completed.snapshot.features.snapshotType).toBe("FINAL");
+    expect(completed.snapshot.improvementFeatures).toMatchObject({
+      schemaVersion: "feature_schema_v2",
+      enabled: true,
+    });
     expect(completed.evaluation).toMatchObject({
       status: "READY",
       decisionScope: "INTERVIEW_DATA_QUALITY_ONLY",
@@ -137,6 +149,10 @@ describe("full dev-v1 server pipeline", () => {
     expect(service.getInterviewSnapshot(created.session.id, principal)).toMatchObject({
       snapshotType: "FINAL",
       evaluationId: completed.evaluation?.id,
+      improvementFeatures: { schemaVersion: "feature_schema_v2" },
+    });
+    expect(service.getFeaturesForPrincipal(created.session.id, principal)).toMatchObject({
+      improvementFeatures: { schemaVersion: "feature_schema_v2" },
     });
     expect(database.prepare("SELECT COUNT(*) AS count FROM final_snapshots").get()?.count).toBe(1);
     expect(database.prepare("SELECT COUNT(*) AS count FROM evaluations").get()?.count).toBe(1);

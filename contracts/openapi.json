@@ -3839,6 +3839,47 @@
           }
         }
       },
+      "ImprovementFeatureV2Value": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "group",
+          "dtype",
+          "state",
+          "value",
+          "sourceFeatures",
+          "calculation",
+          "reason",
+          "version",
+          "modelCandidate"
+        ],
+        "properties": {
+          "name": { "type": "string" },
+          "group": { "enum": ["business", "financial", "credit", "operation", "owner", "external", "improvement"] },
+          "dtype": { "enum": ["float", "integer", "boolean", "category"] },
+          "state": { "enum": ["COMPUTED", "MISSING", "NOT_CALCULABLE"] },
+          "value": { "type": ["number", "boolean", "string", "null"] },
+          "sourceFeatures": { "type": "array", "items": { "type": "string" } },
+          "calculation": { "type": ["string", "null"] },
+          "reason": { "type": "string" },
+          "version": { "const": "feature_schema_v2" },
+          "modelCandidate": { "const": false }
+        }
+      },
+      "ImprovementFeatureV2Set": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "enabled", "features"],
+        "properties": {
+          "schemaVersion": { "const": "feature_schema_v2" },
+          "enabled": { "type": "boolean" },
+          "features": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ImprovementFeatureV2Value" }
+          }
+        }
+      },
       "LiveFeaturesProjection": {
         "type": "object",
         "additionalProperties": false,
@@ -3847,6 +3888,7 @@
           "snapshotType",
           "version",
           "features",
+          "improvementFeatures",
           "summary"
         ],
         "properties": {
@@ -3868,6 +3910,12 @@
             "type": [
               "object",
               "null"
+            ]
+          },
+          "improvementFeatures": {
+            "anyOf": [
+              { "$ref": "#/components/schemas/ImprovementFeatureV2Set" },
+              { "type": "null" }
             ]
           },
           "summary": {

@@ -8,6 +8,15 @@ _기준일: 2026-08-12_
 
 ## 구현 완료
 
+### feature_schema_v2 고도화
+
+- 기존 인터뷰 평가 feature registry와 API를 유지한 채, 7개 그룹(사업·재무·채무/신용·운영·사장님 인터뷰·외부 환경·개선가능성)의 `feature_schema_v2` dictionary를 추가했습니다.
+- 원천/기간/dtype/결측 정책/방향성/계산 근거를 feature마다 기록하며, 신규 feature는 모두 `modelCandidate: false`입니다. 별도의 신용점수·승인 모델을 추가하지 않습니다.
+- 사장님이 직접 말한 매출·고정비·반복고객·목표·기간·측정방식·제약조건은 같은 순수 builder로 변환합니다. 범위값은 중간값으로 바꾸지 않고 missing으로 유지합니다.
+- 개선가능성 설명 피처 `imp_recovery_momentum`, `imp_cashflow_stabilization`, `imp_cost_adjustment_headroom`, `imp_sales_recovery_potential`, `imp_plan_specificity`, `imp_plan_feasibility`를 계산합니다.
+- 외부/유사업체 데이터는 optional schema만 제공합니다. 외부 API·크롤러를 새로 연결하지 않았고, 값이 없으면 null-safe `MISSING`입니다.
+- `buildTrainingFeatureV2`와 `buildInferenceFeatureV2`는 같은 builder의 명시적 별칭이어서 train/inference 계산식이 분리되지 않습니다. feature flag `ENABLE_FEATURE_V2=false`로 전체 v2 산출을 끌 수 있습니다.
+
 ### 사용자 경험
 
 - 첫 진입에서 **사장님 인터뷰**와 **관리자 센터**를 분리했습니다.

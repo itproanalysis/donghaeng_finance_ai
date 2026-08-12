@@ -4,6 +4,7 @@ import {
   assessInterviewCompletion,
   assertOrchestratorTurnPlan,
   buildEvidenceLinkedSummary,
+  buildInterviewFeatureV2,
   buildInterviewDataQualityEvaluationV1,
   buildDeterministicEvaluation,
   calculateLiveFeatures,
@@ -13,6 +14,7 @@ import {
   createDevV1RequiredInformationItems,
   detectCanonicalValueConflict,
   extractGoalSnapshot,
+  isFeatureV2Enabled,
   findSohoIndustryProfile,
   hasMaterialAmountConflict,
   markConflictRevisions,
@@ -33,6 +35,7 @@ import {
   type EvidenceLinkedSummary,
   type EvidenceRef,
   type FinalInterviewSnapshot,
+  type FeatureV2Set,
   type InformationItem,
   type RequiredInformationItem,
   type GoalSnapshot,
@@ -181,6 +184,7 @@ type LivePlatformSnapshot = LiveInterviewSnapshot & {
   snapshotType: "PREVIEW";
   canonicalInformationItems: CanonicalInformationRecord[];
   features: LiveFeatureSet & { snapshotType: "PREVIEW" };
+  improvementFeatures: FeatureV2Set;
   liveSummary: EvidenceLinkedSummary & { snapshotType: "PREVIEW" };
   goalSnapshot: GoalSnapshot;
   pendingCommand: PendingMessageCommandDescriptor | null;
@@ -201,6 +205,7 @@ type StoredFinalSnapshot = FinalInterviewSnapshot | CanonicalFinalSnapshot;
 
 type FinalSnapshotApiView = StoredFinalSnapshot & {
   evaluationId: string | null;
+  improvementFeatures: FeatureV2Set | null;
   session: {
     id: string;
     lifecycleStatus: "COMPLETE" | "INCOMPLETE";
@@ -2313,6 +2318,7 @@ export class InterviewService {
       snapshotType: snapshot.snapshotType,
       version: snapshot.session.version,
       features: "features" in snapshot ? snapshot.features : null,
+      improvementFeatures: "improvementFeatures" in snapshot ? snapshot.improvementFeatures : null,
       summary:
         "liveSummary" in snapshot
           ? snapshot.liveSummary
@@ -3331,6 +3337,9 @@ export class InterviewService {
       stateVersion: snapshot.session.version,
       snapshotType: "PREVIEW",
     }) as LiveFeatureSet & { snapshotType: "PREVIEW" };
+    const improvementFeatures = buildInterviewFeatureV2(records, {
+      enabled: isFeatureV2Enabled(),
+    });
     const liveSummary = buildEvidenceLinkedSummary({
       records,
       features,
@@ -3343,6 +3352,7 @@ export class InterviewService {
       snapshotType: "PREVIEW",
       canonicalInformationItems: records,
       features,
+      improvementFeatures,
       liveSummary,
       goalSnapshot: extractGoalSnapshot(records),
       pendingCommand: null,
@@ -3485,12 +3495,20 @@ export class InterviewService {
     tenantId: string,
   ): FinalSnapshotApiView {
     const stored = this.repository.getInterview(snapshot.interviewId);
+    const canonicalItems = snapshot.informationItems.filter(
+      (item): item is CanonicalInformationRecord =>
+        "revisions" in item && Array.isArray(item.revisions) && "selectedRevisionId" in item,
+    );
     return {
       ...snapshot,
       evaluationId: this.platformRepository.findEvaluationIdForInterview(
         tenantId,
         snapshot.interviewId,
       ),
+      improvementFeatures:
+        canonicalItems.length === snapshot.informationItems.length
+          ? buildInterviewFeatureV2(canonicalItems, { enabled: isFeatureV2Enabled() })
+          : null,
       session: {
         id: snapshot.interviewId,
         lifecycleStatus: snapshot.completionStatus,
