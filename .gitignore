@@ -1,0 +1,29 @@
+# dependencies
+/node_modules/
+
+# Next.js
+/.next/
+/out/
+
+# tests
+/coverage/
+
+# local data, model weights, launcher state, and secrets
+/data/**
+!/data/.gitkeep
+
+# local design reference exports
+/기획안/
+.env
+.env.local
+
+# logs and editor files
+*.log
+.DS_Store
+.idea/
+.vscode/
+__pycache__/
+*.pyc
+
+# TypeScript
+*.tsbuildinfo

@@ -1,0 +1,4794 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Donghaeng Finance AI HTTP API",
+    "version": "1.0.0",
+    "description": "Contract for the local text-first finance interview API. JSON responses always use the data/error/meta envelope. The event stream is described in more detail by asyncapi.json. An external production identity provider is not implemented; production startup and direct API authentication are fail-closed."
+  },
+  "x-production-authentication": {
+    "status": "EXTERNAL_IDP_NOT_IMPLEMENTED",
+    "failClosed": true,
+    "errorStatus": 503,
+    "errorCode": "PRODUCTION_IDP_NOT_CONFIGURED",
+    "localException": "AUTOMATED_LOOPBACK_E2E_ONLY",
+    "description": "Local password and persisted local-workspace session authentication are forbidden in production. The automated custom-server smoke harness is the only exception and requires an explicit flag, matching literal-loopback bind host, port, and application origin, plus an in-process attestation of the actual bind. Environment variables alone never enable local authentication in a direct Next deployment."
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "Same-origin application API"
+    }
+  ],
+  "security": [
+    {
+      "sessionCookie": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication"
+    },
+    {
+      "name": "Interviews"
+    },
+    {
+      "name": "Realtime"
+    },
+    {
+      "name": "Evaluations"
+    }
+  ],
+  "paths": {
+    "/admin/retention": {
+      "post": {
+        "operationId": "enforceRetention",
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Dry-run or enforce bounded retention cleanup",
+        "description": "Requires an authenticated principal with the ADMIN role. dryRun defaults to true. Transcript, evidence, audit, and FINAL snapshot artifacts are always protected.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Retention candidates and deleted row counts",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/bootstrap": {
+      "post": {
+        "operationId": "bootstrapLocalAccount",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Create or return the local workspace session",
+        "description": "Local-development bootstrap endpoint. Implementations must not expose bootstrap in a production deployment.",
+        "security": [],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The idempotent local bootstrap completed and a session was issued",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly, SameSite session cookie for the bootstrapped local user",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The local identity was created and a session was issued",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly, SameSite session cookie for the bootstrapped local user",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BootstrapSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/session": {
+      "post": {
+        "operationId": "createSession",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Authenticate a local user and create a session",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authenticated session",
+            "headers": {
+              "Set-Cookie": {
+                "description": "HttpOnly, SameSite session cookie. Secure is required outside local HTTP development.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSession",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Invalidate the current session",
+        "responses": {
+          "200": {
+            "description": "Session invalidated",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Expired session cookie",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignOutSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "getCurrentIdentity",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Return the authenticated tenant and user",
+        "responses": {
+          "200": {
+            "description": "Current identity",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews": {
+      "post": {
+        "operationId": "createInterview",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Create an interview",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInterviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New PREVIEW interview snapshot",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewSnapshotSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterview",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Get the durable PREVIEW or immutable FINAL snapshot",
+        "description": "ACTIVE interviews return PREVIEW. Completed interviews are read from the immutable FINAL snapshot and never reconstructed as PREVIEW.",
+        "responses": {
+          "200": {
+            "description": "Discriminated interview snapshot",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewSnapshotSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/messages": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "post": {
+        "operationId": "addInterviewMessage",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Apply one borrower message atomically",
+        "description": "All four core fields are required. clientMessageId is the idempotency key, expectedVersion provides compare-and-swap protection, and currentQuestionInfoCode (a string or null) prevents submission against a stale question. Only one PENDING command may exist per tenant/interview. A bounded database lease prevents two processes from calling Claude for the same command; competing requests return MESSAGE_STAGE_PENDING or MESSAGE_STAGE_BUSY without another provider call.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted turn and its transactionally consistent PREVIEW snapshot",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/transcript-segments/{segmentId}/corrections": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        },
+        {
+          "$ref": "#/components/parameters/TranscriptSegmentId"
+        }
+      ],
+      "post": {
+        "operationId": "correctInterviewTranscriptSegment",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Append an idempotent correction to a FINAL transcript segment",
+        "description": "The command atomically advances the aggregate version, retains immutable raw text, appends a correction record, runs synchronous reprocessing, and commits one ordered outbox batch. A transcript referenced by a PENDING Claude command returns TRANSCRIPT_PROCESSING_PENDING so correction cannot invalidate the exact durable retry payload.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TranscriptCorrectionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stored correction, corrected segment, aggregate cursor, and emitted event batch",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptCorrectionSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/complete": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "post": {
+        "operationId": "completeInterview",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Finalize an interview idempotently",
+        "description": "Repeated completion with the same clientCommandId and identical payload returns the stored result. COMPLETE enforces every completion gate. FORCE_INCOMPLETE records an intentionally incomplete FINAL snapshot, never creates an evaluation, and requires a non-blank reason. Both modes return PENDING_MESSAGE_COMMAND while any durable answer is awaiting or actively undergoing Claude processing, preventing FINAL from discarding that transcript result.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteInterviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing or newly generated FINAL snapshot and evaluation",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/events": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "get": {
+        "operationId": "streamInterviewEvents",
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Replay and follow the interview event stream",
+        "description": "Returns ordered Server-Sent Events. The SSE id field is the durable numeric sequence. Reconnect with Last-Event-ID to replay events strictly after that sequence. A 409 EVENT_REPLAY_GAP requires a GET /interviews/{id} snapshot resync before reconnecting.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/LastEventId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream. Each data field is one event envelope documented in asyncapi.json.",
+            "headers": {
+              "Cache-Control": {
+                "description": "Streaming responses must not be cached",
+                "schema": {
+                  "type": "string",
+                  "const": "no-cache"
+                }
+              },
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                },
+                "x-eventPayloadSchema": {
+                  "$ref": "#/components/schemas/SseEventEnvelope"
+                },
+                "example": "id: 42\nevent: coverage.changed\ndata: {\"eventId\":\"42\",\"interviewId\":\"interview-id\",\"seq\":42,\"aggregateVersion\":7,\"snapshotType\":\"PREVIEW\",\"occurredAt\":\"2026-08-10T00:00:00.000Z\",\"type\":\"coverage.changed\",\"turnId\":\"turn-id\",\"batchIndex\":1,\"batchSize\":3,\"isBatchFinal\":false,\"snapshotUrl\":\"/api/interviews/interview-id\",\"data\":{\"overallRate\":0.5,\"unresolvedP0\":1}}\n\n"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/ReplayGap"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interview-evaluations": {
+      "get": {
+        "operationId": "listInterviewEvaluations",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "List tenant-scoped completed interview evaluations",
+        "description": "Returns searchable interview data-quality summaries. A-E values are data-quality grades only and never official or inferred credit grades.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "industry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "A",
+                "B",
+                "C",
+                "D",
+                "E",
+                "UNGRADED"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped evaluation summaries and filter facets",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationListSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interview-evaluations/{id}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/EvaluationLookupId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewEvaluation",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get a completed interview evaluation",
+        "description": "The id may identify the evaluation or its interview for backward compatibility. Tenant isolation applies in both cases.",
+        "responses": {
+          "200": {
+            "description": "Deterministic data-sufficiency evaluation",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/consents": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewConsents",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Get the authenticated user's latest interview consent decisions",
+        "description": "Absent, revoked, or expired decisions are effective false. Both feature flags therefore default to false. With require, a missing effective decision returns 403 MICROPHONE_CONSENT_REQUIRED or RAW_AUDIO_STORAGE_CONSENT_REQUIRED; an invalid value returns 400 INVALID_CONSENT_PURPOSE.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ConsentRequirement"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Latest microphone and raw-audio-storage consent decisions",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentStateSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "recordInterviewConsent",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Append an immutable consent grant or revocation decision",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "New immutable consent decision",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentDecisionSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/information-items": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewInformationItems",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Get tenant-scoped canonical information items",
+        "responses": {
+          "200": {
+            "description": "PREVIEW or FINAL information item projection",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InformationItemsSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/live-features": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewLiveFeatures",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Get derived features and the evidence-linked summary",
+        "responses": {
+          "200": {
+            "description": "PREVIEW live or FINAL immutable feature projection",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveFeaturesSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interview-evaluations/{id}/pillars": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/EvaluationLookupId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewEvaluationPillars",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get persisted FINAL evaluation pillar artifacts",
+        "responses": {
+          "200": {
+            "description": "FINAL evaluation pillars",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationPillarsSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interview-evaluations/{id}/goals": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/EvaluationLookupId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewEvaluationGoals",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get persisted FINAL evaluation goal artifacts",
+        "responses": {
+          "200": {
+            "description": "FINAL evaluation goals",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationGoalsSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interview-evaluations/{id}/evidence": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/EvaluationLookupId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewEvaluationEvidence",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get the immutable FINAL evidence manifest for an evaluation",
+        "responses": {
+          "200": {
+            "description": "FINAL evidence manifest",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationEvidenceSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "donghaeng_session",
+        "description": "Opaque local-development session token. Only a SHA-256 digest is persisted by the server. It is not a production identity mechanism; production is fail-closed until an external IdP/session adapter is implemented."
+      }
+    },
+    "headers": {
+      "RequestId": {
+        "description": "Request correlation identifier; identical to meta.requestId in JSON responses",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/RequestId"
+        }
+      }
+    },
+    "parameters": {
+      "InterviewId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Tenant-scoped interview identifier",
+        "schema": {
+          "$ref": "#/components/schemas/Identifier"
+        }
+      },
+      "EvaluationLookupId": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Tenant-scoped evaluation or interview identifier",
+        "schema": {
+          "$ref": "#/components/schemas/Identifier"
+        }
+      },
+      "TranscriptSegmentId": {
+        "name": "segmentId",
+        "in": "path",
+        "required": true,
+        "description": "Tenant-scoped FINAL transcript segment identifier",
+        "schema": {
+          "$ref": "#/components/schemas/Identifier"
+        }
+      },
+      "LastEventId": {
+        "name": "Last-Event-ID",
+        "in": "header",
+        "required": false,
+        "description": "Last fully applied numeric SSE id. The server replays events with a greater sequence.",
+        "schema": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)$",
+          "examples": [
+            "42"
+          ]
+        }
+      },
+      "ConsentRequirement": {
+        "name": "require",
+        "in": "query",
+        "required": false,
+        "description": "Require the selected effective consent before returning state",
+        "schema": {
+          "$ref": "#/components/schemas/ConsentPurpose"
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Malformed JSON, header, or request",
+        "$ref": "#/components/responses/JsonError"
+      },
+      "Unauthorized": {
+        "description": "A valid session is required",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The authenticated principal cannot perform this action",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The tenant-scoped resource was not found",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Version, idempotency-key, lifecycle, or state conflict",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "Syntactically valid request that cannot be applied",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Rate limit exceeded",
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds until retry is allowed",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Unexpected server failure with no sensitive details",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "ReplayGap": {
+        "description": "EVENT_REPLAY_GAP: the requested event is older than the retained stream. Reload the interview snapshot before reconnecting.",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ReplayGapErrorEnvelope"
+            }
+          }
+        }
+      },
+      "JsonError": {
+        "description": "JSON error response",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Identifier": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "RequestId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "Timestamp": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "ApiMeta": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requestId"
+        ],
+        "properties": {
+          "requestId": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "examples": [
+              "VERSION_CONFLICT"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "null"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "ReplayGapErrorEnvelope": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ErrorEnvelope"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "error": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ApiError"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "code": {
+                        "const": "EVENT_REPLAY_GAP"
+                      },
+                      "details": {
+                        "type": "object",
+                        "required": [
+                          "resyncUrl"
+                        ],
+                        "properties": {
+                          "resyncUrl": {
+                            "type": "string"
+                          },
+                          "oldestAvailableEventId": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "platform_fee_pressure"}}
+            },
+            "minContains": 0,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "hall_customer_decline"}}
+            },
+            "minContains": 0,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "repeat_customer_share"}}
+            },
+            "minContains": 0,
+            "maxContains": 1
+          }
+        ]
+      },
+      "BootstrapRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {},
+        "description": "Empty object. The local workspace identity is server-controlled and only available outside production."
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "format": "password",
+            "writeOnly": true
+          }
+        }
+      },
+      "AuthPrincipal": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tenantId",
+          "userId",
+          "email",
+          "displayName"
+        ],
+        "properties": {
+          "tenantId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "BootstrapResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "principal",
+          "expiresAt",
+          "bootstrapMode"
+        ],
+        "properties": {
+          "principal": {
+            "$ref": "#/components/schemas/AuthPrincipal"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "bootstrapMode": {
+            "const": "LOCAL_WORKSPACE"
+          }
+        }
+      },
+      "AuthSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "principal",
+          "expiresAt"
+        ],
+        "properties": {
+          "principal": {
+            "$ref": "#/components/schemas/AuthPrincipal"
+          },
+          "expiresAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "CreateInterviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "industryCode": {
+            "type": "string",
+            "enum": [
+              "RESTAURANT",
+              "CAFE",
+              "OFFLINE_RETAIL",
+              "ONLINE_SHOPPING",
+              "BEAUTY",
+              "ACADEMY",
+              "LODGING",
+              "AUTO_REPAIR",
+              "INTERIOR",
+              "TRANSPORT",
+              "WHOLESALE_SMALL_MANUFACTURING"
+            ],
+            "description": "Server allow-listed SOHO industry profile. Industry-only candidates remain suggested until a parser/evidence policy exists."
+          },
+          "profile": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "borrowerName",
+              "businessName"
+            ],
+            "properties": {
+              "borrowerName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "businessName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            }
+          },
+          "requiredInformationList": {
+            "$ref": "#/components/schemas/RequiredInformationListDevV1"
+          }
+        },
+        "description": "Omit requiredInformationList (send {}) to use the server-owned dev-v1 catalog. industryCode selects one of eleven allow-listed SOHO profiles; catalog-only candidates are not silently promoted into completion requirements. Supply profile for a borrower-created interview; the server never seeds presumed sales, platform, or business facts."
+      },
+      "RequiredInformationItemDevV1": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "infoCode",
+          "label",
+          "category",
+          "priority",
+          "expectedType",
+          "required",
+          "minQuality",
+          "evidencePreference",
+          "dependencies",
+          "status",
+          "question"
+        ],
+        "properties": {
+          "infoCode": {
+            "type": "string",
+            "enum": [
+              "monthly_average_sales",
+              "fixed_operating_costs",
+              "improvement_plan",
+              "execution_readiness",
+              "confirmed_reservations",
+              "seasonality_outlook",
+              "essential_household_expenses",
+              "emergency_buffer_months",
+              "platform_fee_pressure",
+              "hall_customer_decline",
+              "repeat_customer_share"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "$ref": "#/components/schemas/InformationCategory"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/InformationPriority"
+          },
+          "expectedType": {
+            "type": "string",
+            "enum": [
+              "AMOUNT",
+              "RATIO",
+              "INTEGER",
+              "TEXT",
+              "BOOLEAN",
+              "DATE",
+              "DURATION",
+              "RANGE"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "minQuality": {
+            "$ref": "#/components/schemas/InformationQuality"
+          },
+          "evidencePreference": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceKind"
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "monthly_average_sales",
+                "fixed_operating_costs",
+                "improvement_plan",
+                "execution_readiness",
+                "confirmed_reservations",
+                "seasonality_outlook",
+                "essential_household_expenses",
+                "emergency_buffer_months",
+                "platform_fee_pressure",
+                "hall_customer_decline",
+                "repeat_customer_share"
+              ]
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/InformationStatus"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1
+          },
+          "followupQuestion": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "RequiredInformationListDevV1": {
+        "type": "array",
+        "minItems": 8,
+        "maxItems": 11,
+        "uniqueItems": true,
+        "items": {
+          "$ref": "#/components/schemas/RequiredInformationItemDevV1"
+        },
+        "allOf": [
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "monthly_average_sales"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "fixed_operating_costs"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "improvement_plan"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "execution_readiness"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "confirmed_reservations"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "seasonality_outlook"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "essential_household_expenses"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "emergency_buffer_months"}}
+            },
+            "minContains": 1,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "platform_fee_pressure"}}
+            },
+            "minContains": 0,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "hall_customer_decline"}}
+            },
+            "minContains": 0,
+            "maxContains": 1
+          },
+          {
+            "contains": {
+              "type": "object",
+              "required": ["infoCode"],
+              "properties": {"infoCode": {"const": "repeat_customer_share"}}
+            },
+            "minContains": 0,
+            "maxContains": 1
+          }
+        ]
+      },
+      "InformationStatus": {
+        "type": "string",
+        "enum": [
+          "NEEDED",
+          "ASKING",
+          "COLLECTED",
+          "CONFIRMED",
+          "NEEDS_FOLLOWUP",
+          "CONFLICT",
+          "UNAVAILABLE",
+          "REFUSED",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "ValueState": {
+        "type": "string",
+        "enum": [
+          "PRESENT",
+          "MISSING",
+          "UNKNOWN",
+          "REFUSED",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "InformationCategory": {
+        "type": "string",
+        "enum": [
+          "CURRENT_STATE",
+          "IMPROVEMENT_INTENT",
+          "FUTURE_OUTLOOK",
+          "HOUSEHOLD_STATE"
+        ]
+      },
+      "InformationPriority": {
+        "type": "string",
+        "enum": [
+          "P0",
+          "P1",
+          "P2"
+        ]
+      },
+      "InformationQuality": {
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "EvidenceKind": {
+        "type": "string",
+        "enum": [
+          "SELF_REPORTED",
+          "DOCUMENT_SUPPORTED",
+          "TRANSACTION_SUPPORTED",
+          "SYSTEM_DERIVED",
+          "CONFLICTING",
+          "UNKNOWN"
+        ]
+      },
+      "MoneyValue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "amount",
+          "currency",
+          "period"
+        ],
+        "properties": {
+          "amount": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currency": {
+            "const": "KRW"
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "MONTH",
+              "ONE_TIME"
+            ]
+          }
+        }
+      },
+      "RangeValue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "unit"
+        ],
+        "properties": {
+          "min": {
+            "type": "number"
+          },
+          "max": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "min"
+            ]
+          },
+          {
+            "required": [
+              "max"
+            ]
+          }
+        ]
+      },
+      "InformationValue": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/MoneyValue"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "$ref": "#/components/schemas/RangeValue"
+          }
+        ]
+      },
+      "PrefillValue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "source",
+          "observedAt",
+          "evidenceId"
+        ],
+        "properties": {
+          "value": {
+            "$ref": "#/components/schemas/InformationValue"
+          },
+          "source": {
+            "type": "string"
+          },
+          "observedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "evidenceId": {
+            "$ref": "#/components/schemas/Identifier"
+          }
+        }
+      },
+      "InformationItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "infoCode",
+          "label",
+          "category",
+          "priority",
+          "expectedType",
+          "required",
+          "minQuality",
+          "evidencePreference",
+          "dependencies",
+          "status",
+          "question",
+          "valueState",
+          "value",
+          "quality",
+          "extractionConfidence",
+          "verification",
+          "evidenceIds",
+          "prefill",
+          "updatedAt"
+        ],
+        "properties": {
+          "infoCode": {
+            "type": "string",
+            "minLength": 1
+          },
+          "label": {
+            "type": "string"
+          },
+          "category": {
+            "$ref": "#/components/schemas/InformationCategory"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/InformationPriority"
+          },
+          "expectedType": {
+            "type": "string",
+            "enum": [
+              "AMOUNT",
+              "RATIO",
+              "INTEGER",
+              "TEXT",
+              "BOOLEAN",
+              "DATE",
+              "DURATION",
+              "RANGE"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "minQuality": {
+            "$ref": "#/components/schemas/InformationQuality"
+          },
+          "evidencePreference": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceKind"
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/InformationStatus"
+          },
+          "question": {
+            "type": "string"
+          },
+          "followupQuestion": {
+            "type": "string"
+          },
+          "valueState": {
+            "$ref": "#/components/schemas/ValueState"
+          },
+          "value": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InformationValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quality": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InformationQuality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extractionConfidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          },
+          "prefill": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PrefillValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "Borrower": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "BusinessProfile": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "borrowerId",
+          "businessName",
+          "industry"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "borrowerId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "businessName": {
+            "type": "string"
+          },
+          "industry": {
+            "type": "string"
+          }
+        }
+      },
+      "TranscriptSegment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "sequence",
+          "speaker",
+          "text",
+          "confirmation",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "speaker": {
+            "type": "string",
+            "enum": [
+              "ASSISTANT",
+              "BORROWER"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "confirmation": {
+            "const": "FINAL"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "EvidenceRef": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "infoCode",
+          "kind",
+          "source",
+          "transcriptSegmentId",
+          "excerpt",
+          "observedAt",
+          "metadata"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "infoCode": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/EvidenceKind"
+          },
+          "source": {
+            "type": "string"
+          },
+          "transcriptSegmentId": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Identifier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "excerpt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      },
+      "InformationStatusEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "infoCode",
+          "sequence",
+          "eventType",
+          "fromStatus",
+          "toStatus",
+          "accepted",
+          "reason",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "infoCode": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "eventType": {
+            "type": "string",
+            "enum": [
+              "STATUS_CHANGED",
+              "STATUS_CHANGE_REJECTED",
+              "VALUE_CHANGED",
+              "CORRECTION"
+            ]
+          },
+          "fromStatus": {
+            "$ref": "#/components/schemas/InformationStatus"
+          },
+          "toStatus": {
+            "$ref": "#/components/schemas/InformationStatus"
+          },
+          "accepted": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "CategoryCoverage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "total",
+          "resolved",
+          "evaluable",
+          "confirmationRate",
+          "evaluableRate"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evaluable": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "confirmationRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evaluableRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "Coverage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshotType",
+          "totalRequired",
+          "resolvedRequired",
+          "evaluableRequired",
+          "statusConfirmationRate",
+          "evaluableValueRate",
+          "requiredInformationRate",
+          "overallRate",
+          "unresolvedP0",
+          "byCategory"
+        ],
+        "properties": {
+          "snapshotType": {
+            "type": "string",
+            "enum": [
+              "PREVIEW",
+              "FINAL"
+            ]
+          },
+          "totalRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolvedRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evaluableRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "statusConfirmationRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evaluableValueRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "requiredInformationRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "overallRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "unresolvedP0": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "byCategory": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "CURRENT_STATE",
+              "IMPROVEMENT_INTENT",
+              "FUTURE_OUTLOOK",
+              "HOUSEHOLD_STATE"
+            ],
+            "properties": {
+              "CURRENT_STATE": {
+                "$ref": "#/components/schemas/CategoryCoverage"
+              },
+              "IMPROVEMENT_INTENT": {
+                "$ref": "#/components/schemas/CategoryCoverage"
+              },
+              "FUTURE_OUTLOOK": {
+                "$ref": "#/components/schemas/CategoryCoverage"
+              },
+              "HOUSEHOLD_STATE": {
+                "$ref": "#/components/schemas/CategoryCoverage"
+              }
+            }
+          }
+        }
+      },
+      "NextQuestion": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "infoCode",
+          "text",
+          "reason"
+        ],
+        "properties": {
+          "infoCode": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INITIAL",
+              "PRIORITY",
+              "FOLLOWUP",
+              "CONFLICT"
+            ]
+          }
+        }
+      },
+      "InterviewSessionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "lifecycleStatus",
+          "snapshotType",
+          "version",
+          "createdAt",
+          "updatedAt",
+          "completedAt"
+          ,
+          "lastEventSeq"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "lifecycleStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "COMPLETE",
+              "INCOMPLETE"
+            ]
+          },
+          "snapshotType": {
+            "type": "string",
+            "enum": [
+              "PREVIEW",
+              "FINAL"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "updatedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastEventSeq": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Highest durable outbox sequence committed for this interview"
+          }
+        }
+      },
+      "PreviewSnapshot": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "snapshotType",
+          "session",
+          "borrower",
+          "business",
+          "informationItems",
+          "transcript",
+          "evidence",
+          "coverage",
+          "nextQuestion",
+          "pendingCommand"
+        ],
+        "properties": {
+          "snapshotType": {
+            "const": "PREVIEW"
+          },
+          "session": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InterviewSessionSummary"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "snapshotType": {
+                    "const": "PREVIEW"
+                  }
+                }
+              }
+            ]
+          },
+          "borrower": {
+            "$ref": "#/components/schemas/Borrower"
+          },
+          "business": {
+            "$ref": "#/components/schemas/BusinessProfile"
+          },
+          "informationItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InformationItem"
+            }
+          },
+          "transcript": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            }
+          },
+          "coverage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Coverage"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "snapshotType": {
+                    "const": "PREVIEW"
+                  }
+                }
+              }
+            ]
+          },
+          "nextQuestion": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/NextQuestion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pendingCommand": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PendingMessageCommand"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Tenant-authorized, allow-listed descriptor for exactly resuming one durable PENDING answer after reload. Server lease tokens, request hashes, prompts, credentials, and provider bodies are excluded."
+          }
+        }
+      },
+      "FinalSnapshot": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "interviewId",
+          "snapshotType",
+          "version",
+          "finalizedAt",
+          "completionStatus",
+          "borrower",
+          "business",
+          "informationItems",
+          "transcript",
+          "evidenceManifest",
+          "coverage",
+          "transcriptSummary",
+          "session",
+          "evaluationId"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotType": {
+            "const": "FINAL"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "finalizedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "completionStatus": {
+            "type": "string",
+            "enum": [
+              "COMPLETE",
+              "INCOMPLETE"
+            ]
+          },
+          "borrower": {
+            "$ref": "#/components/schemas/Borrower"
+          },
+          "business": {
+            "$ref": "#/components/schemas/BusinessProfile"
+          },
+          "informationItems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InformationItem"
+            }
+          },
+          "transcript": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            }
+          },
+          "evidenceManifest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            }
+          },
+          "coverage": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Coverage"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "snapshotType": {
+                    "const": "FINAL"
+                  }
+                }
+              }
+            ]
+          },
+          "transcriptSummary": {
+            "type": "string"
+          },
+          "session": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/InterviewSessionSummary"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "snapshotType": {
+                    "const": "FINAL"
+                  }
+                }
+              }
+            ]
+          },
+          "evaluationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "description": "Persisted evaluation identifier, or null for FORCE_INCOMPLETE"
+          }
+        }
+      },
+      "InterviewSnapshot": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/PreviewSnapshot"
+          },
+          {
+            "$ref": "#/components/schemas/FinalSnapshot"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "snapshotType",
+          "mapping": {
+            "PREVIEW": "#/components/schemas/PreviewSnapshot",
+            "FINAL": "#/components/schemas/FinalSnapshot"
+          }
+        }
+      },
+      "RealtimeEventType": {
+        "type": "string",
+        "enum": [
+          "transcript.finalized",
+          "info.status_changed",
+          "info.value_changed",
+          "coverage.changed",
+          "feature.preview_updated",
+          "summary.preview_updated",
+          "question.generated",
+          "conflict.detected",
+          "ready_to_complete",
+          "evaluation.ready",
+          "interview.completed",
+          "transcript.corrected"
+        ]
+      },
+      "SseEventEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "eventId",
+          "interviewId",
+          "seq",
+          "aggregateVersion",
+          "snapshotType",
+          "occurredAt",
+          "type",
+          "turnId",
+          "batchIndex",
+          "batchSize",
+          "isBatchFinal",
+          "snapshotUrl",
+          "data"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "eventId": {
+            "type": "string",
+            "pattern": "^(0|[1-9][0-9]*)$"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "aggregateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "snapshotType": {
+            "type": "string",
+            "enum": [
+              "PREVIEW",
+              "FINAL"
+            ]
+          },
+          "occurredAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "type": {
+            "$ref": "#/components/schemas/RealtimeEventType"
+          },
+          "turnId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "batchIndex": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "batchSize": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "isBatchFinal": {
+            "type": "boolean"
+          },
+          "snapshotUrl": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "EvaluationPillar": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "category",
+          "score",
+          "grade",
+          "evaluableItems",
+          "totalRequiredItems",
+          "computedFeatures",
+          "totalRequiredFeatures",
+          "quality",
+          "summary",
+          "featureNames",
+          "evidenceIds"
+        ],
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/InformationCategory"
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "UNGRADED"
+            ]
+          },
+          "evaluableItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalRequiredItems": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "computedFeatures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalRequiredFeatures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "quality": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "properties": {
+              "high": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "medium": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "low": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "summary": {
+            "type": "string"
+          },
+          "featureNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          }
+        }
+      },
+      "EvaluationItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "infoCode",
+          "category",
+          "required",
+          "status",
+          "valueState",
+          "evaluable",
+          "score",
+          "grade",
+          "parserConfidence",
+          "informationQuality",
+          "verification",
+          "source",
+          "asOf",
+          "evidenceIds",
+          "summary"
+        ],
+        "properties": {
+          "infoCode": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "category": {
+            "$ref": "#/components/schemas/InformationCategory"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/InformationStatus"
+          },
+          "valueState": {
+            "$ref": "#/components/schemas/ValueState"
+          },
+          "evaluable": {
+            "type": "boolean"
+          },
+          "score": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Interview data-quality score only; null when the item is ungraded. It is not a credit score."
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "UNGRADED"
+            ],
+            "description": "Interview data-quality grade only; never an official or inferred credit grade."
+          },
+          "parserConfidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "informationQuality": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InformationQuality"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "description": "Distinct evidence sources joined deterministically, or null when no source is available."
+          },
+          "asOf": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "EvaluationListItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "status",
+          "createdAt",
+          "completedAt",
+          "borrowerName",
+          "businessName",
+          "industry",
+          "overallScore",
+          "overallLevel",
+          "overallLevelLabel",
+          "informationRate",
+          "goalCount",
+          "completionStatus",
+          "decisionScope"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "GENERATING",
+              "READY",
+              "FAILED"
+            ]
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "completedAt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Timestamp"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "borrowerName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "businessName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "industry": {
+            "type": "string",
+            "minLength": 1
+          },
+          "overallScore": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Interview data-quality score only; it is not a credit score."
+          },
+          "overallLevel": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "UNGRADED"
+            ],
+            "description": "Interview data-quality grade only; it is not a credit grade."
+          },
+          "overallLevelLabel": {
+            "type": "string",
+            "minLength": 1
+          },
+          "informationRate": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "goalCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completionStatus": {
+            "type": "string",
+            "enum": [
+              "COMPLETE",
+              "INCOMPLETE"
+            ]
+          },
+          "decisionScope": {
+            "const": "INTERVIEW_DATA_QUALITY_ONLY"
+          }
+        }
+      },
+      "EvaluationListResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "facets"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationListItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "facets": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "industries",
+              "levels"
+            ],
+            "properties": {
+              "industries": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              },
+              "levels": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "A",
+                    "B",
+                    "C",
+                    "D",
+                    "E",
+                    "UNGRADED"
+                  ]
+                },
+                "uniqueItems": true
+              }
+            }
+          }
+        }
+      },
+      "InterviewEvaluation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "finalSnapshotId",
+          "snapshotVersion",
+          "createdAt",
+          "policyVersion",
+          "snapshotId",
+          "snapshotStateVersion",
+          "status",
+          "decisionScope",
+          "gradeScope",
+          "approvalDecision",
+          "creditGrade",
+          "qualitySummary",
+          "disclaimer",
+          "overall",
+          "pillars",
+          "items",
+          "failureReasons"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "finalSnapshotId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "policyVersion": {
+            "const": "dev-v1"
+          },
+          "snapshotId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotStateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "NOT_ELIGIBLE",
+              "FAILED"
+            ]
+          },
+          "decisionScope": {
+            "const": "INTERVIEW_DATA_QUALITY_ONLY"
+          },
+          "gradeScope": {
+            "const": "INTERVIEW_DATA_QUALITY_GRADE_DEV_V1"
+          },
+          "approvalDecision": {
+            "type": "null"
+          },
+          "creditGrade": {
+            "type": "null"
+          },
+          "qualitySummary": {
+            "type": "string",
+            "minLength": 1
+          },
+          "disclaimer": {
+            "type": "string",
+            "minLength": 1
+          },
+          "overall": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "score",
+              "grade",
+              "completionStatus"
+            ],
+            "properties": {
+              "score": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "grade": {
+                "type": "string",
+                "enum": [
+                  "A",
+                  "B",
+                  "C",
+                  "D",
+                  "E",
+                  "UNGRADED"
+                ]
+              },
+              "completionStatus": {
+                "type": "string",
+                "enum": [
+                  "COMPLETE",
+                  "INCOMPLETE"
+                ]
+              }
+            }
+          },
+          "pillars": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationPillar"
+            }
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvaluationItem"
+            }
+          },
+          "failureReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "RetentionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "dryRun": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "RetentionCounts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "authSessions",
+          "outboxEvents"
+        ],
+        "properties": {
+          "authSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outboxEvents": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "RetentionRunResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "runId",
+          "dryRun",
+          "cutoff",
+          "candidates",
+          "deleted",
+          "protectedArtifacts"
+        ],
+        "properties": {
+          "runId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "cutoff": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "candidates": {
+            "$ref": "#/components/schemas/RetentionCounts"
+          },
+          "deleted": {
+            "$ref": "#/components/schemas/RetentionCounts"
+          },
+          "protectedArtifacts": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "const": "TRANSCRIPT"
+              },
+              {
+                "const": "EVIDENCE"
+              },
+              {
+                "const": "AUDIT_EVENT"
+              },
+              {
+                "const": "FINAL_SNAPSHOT"
+              }
+            ],
+            "items": false,
+            "minItems": 4,
+            "maxItems": 4
+          }
+        }
+      },
+      "TranscriptCorrectionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientCorrectionId",
+          "expectedVersion",
+          "correctedText",
+          "reason"
+        ],
+        "properties": {
+          "clientCorrectionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Client-generated idempotency key, unique within an interview"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "correctedText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000,
+            "pattern": "\\S"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "TranscriptCorrection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "segmentId",
+          "clientCorrectionId",
+          "actorUserId",
+          "expectedVersion",
+          "resultingVersion",
+          "revision",
+          "rawText",
+          "previousEffectiveText",
+          "correctedText",
+          "reason",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "segmentId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "clientCorrectionId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "actorUserId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "resultingVersion": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rawText": {
+            "type": "string"
+          },
+          "previousEffectiveText": {
+            "type": "string"
+          },
+          "correctedText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "CorrectedTranscriptSegment": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "sequence",
+          "speaker",
+          "confirmation",
+          "startMs",
+          "endMs",
+          "sttConfidence",
+          "sttProvider",
+          "rawText",
+          "correctedText",
+          "text",
+          "revision",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "speaker": {
+            "type": "string",
+            "enum": [
+              "ASSISTANT",
+              "BORROWER"
+            ]
+          },
+          "confirmation": {
+            "const": "FINAL"
+          },
+          "startMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "endMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "sttConfidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "sttProvider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "rawText": {
+            "type": "string"
+          },
+          "correctedText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "TranscriptCorrectionInterviewState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "lifecycleStatus",
+          "version",
+          "lastEventSeq"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "lifecycleStatus": {
+            "const": "ACTIVE"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 2
+          },
+          "lastEventSeq": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "TranscriptCorrectionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "correction",
+          "segment",
+          "interview",
+          "events"
+        ],
+        "properties": {
+          "correction": {
+            "$ref": "#/components/schemas/TranscriptCorrection"
+          },
+          "segment": {
+            "$ref": "#/components/schemas/CorrectedTranscriptSegment"
+          },
+          "interview": {
+            "$ref": "#/components/schemas/TranscriptCorrectionInterviewState"
+          },
+          "events": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 51,
+            "items": {
+              "$ref": "#/components/schemas/SseEventEnvelope"
+            }
+          }
+        }
+      },
+      "ConsentPurpose": {
+        "type": "string",
+        "enum": [
+          "MICROPHONE_INTERVIEW",
+          "RAW_AUDIO_STORAGE",
+          "CLOUD_AI_PROCESSING"
+        ]
+      },
+      "ConsentDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "purpose",
+          "consentVersion",
+          "granted",
+          "expiresAt"
+        ],
+        "properties": {
+          "purpose": {
+            "$ref": "#/components/schemas/ConsentPurpose"
+          },
+          "consentVersion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "\\S"
+          },
+          "granted": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When supplied, must be a canonical future ISO timestamp"
+          }
+        }
+      },
+      "ConsentDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "userId",
+          "purpose",
+          "consentVersion",
+          "granted",
+          "grantedAt",
+          "revokedAt",
+          "expiresAt",
+          "effective"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "userId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "purpose": {
+            "$ref": "#/components/schemas/ConsentPurpose"
+          },
+          "consentVersion": {
+            "type": "string"
+          },
+          "granted": {
+            "type": "boolean"
+          },
+          "grantedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "effective": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ConsentState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interviewId",
+          "decisions",
+          "microphoneEnabled",
+          "rawAudioStorageEnabled",
+          "cloudAiProcessingEnabled"
+        ],
+        "properties": {
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "decisions": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "MICROPHONE_INTERVIEW",
+              "RAW_AUDIO_STORAGE",
+              "CLOUD_AI_PROCESSING"
+            ],
+            "properties": {
+              "MICROPHONE_INTERVIEW": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsentDecision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "RAW_AUDIO_STORAGE": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsentDecision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "CLOUD_AI_PROCESSING": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ConsentDecision"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "microphoneEnabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "rawAudioStorageEnabled": {
+            "type": "boolean",
+            "default": false
+          },
+          "cloudAiProcessingEnabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Whether the current user has an effective versioned decision allowing FINAL transcript and interview-state processing by the configured external Claude provider"
+          }
+        }
+      },
+      "InformationItemsProjection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interviewId",
+          "snapshotType",
+          "version",
+          "informationItems"
+        ],
+        "properties": {
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotType": {
+            "type": "string",
+            "enum": [
+              "PREVIEW",
+              "FINAL"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "informationItems": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Canonical information record for the selected snapshot"
+            }
+          }
+        }
+      },
+      "LiveFeaturesProjection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interviewId",
+          "snapshotType",
+          "version",
+          "features",
+          "summary"
+        ],
+        "properties": {
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotType": {
+            "type": "string",
+            "enum": [
+              "PREVIEW",
+              "FINAL"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "features": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "EvaluationArtifactBase": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evaluationId",
+          "interviewId",
+          "snapshotType",
+          "snapshotVersion"
+        ],
+        "properties": {
+          "evaluationId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotType": {
+            "const": "FINAL"
+          },
+          "snapshotVersion": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "EvaluationPillarsProjection": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EvaluationArtifactBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "pillars"
+            ],
+            "properties": {
+              "pillars": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "EvaluationGoalsProjection": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EvaluationArtifactBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "goals"
+            ],
+            "properties": {
+              "goals": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "EvaluationEvidenceProjection": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EvaluationArtifactBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "evidence"
+            ],
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EvidenceRef"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AddMessageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "clientMessageId",
+          "expectedVersion",
+          "currentQuestionInfoCode"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "clientMessageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Client-generated idempotency key, unique within an interview"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Aggregate version observed before this command"
+          },
+          "currentQuestionInfoCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "description": "Question the borrower is answering; used to reject stale UI submissions"
+          },
+          "transcriptMetadata": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TranscriptMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional timing and STT provenance for a final audio transcript"
+          }
+        }
+      },
+      "TranscriptMetadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "startMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "endMs": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "When both bounds are supplied, endMs must be greater than or equal to startMs"
+          },
+          "sttConfidence": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 1
+          },
+          "sttProvider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "PendingMessageCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "clientMessageId",
+          "expectedVersion",
+          "currentQuestionInfoCode",
+          "transcriptMetadata",
+          "processingState"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "clientMessageId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "currentQuestionInfoCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "transcriptMetadata": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TranscriptMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "processingState": {
+            "type": "string",
+            "enum": [
+              "READY",
+              "PROCESSING"
+            ]
+          }
+        },
+        "description": "Exact safe command fields required for an explicit same-id retry. PROCESSING means a bounded server-side provider lease is active; retrying while active returns a conflict without another provider call."
+      },
+      "CompleteInterviewRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clientCommandId",
+          "expectedVersion",
+          "mode",
+          "borrowerConfirmed",
+          "reason"
+        ],
+        "properties": {
+          "clientCommandId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Client-generated idempotency key, unique within an interview"
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Aggregate version observed before this command"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "COMPLETE",
+              "FORCE_INCOMPLETE"
+            ]
+          },
+          "borrowerConfirmed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Required and non-blank for FORCE_INCOMPLETE; optional context (or null) for COMPLETE"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "mode": {
+                  "const": "FORCE_INCOMPLETE"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            },
+            "then": {
+              "properties": {
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "\\S"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "TurnPlannerMetadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "model",
+          "requestId",
+          "inputTokens",
+          "outputTokens",
+          "stopReason"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 160
+          },
+          "inputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "outputTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "stopReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 80
+          }
+        },
+        "description": "Safe turn-planner telemetry only. Credentials, prompts, transcript text, raw provider errors, and stack traces are never included."
+      },
+      "MessageProcessingResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "stateChanges",
+          "evidenceAdded",
+          "acceptedTranscript",
+          "processing"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/PreviewSnapshot"
+          },
+          "stateChanges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InformationStatusEvent"
+            }
+          },
+          "evidenceAdded": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            }
+          },
+          "acceptedTranscript": {
+            "$ref": "#/components/schemas/TranscriptSegment"
+          },
+          "processing": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "code"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "APPLIED",
+                  "RETRYABLE_FAILURE",
+                  "NON_RETRYABLE_FAILURE"
+                ]
+              },
+              "code": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metadata": {
+                "$ref": "#/components/schemas/TurnPlannerMetadata"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "APPLIED"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "code": {
+                      "type": "null"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "RETRYABLE_FAILURE"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "\\S"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "status": {
+                      "const": "NON_RETRYABLE_FAILURE"
+                    }
+                  },
+                  "required": [
+                    "status"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "code": {
+                      "const": "TURN_PROCESSING_REJECTED"
+                    }
+                  }
+                }
+              }
+            ],
+            "description": "Transcript durability outcome. RETRYABLE_FAILURE is reserved for explicitly retryable provider timeout/network/429/5xx failures, preserves the FINAL transcript and one PENDING stage, releases the bounded processing lease, and writes no receipt. NON_RETRYABLE_FAILURE preserves the transcript but terminalizes the stage as FAILED and receipt-caches the generic safe response at the unchanged aggregate version, so the same id never calls the provider again. Retries are never automatic."
+          }
+        }
+      },
+      "CompletionResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "evaluation",
+          "evaluationEligibility"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/FinalSnapshot"
+          },
+          "evaluation": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InterviewEvaluation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evaluationEligibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eligible",
+              "blockers",
+              "mode",
+              "reason"
+            ],
+            "properties": {
+              "eligible": {
+                "type": "boolean"
+              },
+              "blockers": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "COMPLETE",
+                  "FORCE_INCOMPLETE"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "BootstrapSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/BootstrapResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "SessionSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthSession"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "SignOutSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "signedOut"
+            ],
+            "properties": {
+              "signedOut": {
+                "const": true
+              }
+            }
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "MeSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AuthSession"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "PreviewSnapshotSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PreviewSnapshot"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "InterviewSnapshotSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InterviewSnapshot"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "MessageSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MessageProcessingResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "CompletionSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/CompletionResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationListSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvaluationListResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InterviewEvaluation"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "RetentionSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RetentionRunResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "TranscriptCorrectionSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TranscriptCorrectionResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "ConsentStateSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConsentState"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "ConsentDecisionSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConsentDecision"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "InformationItemsSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InformationItemsProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "LiveFeaturesSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/LiveFeaturesProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationPillarsSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvaluationPillarsProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationGoalsSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvaluationGoalsProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationEvidenceSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvaluationEvidenceProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      }
+    }
+  }
+}

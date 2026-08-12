@@ -1,0 +1,1657 @@
+{
+  "asyncapi": "3.0.0",
+  "info": {
+    "title": "Donghaeng Finance AI Realtime Protocol",
+    "version": "1.0.0",
+    "description": "Durable interview Server-Sent Events plus the authenticated development audio WebSocket protocol. HTTP request/response handshakes and replay errors are defined in openapi.json."
+  },
+  "defaultContentType": "application/json",
+  "servers": {
+    "local": {
+      "host": "localhost:3000",
+      "pathname": "/api",
+      "protocol": "http",
+      "protocolVersion": "1.1",
+      "description": "Local Next.js application"
+    },
+    "localWebSocket": {
+      "host": "localhost:3000",
+      "protocol": "ws",
+      "description": "Same-origin authenticated audio WebSocket endpoint"
+    }
+  },
+  "channels": {
+    "interviewEvents": {
+      "address": "/interviews/{interviewId}/events",
+      "title": "Interview event stream",
+      "description": "A tenant-scoped SSE stream ordered by seq.",
+      "servers": [
+        {
+          "$ref": "#/servers/local"
+        }
+      ],
+      "parameters": {
+        "interviewId": {
+          "$ref": "#/components/parameters/interviewId"
+        }
+      },
+      "messages": {
+        "TranscriptFinalized": {
+          "$ref": "#/components/messages/TranscriptFinalized"
+        },
+        "InfoStatusChanged": {
+          "$ref": "#/components/messages/InfoStatusChanged"
+        },
+        "InfoValueChanged": {
+          "$ref": "#/components/messages/InfoValueChanged"
+        },
+        "CoverageChanged": {
+          "$ref": "#/components/messages/CoverageChanged"
+        },
+        "FeaturePreviewUpdated": {
+          "$ref": "#/components/messages/FeaturePreviewUpdated"
+        },
+        "SummaryPreviewUpdated": {
+          "$ref": "#/components/messages/SummaryPreviewUpdated"
+        },
+        "QuestionGenerated": {
+          "$ref": "#/components/messages/QuestionGenerated"
+        },
+        "ConflictDetected": {
+          "$ref": "#/components/messages/ConflictDetected"
+        },
+        "ReadyToComplete": {
+          "$ref": "#/components/messages/ReadyToComplete"
+        },
+        "EvaluationReady": {
+          "$ref": "#/components/messages/EvaluationReady"
+        },
+        "InterviewCompleted": {
+          "$ref": "#/components/messages/InterviewCompleted"
+        },
+        "TranscriptCorrected": {
+          "$ref": "#/components/messages/TranscriptCorrected"
+        }
+      }
+    },
+    "interviewAudio": {
+      "address": "/ws/interviews/{interviewId}/audio",
+      "title": "Interview audio session",
+      "description": "A same-origin, session-cookie-authenticated WebSocket. Client JSON controls and framed binary audio travel to the server; ACK, VAD, STT, and error JSON messages travel to the client.",
+      "servers": [
+        {
+          "$ref": "#/servers/localWebSocket"
+        }
+      ],
+      "parameters": {
+        "interviewId": {
+          "$ref": "#/components/parameters/interviewId"
+        }
+      },
+      "messages": {
+        "AudioControl": {
+          "$ref": "#/components/messages/AudioControl"
+        },
+        "AudioChunk": {
+          "$ref": "#/components/messages/AudioChunk"
+        },
+        "AudioAck": {
+          "$ref": "#/components/messages/AudioAck"
+        },
+        "VadSpeechStarted": {
+          "$ref": "#/components/messages/VadSpeechStarted"
+        },
+        "VadSpeechStopped": {
+          "$ref": "#/components/messages/VadSpeechStopped"
+        },
+        "SttPartial": {
+          "$ref": "#/components/messages/SttPartial"
+        },
+        "SttFinal": {
+          "$ref": "#/components/messages/SttFinal"
+        },
+        "AudioError": {
+          "$ref": "#/components/messages/AudioError"
+        }
+      }
+    }
+  },
+  "operations": {
+    "receiveInterviewEvents": {
+      "action": "receive",
+      "title": "Receive interview events",
+      "summary": "Replay retained events and follow newly committed events",
+      "description": "The consumer applies events in seq order and stores the last fully applied seq as Last-Event-ID. A reconnect sends that HTTP header; the server replays only greater seq values. If the requested sequence predates retention, the HTTP handshake returns 409 EVENT_REPLAY_GAP and the consumer reloads snapshotUrl before reconnecting.",
+      "channel": {
+        "$ref": "#/channels/interviewEvents"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/interviewEvents/messages/TranscriptFinalized"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/InfoStatusChanged"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/InfoValueChanged"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/CoverageChanged"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/FeaturePreviewUpdated"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/SummaryPreviewUpdated"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/QuestionGenerated"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/ConflictDetected"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/ReadyToComplete"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/EvaluationReady"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/InterviewCompleted"
+        },
+        {
+          "$ref": "#/channels/interviewEvents/messages/TranscriptCorrected"
+        }
+      ],
+      "bindings": {
+        "http": {
+          "type": "request",
+          "method": "GET"
+        }
+      },
+      "security": [
+        {
+          "sessionCookie": []
+        }
+      ],
+      "x-sse": {
+        "contentType": "text/event-stream",
+        "eventNameProperty": "type",
+        "eventIdProperty": "seq",
+        "dataProperty": "$message.payload",
+        "orderingProperty": "seq",
+        "resumeRequestHeader": "Last-Event-ID",
+        "resumeSemantics": "exclusive",
+        "heartbeatComment": "heartbeat",
+        "replayGapStatus": 409,
+        "replayGapErrorCode": "EVENT_REPLAY_GAP"
+      }
+    },
+    "sendAudioControl": {
+      "action": "send",
+      "title": "Send an audio control message",
+      "channel": {
+        "$ref": "#/channels/interviewAudio"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/interviewAudio/messages/AudioControl"
+        }
+      ],
+      "security": [
+        {
+          "sessionCookie": []
+        }
+      ]
+    },
+    "sendAudioChunk": {
+      "action": "send",
+      "title": "Send one framed binary audio chunk",
+      "channel": {
+        "$ref": "#/channels/interviewAudio"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/interviewAudio/messages/AudioChunk"
+        }
+      ],
+      "security": [
+        {
+          "sessionCookie": []
+        }
+      ]
+    },
+    "receiveAudioServerMessages": {
+      "action": "receive",
+      "title": "Receive audio ACK, VAD, STT, and error messages",
+      "channel": {
+        "$ref": "#/channels/interviewAudio"
+      },
+      "messages": [
+        {
+          "$ref": "#/channels/interviewAudio/messages/AudioAck"
+        },
+        {
+          "$ref": "#/channels/interviewAudio/messages/VadSpeechStarted"
+        },
+        {
+          "$ref": "#/channels/interviewAudio/messages/VadSpeechStopped"
+        },
+        {
+          "$ref": "#/channels/interviewAudio/messages/SttPartial"
+        },
+        {
+          "$ref": "#/channels/interviewAudio/messages/SttFinal"
+        },
+        {
+          "$ref": "#/channels/interviewAudio/messages/AudioError"
+        }
+      ],
+      "security": [
+        {
+          "sessionCookie": []
+        }
+      ],
+      "x-runtime-limits": {
+        "maxBinaryPayloadBytes": 2097152,
+        "maxMessagesPerMinute": 400,
+        "idleTimeoutMs": 60000,
+        "resumeRetentionMs": {
+          "active": 30000,
+          "finalized": 120000
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "httpApiKey",
+        "in": "cookie",
+        "name": "donghaeng_session",
+        "description": "Opaque same-origin session cookie"
+      }
+    },
+    "parameters": {
+      "interviewId": {
+        "description": "Tenant-scoped interview identifier",
+        "x-schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "correlationIds": {
+      "eventId": {
+        "description": "Durable outbox event identifier. SSE resume uses the separate monotonic seq value as the wire id field.",
+        "location": "$message.payload#/eventId"
+      }
+    },
+    "messages": {
+      "TranscriptFinalized": {
+        "name": "transcript.finalized",
+        "title": "Transcript finalized",
+        "summary": "A FINAL borrower transcript was durably stored before turn processing",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/TranscriptFinalizedEvent"
+        }
+      },
+      "InfoStatusChanged": {
+        "name": "info.status_changed",
+        "title": "Information status changed",
+        "summary": "An information item moved between workflow states",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/InfoStatusChangedEvent"
+        }
+      },
+      "InfoValueChanged": {
+        "name": "info.value_changed",
+        "title": "Information value changed",
+        "summary": "A value, quality, or evidence reference changed",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/InfoValueChangedEvent"
+        }
+      },
+      "CoverageChanged": {
+        "name": "coverage.changed",
+        "title": "Coverage changed",
+        "summary": "Interview completeness metrics changed",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/CoverageChangedEvent"
+        }
+      },
+      "FeaturePreviewUpdated": {
+        "name": "feature.preview_updated",
+        "title": "Feature preview updated",
+        "summary": "The derived PREVIEW feature set was recalculated",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/FeaturePreviewUpdatedEvent"
+        }
+      },
+      "SummaryPreviewUpdated": {
+        "name": "summary.preview_updated",
+        "title": "Summary preview updated",
+        "summary": "The evidence-linked PREVIEW summary was recalculated",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/SummaryPreviewUpdatedEvent"
+        }
+      },
+      "QuestionGenerated": {
+        "name": "question.generated",
+        "title": "Question generated",
+        "summary": "The current next question changed",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/QuestionGeneratedEvent"
+        }
+      },
+      "ConflictDetected": {
+        "name": "conflict.detected",
+        "title": "Conflict detected",
+        "summary": "Contradictory or ambiguous evidence requires follow-up",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/ConflictDetectedEvent"
+        }
+      },
+      "ReadyToComplete": {
+        "name": "ready_to_complete",
+        "title": "Ready to complete",
+        "summary": "All completion gates are satisfied",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/ReadyToCompleteEvent"
+        }
+      },
+      "EvaluationReady": {
+        "name": "evaluation.ready",
+        "title": "Evaluation ready",
+        "summary": "A FINAL-snapshot-only interview data-quality evaluation was committed",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/EvaluationReadyEvent"
+        }
+      },
+      "InterviewCompleted": {
+        "name": "interview.completed",
+        "title": "Interview completed",
+        "summary": "An immutable FINAL snapshot and evaluation were committed",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/InterviewCompletedEvent"
+        }
+      },
+      "TranscriptCorrected": {
+        "name": "transcript.corrected",
+        "title": "Transcript corrected",
+        "summary": "An append-only borrower transcript correction was committed",
+        "contentType": "application/json",
+        "correlationId": {
+          "$ref": "#/components/correlationIds/eventId"
+        },
+        "payload": {
+          "$ref": "#/components/schemas/TranscriptCorrectedEvent"
+        }
+      },
+      "AudioControl": {
+        "name": "audio.control",
+        "title": "Audio control",
+        "summary": "Start, pause, resume, finish a turn, or stop an audio session",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/AudioControlMessage"
+        },
+        "x-message-types": [
+          "audio.start",
+          "audio.pause",
+          "audio.resume",
+          "audio.end_turn",
+          "audio.stop"
+        ]
+      },
+      "AudioChunk": {
+        "name": "audio.chunk",
+        "title": "Framed binary audio chunk",
+        "summary": "Four-byte big-endian header length, UTF-8 JSON header, then non-empty encoded audio bytes",
+        "contentType": "application/octet-stream",
+        "payload": {
+          "$ref": "#/components/schemas/AudioBinaryFrame"
+        },
+        "x-binary-frame": {
+          "headerLength": "uint32-big-endian",
+          "headerEncoding": "utf-8-json",
+          "headerSchema": {
+            "$ref": "#/components/schemas/AudioChunkHeader"
+          },
+          "audioBytes": "all remaining non-empty bytes"
+        }
+      },
+      "AudioAck": {
+        "name": "audio.ack",
+        "title": "Audio acknowledgement",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/AudioAckMessage"
+        }
+      },
+      "VadSpeechStarted": {
+        "name": "vad.speech_started",
+        "title": "Speech started",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/VadSpeechStartedMessage"
+        }
+      },
+      "VadSpeechStopped": {
+        "name": "vad.speech_stopped",
+        "title": "Speech stopped",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/VadSpeechStoppedMessage"
+        }
+      },
+      "SttPartial": {
+        "name": "stt.partial",
+        "title": "Partial speech-to-text transcript",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/SttPartialMessage"
+        }
+      },
+      "SttFinal": {
+        "name": "stt.final",
+        "title": "Final speech-to-text transcript",
+        "summary": "The server persists this transcript through the atomic message command before emitting it",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/SttFinalMessage"
+        }
+      },
+      "AudioError": {
+        "name": "audio.error",
+        "title": "Audio protocol or provider error",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/AudioErrorMessage"
+        }
+      }
+    },
+    "schemas": {
+      "Identifier": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "Timestamp": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "format": "date-time"
+      },
+      "SnapshotType": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "PREVIEW",
+          "FINAL"
+        ]
+      },
+      "InformationStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "NEEDED",
+          "ASKING",
+          "COLLECTED",
+          "CONFIRMED",
+          "NEEDS_FOLLOWUP",
+          "CONFLICT",
+          "UNAVAILABLE",
+          "REFUSED",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "ValueState": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "PRESENT",
+          "MISSING",
+          "UNKNOWN",
+          "REFUSED",
+          "NOT_APPLICABLE"
+        ]
+      },
+      "InformationQuality": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "LOW",
+          "MEDIUM",
+          "HIGH"
+        ]
+      },
+      "EventType": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "transcript.finalized",
+          "info.status_changed",
+          "info.value_changed",
+          "coverage.changed",
+          "feature.preview_updated",
+          "summary.preview_updated",
+          "question.generated",
+          "conflict.detected",
+          "ready_to_complete",
+          "evaluation.ready",
+          "interview.completed",
+          "transcript.corrected"
+        ]
+      },
+      "RealtimeEventBase": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "eventId",
+          "interviewId",
+          "seq",
+          "aggregateVersion",
+          "snapshotType",
+          "occurredAt",
+          "type",
+          "turnId",
+          "batchIndex",
+          "batchSize",
+          "isBatchFinal",
+          "snapshotUrl",
+          "data"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "eventId": {
+            "$ref": "#/components/schemas/Identifier",
+            "description": "Durable outbox identifier; distinct from the monotonic seq written to the SSE id field"
+          },
+          "interviewId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "seq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "aggregateVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "snapshotType": {
+            "$ref": "#/components/schemas/SnapshotType"
+          },
+          "occurredAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EventType"
+          },
+          "turnId": {
+            "$ref": "#/components/schemas/Identifier",
+            "description": "Command/turn that atomically produced this event batch"
+          },
+          "batchIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Zero-based position in the committed turn batch"
+          },
+          "batchSize": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "isBatchFinal": {
+            "type": "boolean",
+            "description": "True exactly when batchIndex equals batchSize minus one"
+          },
+          "snapshotUrl": {
+            "type": "string",
+            "format": "uri-reference",
+            "description": "Authoritative PREVIEW or FINAL snapshot resync URL"
+          },
+          "data": {
+            "type": "object"
+          }
+        }
+      },
+      "CoverageSummary": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "totalRequired",
+          "resolvedRequired",
+          "evaluableRequired",
+          "statusConfirmationRate",
+          "evaluableValueRate",
+          "overallRate",
+          "unresolvedP0"
+        ],
+        "properties": {
+          "totalRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolvedRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evaluableRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "statusConfirmationRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "evaluableValueRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "overallRate": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "unresolvedP0": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "NextQuestion": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "infoCode",
+          "text",
+          "reason"
+        ],
+        "properties": {
+          "infoCode": {
+            "type": "string",
+            "minLength": 1
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "INITIAL",
+              "PRIORITY",
+              "FOLLOWUP",
+              "CONFLICT"
+            ]
+          }
+        }
+      },
+      "InfoStatusChangedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "change",
+          "item"
+        ],
+        "properties": {
+          "change": {
+            "type": "object",
+            "description": "Persisted InformationStatusEvent; eventType is STATUS_CHANGED or STATUS_CHANGE_REJECTED"
+          },
+          "item": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "TurnPlannerMetadata": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider",
+          "model",
+          "requestId",
+          "inputTokens",
+          "outputTokens",
+          "stopReason"
+        ],
+        "properties": {
+          "provider": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "model": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "requestId": { "type": ["string", "null"], "maxLength": 160 },
+          "inputTokens": { "type": ["integer", "null"], "minimum": 0 },
+          "outputTokens": { "type": ["integer", "null"], "minimum": 0 },
+          "stopReason": { "type": ["string", "null"], "maxLength": 80 }
+        },
+        "description": "Safe planner telemetry only; never contains credentials, prompts, transcript text, raw errors, or stack traces."
+      },
+      "TranscriptFinalizedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "segment",
+          "processing"
+        ],
+        "properties": {
+          "segment": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "id",
+              "interviewId",
+              "sequence",
+              "speaker",
+              "text",
+              "confirmation",
+              "createdAt"
+            ],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "interviewId": { "type": "string", "minLength": 1 },
+              "sequence": { "type": "integer", "minimum": 1 },
+              "speaker": { "const": "BORROWER" },
+              "text": { "type": "string", "minLength": 1 },
+              "confirmation": { "const": "FINAL" },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          },
+          "processing": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["status", "code"],
+                "properties": {
+                  "status": { "const": "APPLIED" },
+                  "code": { "type": "null" },
+                  "metadata": { "$ref": "#/components/schemas/TurnPlannerMetadata" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["status", "code"],
+                "properties": {
+                  "status": { "const": "RETRYABLE_FAILURE" },
+                  "code": { "type": "string", "minLength": 1 },
+                  "metadata": { "$ref": "#/components/schemas/TurnPlannerMetadata" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["status", "code"],
+                "properties": {
+                  "status": { "const": "NON_RETRYABLE_FAILURE" },
+                  "code": { "const": "TURN_PROCESSING_REJECTED" },
+                  "metadata": { "$ref": "#/components/schemas/TurnPlannerMetadata" }
+                }
+              }
+            ],
+            "description": "RETRYABLE_FAILURE is an attempt event for a durable FINAL transcript; its one PENDING stage is resumable and has no receipt. NON_RETRYABLE_FAILURE terminalizes the stage and receipt-caches a safe generic result so the same command never calls the provider again."
+          }
+        }
+      },
+      "InfoValueChangedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "change",
+          "item"
+        ],
+        "properties": {
+          "change": {
+            "type": "object",
+            "description": "Persisted InformationStatusEvent with eventType VALUE_CHANGED"
+          },
+          "item": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "CoverageChangedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "coverage"
+        ],
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageSummary"
+          }
+        }
+      },
+      "FeaturePreviewUpdatedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "features"
+        ],
+        "properties": {
+          "features": {
+            "type": "object",
+            "description": "Derived LiveFeatureSet with snapshotType PREVIEW"
+          }
+        }
+      },
+      "SummaryPreviewUpdatedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "summary"
+        ],
+        "properties": {
+          "summary": {
+            "type": "object",
+            "description": "Evidence-linked summary with snapshotType PREVIEW"
+          }
+        }
+      },
+      "QuestionGeneratedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question"
+        ],
+        "properties": {
+          "question": {
+            "$ref": "#/components/schemas/NextQuestion"
+          }
+        }
+      },
+      "ConflictDetectedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "infoCode",
+          "item"
+        ],
+        "properties": {
+          "infoCode": {
+            "type": "string",
+            "minLength": 1
+          },
+          "item": {
+            "type": "object"
+          }
+        }
+      },
+      "ReadyToCompleteData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "coverage"
+        ],
+        "properties": {
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageSummary"
+          }
+        }
+      },
+      "EvaluationReadyData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "evaluationId",
+          "finalSnapshotId",
+          "snapshotVersion",
+          "decisionScope"
+        ],
+        "properties": {
+          "evaluationId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "finalSnapshotId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "snapshotVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "decisionScope": {
+            "const": "INTERVIEW_DATA_QUALITY_ONLY"
+          }
+        }
+      },
+      "InterviewCompletedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "finalSnapshotId",
+          "evaluationId",
+          "completionStatus",
+          "evaluationEligible"
+        ],
+        "properties": {
+          "finalSnapshotId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "evaluationId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "description": "Persisted evaluation identifier, or null for FORCE_INCOMPLETE"
+          },
+          "completionStatus": {
+            "type": "string",
+            "enum": [
+              "COMPLETE",
+              "INCOMPLETE"
+            ]
+          },
+          "evaluationEligible": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TranscriptCorrectedData": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "correctionId",
+          "segmentId",
+          "revision",
+          "rawText",
+          "previousEffectiveText",
+          "correctedText",
+          "reason"
+        ],
+        "properties": {
+          "correctionId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "segmentId": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "rawText": {
+            "type": "string"
+          },
+          "previousEffectiveText": {
+            "type": "string"
+          },
+          "correctedText": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 5000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "InfoStatusChangedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "info.status_changed"
+              },
+              "data": {
+                "$ref": "#/components/schemas/InfoStatusChangedData"
+              }
+            }
+          }
+        ]
+      },
+      "TranscriptFinalizedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "transcript.finalized"
+              },
+              "snapshotType": {
+                "const": "PREVIEW"
+              },
+              "data": {
+                "$ref": "#/components/schemas/TranscriptFinalizedData"
+              }
+            }
+          }
+        ]
+      },
+      "InfoValueChangedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "info.value_changed"
+              },
+              "data": {
+                "$ref": "#/components/schemas/InfoValueChangedData"
+              }
+            }
+          }
+        ]
+      },
+      "CoverageChangedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "coverage.changed"
+              },
+              "data": {
+                "$ref": "#/components/schemas/CoverageChangedData"
+              }
+            }
+          }
+        ]
+      },
+      "FeaturePreviewUpdatedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "feature.preview_updated"
+              },
+              "snapshotType": {
+                "const": "PREVIEW"
+              },
+              "data": {
+                "$ref": "#/components/schemas/FeaturePreviewUpdatedData"
+              }
+            }
+          }
+        ]
+      },
+      "SummaryPreviewUpdatedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "summary.preview_updated"
+              },
+              "snapshotType": {
+                "const": "PREVIEW"
+              },
+              "data": {
+                "$ref": "#/components/schemas/SummaryPreviewUpdatedData"
+              }
+            }
+          }
+        ]
+      },
+      "QuestionGeneratedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "question.generated"
+              },
+              "data": {
+                "$ref": "#/components/schemas/QuestionGeneratedData"
+              }
+            }
+          }
+        ]
+      },
+      "ConflictDetectedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "conflict.detected"
+              },
+              "data": {
+                "$ref": "#/components/schemas/ConflictDetectedData"
+              }
+            }
+          }
+        ]
+      },
+      "ReadyToCompleteEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "ready_to_complete"
+              },
+              "data": {
+                "$ref": "#/components/schemas/ReadyToCompleteData"
+              }
+            }
+          }
+        ]
+      },
+      "EvaluationReadyEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "evaluation.ready"
+              },
+              "snapshotType": {
+                "const": "FINAL"
+              },
+              "data": {
+                "$ref": "#/components/schemas/EvaluationReadyData"
+              }
+            }
+          }
+        ]
+      },
+      "InterviewCompletedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "interview.completed"
+              },
+              "snapshotType": {
+                "const": "FINAL"
+              },
+              "data": {
+                "$ref": "#/components/schemas/InterviewCompletedData"
+              }
+            }
+          }
+        ]
+      },
+      "TranscriptCorrectedEvent": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RealtimeEventBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "data"
+            ],
+            "properties": {
+              "type": {
+                "const": "transcript.corrected"
+              },
+              "snapshotType": {
+                "const": "PREVIEW"
+              },
+              "data": {
+                "$ref": "#/components/schemas/TranscriptCorrectedData"
+              }
+            }
+          }
+        ]
+      },
+      "AudioProtocolVersion": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "const": "dev-v1"
+      },
+      "AudioControlType": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "enum": [
+          "audio.start",
+          "audio.pause",
+          "audio.resume",
+          "audio.end_turn",
+          "audio.stop"
+        ]
+      },
+      "AudioControlMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "correlationId",
+          "audioSessionId",
+          "interviewId"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "$ref": "#/components/schemas/AudioControlType"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "interviewId": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "lastAckedAudioSeq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "type": {
+                  "const": "audio.start"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            },
+            "then": {
+              "required": [
+                "mimeType"
+              ],
+              "properties": {
+                "mimeType": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
+        ]
+      },
+      "AudioChunkHeader": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "audioSeq",
+          "clientMonotonicMs",
+          "mimeType"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "audio.chunk"
+          },
+          "audioSessionId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "audioSeq": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "clientMonotonicMs": {
+            "type": "number"
+          },
+          "mimeType": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "AudioBinaryFrame": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "string",
+        "format": "binary",
+        "contentMediaType": "application/octet-stream",
+        "description": "Raw WebSocket binary payload: uint32 big-endian JSON-header byte length, header bytes matching AudioChunkHeader, then one or more encoded audio bytes"
+      },
+      "AudioAckMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "lastAudioSeq"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "audio.ack"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "lastAudioSeq": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "VadSpeechStartedMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "serverTime"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "vad.speech_started"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "serverTime": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "VadSpeechStoppedMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "serverTime"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "vad.speech_stopped"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "serverTime": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "SttPartialMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "text",
+          "provider",
+          "serverTime"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "stt.partial"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "serverTime": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "SttFinalMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "text",
+          "provider",
+          "serverTime"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "stt.final"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "serverTime": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "AudioErrorMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "code",
+          "message",
+          "retryable"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "audio.error"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
