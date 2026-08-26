@@ -27,3 +27,11 @@ __pycache__/
 
 # TypeScript
 *.tsbuildinfo
+
+# external-data: 정형 산출물만 커밋합니다. 원자료는 데이터 저장소(daker_finance_hackathon)에 둡니다.
+# 신용정보원 CreDB/SDB 표본은 금융데이터거래소 계정 인증 후 받는 자료라 재배포 조건이 열려 있지 않습니다.
+/external-data/**/*.csv
+/external-data/**/*.xlsx
+/external-data/**/*.zip
+/external-data/SDBSAMPLE_*/
+/external-data/\[CreDB*/

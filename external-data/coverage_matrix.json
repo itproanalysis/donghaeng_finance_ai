@@ -1,0 +1,1047 @@
+{
+  "dataset_id": "coverage_matrix",
+  "version": "1.2.0",
+  "purpose": "peer_benchmark.json 132칸의 상태 대장. 빈 칸의 사유를 남긴다.",
+  "consumer": "donghaeng_finance_ai — ExternalContextFeatureInput",
+  "axes": {
+    "fields": [
+      "ext_peer_sales_growth_3m",
+      "ext_peer_sales_volatility_6m",
+      "ext_peer_marketing_cost_ratio",
+      "ext_peer_fixed_cost_ratio",
+      "ext_peer_repeat_customer_ratio",
+      "ext_sales_growth_gap_peer",
+      "ext_cost_ratio_gap_peer",
+      "ext_foot_traffic_change_3m",
+      "ext_competitor_count_change_6m",
+      "ext_industry_growth_6m",
+      "ext_industry_volatility_12m",
+      "ext_industry_seasonality"
+    ],
+    "industries": [
+      "RESTAURANT",
+      "CAFE",
+      "OFFLINE_RETAIL",
+      "ONLINE_SHOPPING",
+      "BEAUTY",
+      "ACADEMY",
+      "LODGING",
+      "AUTO_REPAIR",
+      "INTERIOR",
+      "TRANSPORT",
+      "WHOLESALE_SMALL_MANUFACTURING"
+    ]
+  },
+  "status_legend": {
+    "filled": "이미 값이 들어가 있다",
+    "ready": "원천 확보 완료. 산출 스크립트만 쓰면 된다",
+    "pending_source": "원천은 특정됐으나 아직 못 받았다",
+    "blocked": "원천은 있으나 조건이 안 갖춰져 산출 불가",
+    "missing": "쓸 만한 원천을 아직 찾지 못했다",
+    "not_applicable": "이 칸에 값이 있으면 안 된다"
+  },
+  "totals": {
+    "cells": 132,
+    "filled": 45,
+    "missing": 54,
+    "not_applicable": 24,
+    "blocked": 9
+  },
+  "source_axis": {
+    "kosis_service_survey": {
+      "table_id": "DT_1KC2020",
+      "table_name": "산업별 서비스업생산지수(2020=100.0)",
+      "measured_on": "2026-08-26",
+      "classification_count": 268,
+      "period": "월 2000.01~2026.06",
+      "items": {
+        "T1": "경상지수",
+        "T2": "불변지수",
+        "T3": "계절조정지수"
+      },
+      "principles": [
+        "정확히 대응하면 사용",
+        "일부만 대응하면 범위를 명시",
+        "겹치면 임의 가중치로 분리하지 않음",
+        "대응이 없으면 빈칸으로 남김"
+      ],
+      "mapped": {
+        "RESTAURANT": {
+          "code": "I561",
+          "name": "음식점업",
+          "scope_note": null
+        },
+        "CAFE": {
+          "code": "I5622",
+          "name": "커피 등 비알코올 음료점업",
+          "scope_note": null
+        },
+        "LODGING": {
+          "code": "I551",
+          "name": "일반 및 생활 숙박시설 운영업",
+          "scope_note": null
+        },
+        "BEAUTY": {
+          "code": "S9611",
+          "name": "미용 관련 서비스업 및 마사지업",
+          "scope_note": "상위 S961은 욕탕업을 포함하므로 쓰지 않는다"
+        },
+        "ACADEMY": {
+          "code": "P8550",
+          "name": "일반 교습학원",
+          "scope_note": null
+        },
+        "AUTO_REPAIR": {
+          "code": "S9521",
+          "name": "자동차 수리업",
+          "scope_note": null
+        },
+        "ONLINE_SHOPPING": {
+          "code": "G4791",
+          "name": "통신 판매업",
+          "scope_note": null
+        },
+        "TRANSPORT": {
+          "code": "H493",
+          "name": "도로 화물 운송업",
+          "scope_note": "앱 카탈로그의 TRANSPORT는 aliases=[화물운송, 용달], 인터뷰 항목이 '운행 건수'(DISPATCH_LOG)로 화물 중심이다. 상위 H49는 철도·육상여객을 포함해 정의가 넓어지고, H493+H494(소화물)를 합치려면 원천에 없는 가중치가 필요하므로 발표된 단일 지수 H493만 쓴다. 택배(H494)는 범위 밖."
+        },
+        "WHOLESALE_SMALL_MANUFACTURING": {
+          "code": "G46",
+          "name": "도매 및 상품 중개업",
+          "scope_note": "도매만 사용한다. 제조(C)는 서비스업동향조사 범위 밖이라 이 업종의 벤치마크는 '도소매·소규모제조' 전체가 아니라 도매 부분만 대표한다. 상권정보 기반 industry_mapping.json은 같은 업종에 제조 KSIC를 포함하므로 두 산출물의 범위가 다르다."
+        }
+      },
+      "unmapped": {
+        "INTERIOR": "서비스업동향조사 범위 밖. 268개 분류의 대분류를 실측하니 E·G·H·I·J·K·L·M·N·P·Q·R·S·T뿐이고 건설(F)이 아예 없다. M7211 '건축 및 조경 설계 서비스업'이 있으나 설계업이지 인테리어 시공이 아니라 대체가 안 된다. 광공업동향조사/건설경기동향조사 등 별도 원천 필요.",
+        "OFFLINE_RETAIL": "분류가 겹쳐서 제외한다(원칙 ③). G47 '소매업; 자동차 제외' 안에 G479 무점포 소매업이 있고 ONLINE_SHOPPING으로 쓰는 G4791 통신 판매업이 바로 그 하위다. G47을 그대로 쓰면 오프라인 벤치마크에 온라인이 섞이고, G47에서 G4791을 빼려면 지수 가중치가 필요한데 그 가중치는 원천에 공표되지 않는다. 하위 오프라인 분류를 골라 합성하면 우리가 만든 가중치가 값에 들어간다. 오프라인 세부 업종별 공식 지수나 가중치가 공표되면 다시 검토한다."
+      },
+      "no_seasonal_adjustment": [
+        "ACADEMY",
+        "AUTO_REPAIR",
+        "BEAUTY",
+        "CAFE",
+        "ONLINE_SHOPPING"
+      ]
+    }
+  },
+  "field_spec": [
+    {
+      "field": "ext_peer_sales_growth_3m",
+      "정의": "동종업종 최근 3개월 매출 증가율. 소수(0~1 계열, 음수 가능).",
+      "원천": "통계청 서비스업동향조사 — 산업별 서비스업생산지수 DT_1KC2020, T2 불변지수(월). 업종별 분류코드는 KOSIS_AXIS 참조",
+      "산식": "계절조정 지수 idx[t] / idx[t-3] - 1",
+      "default": "filled"
+    },
+    {
+      "field": "ext_peer_sales_volatility_6m",
+      "정의": "동종업종 최근 6개월 매출 변동성. 월별 증감률의 표준편차.",
+      "원천": "통계청 서비스업동향조사 — 산업별 서비스업생산지수 DT_1KC2020, T2 불변지수(월). 업종별 분류코드는 KOSIS_AXIS 참조",
+      "산식": "계절조정 지수의 최근 6개월 전월대비 증감률 표준편차",
+      "default": "filled"
+    },
+    {
+      "field": "ext_peer_marketing_cost_ratio",
+      "정의": "동종업종 매출 대비 마케팅비 비중. 0~1.",
+      "원천": "미정",
+      "산식": "—",
+      "default": "missing",
+      "missing_reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "field": "ext_peer_fixed_cost_ratio",
+      "정의": "동종업종 매출 대비 고정비 비중. 0~1.",
+      "원천": "미정. 국세통계 업종별 손익계산서가 후보",
+      "산식": "—",
+      "default": "missing",
+      "missing_reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "field": "ext_peer_repeat_customer_ratio",
+      "정의": "동종업종 재방문 고객 비율. 0~1.",
+      "원천": "미정",
+      "산식": "—",
+      "default": "missing",
+      "missing_reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "field": "ext_sales_growth_gap_peer",
+      "정의": "차주 매출 증가율 − 동종업종 평균. 런타임 계산값.",
+      "원천": "—",
+      "산식": "앱이 차주 값과 벤치마크로 계산",
+      "default": "not_applicable",
+      "na_reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "field": "ext_cost_ratio_gap_peer",
+      "정의": "차주 비용비율 − 동종업종 평균. 런타임 계산값.",
+      "원천": "—",
+      "산식": "앱이 차주 값과 벤치마크로 계산",
+      "default": "not_applicable",
+      "na_reason": "위와 동일. 항상 null."
+    },
+    {
+      "field": "ext_foot_traffic_change_3m",
+      "정의": "상권 유동인구 3개월 변화율.",
+      "원천": "미정",
+      "산식": "—",
+      "default": "missing",
+      "missing_reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "field": "ext_competitor_count_change_6m",
+      "정의": "동종업종 경쟁 점포수 6개월 변화율.",
+      "원천": "소상공인시장진흥공단 상가(상권)정보 (분기 갱신)",
+      "산식": "(cnt[기준분기] / cnt[6개월 전 분기]) - 1, KSIC→11업종 매핑 적용",
+      "default": "blocked",
+      "blocked_reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "field": "ext_industry_growth_6m",
+      "정의": "업종 전체 6개월 성장률.",
+      "원천": "통계청 서비스업동향조사 — 산업별 서비스업생산지수 DT_1KC2020, T2 불변지수(월). 업종별 분류코드는 KOSIS_AXIS 참조",
+      "산식": "계절조정 지수 idx[t] / idx[t-6] - 1",
+      "default": "filled"
+    },
+    {
+      "field": "ext_industry_volatility_12m",
+      "정의": "업종 전체 12개월 변동성.",
+      "원천": "통계청 서비스업동향조사 — 산업별 서비스업생산지수 DT_1KC2020, T2 불변지수(월). 업종별 분류코드는 KOSIS_AXIS 참조",
+      "산식": "계절조정 지수의 최근 12개월 전월대비 증감률 표준편차",
+      "default": "filled"
+    },
+    {
+      "field": "ext_industry_seasonality",
+      "정의": "업종 계절성 강도. 0~1로 정규화.",
+      "원천": "통계청 서비스업동향조사 — DT_1KC2020, T2 불변지수(월, 60개월)",
+      "산식": "12개 계절요인의 표준편차(진폭)를 0.30으로 나누고 1에서 절단. 상한 0.30은 268개 서비스업 분류 전수의 진폭 분포 p95=0.273에서 잡은 고정 상수",
+      "default": "filled"
+    }
+  ],
+  "rejected_candidates": [
+    {
+      "source": "KREI 외식업체 경영실태조사 2025 원시자료 (n=3,139)",
+      "considered_for": "ext_peer_fixed_cost_ratio",
+      "verdict": "이번 전달에서 제외 (2026-08-26 결정)",
+      "reason": "산출 자체는 완료돼 있었다(RESTAURANT=0.308, CAFE=0.315). 다만 RESTAURANT에 연결한 ALL_FOODSERVICE 코호트에 카페·제과점이 포함돼 CAFE와 배타적이지 않았고, KSIC 매핑에 맞춰 코호트를 다시 자르지 않는 한 두 값이 같은 응답자를 공유한다. 또한 KREI는 외식업 전용 조사라 11업종 중 2개만 닿아 축 전체를 채우지 못한다. 원자료와 분위수 산출물은 데이터 저장소에 그대로 있고 다른 트랙에서 계속 쓴다 — 앱 전달물에서만 뺐다."
+    },
+    {
+      "source": "KREI 원시자료 C2-7 기타비용",
+      "considered_for": "ext_peer_marketing_cost_ratio",
+      "verdict": "사용 안 함",
+      "reason": "광고비가 기타비용에 통합돼 있어 분리 불가. 기타비용을 마케팅비로 쓰면 숫자는 나오지만 의미가 틀린다."
+    },
+    {
+      "source": "KREI 원시자료 B19-1 배달앱 월평균 비용 / B20-1 배달대행 월평균 비용",
+      "considered_for": "ext_peer_marketing_cost_ratio",
+      "verdict": "보류 — 별도 지표로는 산출 가능",
+      "reason": "매출 대비 배달비용 비중은 계산 가능하고 외식업에서 의미가 크다. 다만 '마케팅비'와 정의가 다르므로 이 필드에 넣지 않는다. 앱에 새 필드를 열 수 있다면 그때 제안한다."
+    },
+    {
+      "source": "KREI 원시자료 F1 2024년 대비 현재 매출액 변화",
+      "considered_for": "ext_peer_sales_growth_3m",
+      "verdict": "사용 안 함",
+      "reason": "기간이 12개월이라 3개월 정의와 맞지 않는다. 또한 응답코드와 증감비율 응답수가 어긋난다(코드1 n=1,028 vs 감소비율 n=1,028 / 코드3 n=439 vs 증가비율 n=461). 조사표 PDF로 코드 대응을 확인하기 전에는 쓰지 않는다."
+    },
+    {
+      "source": "상가(상권)정보 상가업소번호 내장 연월",
+      "considered_for": "ext_competitor_count_change_6m",
+      "verdict": "사용 안 함",
+      "reason": "실측 결과 범위가 202201~202406으로 기준월(202606)에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있다. 개업 시점이 아니라 데이터 수집 배치 흔적으로 보인다."
+    }
+  ],
+  "cells": [
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "missing",
+      "reason": "분류가 겹쳐서 제외한다(원칙 ③). G47 '소매업; 자동차 제외' 안에 G479 무점포 소매업이 있고 ONLINE_SHOPPING으로 쓰는 G4791 통신 판매업이 바로 그 하위다. G47을 그대로 쓰면 오프라인 벤치마크에 온라인이 섞이고, G47에서 G4791을 빼려면 지수 가중치가 필요한데 그 가중치는 원천에 공표되지 않는다. 하위 오프라인 분류를 골라 합성하면 우리가 만든 가중치가 값에 들어간다. 오프라인 세부 업종별 공식 지수나 가중치가 공표되면 다시 검토한다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "missing",
+      "reason": "서비스업동향조사 범위 밖. 268개 분류의 대분류를 실측하니 E·G·H·I·J·K·L·M·N·P·Q·R·S·T뿐이고 건설(F)이 아예 없다. M7211 '건축 및 조경 설계 서비스업'이 있으나 설계업이지 인테리어 시공이 아니라 대체가 안 된다. 광공업동향조사/건설경기동향조사 등 별도 원천 필요."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_peer_sales_growth_3m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "missing",
+      "reason": "분류가 겹쳐서 제외한다(원칙 ③). G47 '소매업; 자동차 제외' 안에 G479 무점포 소매업이 있고 ONLINE_SHOPPING으로 쓰는 G4791 통신 판매업이 바로 그 하위다. G47을 그대로 쓰면 오프라인 벤치마크에 온라인이 섞이고, G47에서 G4791을 빼려면 지수 가중치가 필요한데 그 가중치는 원천에 공표되지 않는다. 하위 오프라인 분류를 골라 합성하면 우리가 만든 가중치가 값에 들어간다. 오프라인 세부 업종별 공식 지수나 가중치가 공표되면 다시 검토한다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "missing",
+      "reason": "서비스업동향조사 범위 밖. 268개 분류의 대분류를 실측하니 E·G·H·I·J·K·L·M·N·P·Q·R·S·T뿐이고 건설(F)이 아예 없다. M7211 '건축 및 조경 설계 서비스업'이 있으나 설계업이지 인테리어 시공이 아니라 대체가 안 된다. 광공업동향조사/건설경기동향조사 등 별도 원천 필요."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_peer_sales_volatility_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_peer_marketing_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 원시자료를 실제로 열어 확인한 결과 광고선전비 항목이 없다. 영업비용은 식재료비·고용인인건비·임차료·세금과공과·가족인건비·대표자인건비·기타비용 7개로만 쪼개지고 광고비는 '기타비용'에 묻혀 분리 불가. 비외식 업종도 동일하게 원천 없음. 국세통계 '업종별 손익계산서'가 후보이나 마케팅비 단독 분리가 안 된다."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_peer_fixed_cost_ratio",
+      "status": "missing",
+      "reason": "KREI 외식업체 경영실태조사로 RESTAURANT=0.308·CAFE=0.315를 산출했으나 2026-08-26 이번 전달에서 제외하기로 결정했다. 나머지 9업종은 애초에 KREI 범위 밖(외식업 전용 조사)이었다. 사유는 rejected_candidates 참조."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_peer_repeat_customer_ratio",
+      "status": "missing",
+      "reason": "공개 통계에 업종별 재방문율은 존재하지 않는다. 카드사 가맹점 데이터나 멤버십 데이터가 필요한데 둘 다 공개 원천이 아니다. 이 필드는 벤치마크가 아니라 차주 인터뷰 응답으로 채우는 게 맞을 수 있다."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_sales_growth_gap_peer",
+      "status": "not_applicable",
+      "reason": "차주 본인 값이 있어야 계산되는 런타임 파생 필드. 데이터 레이어가 채우면 차주 값이 오염된다. 항상 null을 유지한다."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_cost_ratio_gap_peer",
+      "status": "not_applicable",
+      "reason": "위와 동일. 항상 null."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_foot_traffic_change_3m",
+      "status": "missing",
+      "reason": "상가(상권)정보에는 유동인구가 없다(점포 위치·업종만 수록). 후보: 서울열린데이터광장 생활이동/유동인구, 통신사 유동인구. 단 이 값은 업종축이 아니라 지역축 지표라, 11업종 매트릭스에 넣는 것 자체가 축이 안 맞는다 — 배선 방식부터 앱과 협의 필요."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_competitor_count_change_6m",
+      "status": "not_applicable",
+      "reason": "상가 데이터에 구조적으로 안 잡히는 업태(무점포/비점포). ONLINE_SHOPPING 833개·TRANSPORT 17개로 모수가 성립하지 않는다"
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_competitor_count_change_6m",
+      "status": "not_applicable",
+      "reason": "상가 데이터에 구조적으로 안 잡히는 업태(무점포/비점포). ONLINE_SHOPPING 833개·TRANSPORT 17개로 모수가 성립하지 않는다"
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_competitor_count_change_6m",
+      "status": "blocked",
+      "reason": "시점이 1개(2026-06-30)뿐이다. 변화율은 시점 2개가 있어야 한다. 공공데이터포털은 최신 분기만 배포하고 과거 분기를 보관하지 않는다. 상가업소번호에 박힌 연월(202201~202406)은 기준월에 못 미치고 전체의 약 10%에서만 파싱되며 특정 월에 몰려 있어 개업 시점 프록시로 쓸 수 없다(실측 확인). 해법: 분기마다 스냅샷을 보관한다. 차기 등록 2026-10-31."
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_industry_growth_6m",
+      "status": "missing",
+      "reason": "분류가 겹쳐서 제외한다(원칙 ③). G47 '소매업; 자동차 제외' 안에 G479 무점포 소매업이 있고 ONLINE_SHOPPING으로 쓰는 G4791 통신 판매업이 바로 그 하위다. G47을 그대로 쓰면 오프라인 벤치마크에 온라인이 섞이고, G47에서 G4791을 빼려면 지수 가중치가 필요한데 그 가중치는 원천에 공표되지 않는다. 하위 오프라인 분류를 골라 합성하면 우리가 만든 가중치가 값에 들어간다. 오프라인 세부 업종별 공식 지수나 가중치가 공표되면 다시 검토한다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_industry_growth_6m",
+      "status": "missing",
+      "reason": "서비스업동향조사 범위 밖. 268개 분류의 대분류를 실측하니 E·G·H·I·J·K·L·M·N·P·Q·R·S·T뿐이고 건설(F)이 아예 없다. M7211 '건축 및 조경 설계 서비스업'이 있으나 설계업이지 인테리어 시공이 아니라 대체가 안 된다. 광공업동향조사/건설경기동향조사 등 별도 원천 필요."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_industry_growth_6m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_industry_volatility_12m",
+      "status": "missing",
+      "reason": "분류가 겹쳐서 제외한다(원칙 ③). G47 '소매업; 자동차 제외' 안에 G479 무점포 소매업이 있고 ONLINE_SHOPPING으로 쓰는 G4791 통신 판매업이 바로 그 하위다. G47을 그대로 쓰면 오프라인 벤치마크에 온라인이 섞이고, G47에서 G4791을 빼려면 지수 가중치가 필요한데 그 가중치는 원천에 공표되지 않는다. 하위 오프라인 분류를 골라 합성하면 우리가 만든 가중치가 값에 들어간다. 오프라인 세부 업종별 공식 지수나 가중치가 공표되면 다시 검토한다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_industry_volatility_12m",
+      "status": "missing",
+      "reason": "서비스업동향조사 범위 밖. 268개 분류의 대분류를 실측하니 E·G·H·I·J·K·L·M·N·P·Q·R·S·T뿐이고 건설(F)이 아예 없다. M7211 '건축 및 조경 설계 서비스업'이 있으나 설계업이지 인테리어 시공이 아니라 대체가 안 된다. 광공업동향조사/건설경기동향조사 등 별도 원천 필요."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_industry_volatility_12m",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "RESTAURANT",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "CAFE",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "산출 완료. 다만 분류 I5622에 KOSIS 계절조정지수(T3)가 없어 자체 추정 계절요인으로 산출했다. T3는 대·중·소분류에만 제공되고 5자리 세세분류 125개 전부에 없다(실측). 산식은 T3가 있는 4개 업종에서 계절요인 상관 0.949~0.985로 검증했으나, 그것은 산식의 타당성 확인이지 이 업종의 계절성을 직접 관측한 것이 아니다."
+    },
+    {
+      "soho_industry_code": "OFFLINE_RETAIL",
+      "field": "ext_industry_seasonality",
+      "status": "missing",
+      "reason": "분류가 겹쳐서 제외한다(원칙 ③). G47 '소매업; 자동차 제외' 안에 G479 무점포 소매업이 있고 ONLINE_SHOPPING으로 쓰는 G4791 통신 판매업이 바로 그 하위다. G47을 그대로 쓰면 오프라인 벤치마크에 온라인이 섞이고, G47에서 G4791을 빼려면 지수 가중치가 필요한데 그 가중치는 원천에 공표되지 않는다. 하위 오프라인 분류를 골라 합성하면 우리가 만든 가중치가 값에 들어간다. 오프라인 세부 업종별 공식 지수나 가중치가 공표되면 다시 검토한다."
+    },
+    {
+      "soho_industry_code": "ONLINE_SHOPPING",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "산출 완료. 다만 분류 G4791에 KOSIS 계절조정지수(T3)가 없어 자체 추정 계절요인으로 산출했다. T3는 대·중·소분류에만 제공되고 5자리 세세분류 125개 전부에 없다(실측). 산식은 T3가 있는 4개 업종에서 계절요인 상관 0.949~0.985로 검증했으나, 그것은 산식의 타당성 확인이지 이 업종의 계절성을 직접 관측한 것이 아니다."
+    },
+    {
+      "soho_industry_code": "BEAUTY",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "산출 완료. 다만 분류 S9611에 KOSIS 계절조정지수(T3)가 없어 자체 추정 계절요인으로 산출했다. T3는 대·중·소분류에만 제공되고 5자리 세세분류 125개 전부에 없다(실측). 산식은 T3가 있는 4개 업종에서 계절요인 상관 0.949~0.985로 검증했으나, 그것은 산식의 타당성 확인이지 이 업종의 계절성을 직접 관측한 것이 아니다."
+    },
+    {
+      "soho_industry_code": "ACADEMY",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "산출 완료. 다만 분류 P8550에 KOSIS 계절조정지수(T3)가 없어 자체 추정 계절요인으로 산출했다. T3는 대·중·소분류에만 제공되고 5자리 세세분류 125개 전부에 없다(실측). 산식은 T3가 있는 4개 업종에서 계절요인 상관 0.949~0.985로 검증했으나, 그것은 산식의 타당성 확인이지 이 업종의 계절성을 직접 관측한 것이 아니다."
+    },
+    {
+      "soho_industry_code": "LODGING",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "AUTO_REPAIR",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "산출 완료. 다만 분류 S9521에 KOSIS 계절조정지수(T3)가 없어 자체 추정 계절요인으로 산출했다. T3는 대·중·소분류에만 제공되고 5자리 세세분류 125개 전부에 없다(실측). 산식은 T3가 있는 4개 업종에서 계절요인 상관 0.949~0.985로 검증했으나, 그것은 산식의 타당성 확인이지 이 업종의 계절성을 직접 관측한 것이 아니다."
+    },
+    {
+      "soho_industry_code": "INTERIOR",
+      "field": "ext_industry_seasonality",
+      "status": "missing",
+      "reason": "서비스업동향조사 범위 밖. 268개 분류의 대분류를 실측하니 E·G·H·I·J·K·L·M·N·P·Q·R·S·T뿐이고 건설(F)이 아예 없다. M7211 '건축 및 조경 설계 서비스업'이 있으나 설계업이지 인테리어 시공이 아니라 대체가 안 된다. 광공업동향조사/건설경기동향조사 등 별도 원천 필요."
+    },
+    {
+      "soho_industry_code": "TRANSPORT",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    },
+    {
+      "soho_industry_code": "WHOLESALE_SMALL_MANUFACTURING",
+      "field": "ext_industry_seasonality",
+      "status": "filled",
+      "reason": "KOSIS DT_1KC2020에서 산출 완료 (기준월 202606)"
+    }
+  ]
+}

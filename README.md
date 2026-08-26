@@ -90,3 +90,6 @@ npm run test:e2e
 - [아키텍처](docs/ARCHITECTURE.md)
 - [실시간·음성 경계](docs/REALTIME_BOUNDARY.md)
 - [운영 전 차단 조건](docs/PRODUCTION_GATES.md)
+- [외부 맥락 데이터 레이어](docs/DATA_EXTERNAL_CONTEXT.md) — `ext_*` 주입물과 계약
+- [업종 매핑과 커버리지](docs/DATA_INDUSTRY_COVERAGE.md) — KSIC → 11업종, 132칸 상태
+- [신용 포지션 축](docs/DATA_CREDIT_POSITION.md) — CreDB 분위수 (배선 미정)
