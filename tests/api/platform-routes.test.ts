@@ -164,7 +164,7 @@ describe("API request and error contracts", () => {
         clientCommandId: "complete-1",
         expectedVersion: 2,
         mode: "FORCE_INCOMPLETE",
-        borrowerConfirmed: false,
+        borrowerConfirmed: true,
         reason: "사용자 중단",
       }),
     );
@@ -177,13 +177,67 @@ describe("API request and error contracts", () => {
       sttProvider: "mock-streaming-stt",
     });
     expect(completion.mode).toBe("FORCE_INCOMPLETE");
+    expect(completion.improvementChoice).toBeNull();
+    await expect(
+      readCompleteCommand(
+        jsonRequest("http://localhost/api/complete", "POST", {
+          clientCommandId: "complete-without-confirmation",
+          expectedVersion: 2,
+          mode: "FORCE_INCOMPLETE",
+          borrowerConfirmed: false,
+          reason: "사용자 중단",
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "BORROWER_CONFIRMATION_REQUIRED" });
+    await expect(
+      readCompleteCommand(
+        jsonRequest("http://localhost/api/complete", "POST", {
+          clientCommandId: "complete-with-choice",
+          expectedVersion: 2,
+          mode: "COMPLETE",
+          borrowerConfirmed: true,
+          reason: null,
+          improvementChoice: {
+            id: "catalog-improvement-action",
+            title: "한 가지 개선 행동 정하기",
+            origin: "CATALOG_SUGGESTION",
+            sourceInfoCodes: ["improvement_plan"],
+            evidenceIds: [],
+          },
+        }),
+      ),
+    ).resolves.toMatchObject({
+      improvementChoice: {
+        id: "catalog-improvement-action",
+        origin: "CATALOG_SUGGESTION",
+      },
+    });
+    await expect(
+      readCompleteCommand(
+        jsonRequest("http://localhost/api/complete", "POST", {
+          clientCommandId: "complete-invalid-choice",
+          expectedVersion: 2,
+          mode: "COMPLETE",
+          borrowerConfirmed: true,
+          reason: null,
+          improvementChoice: {
+            id: "catalog-improvement-action",
+            title: "한 가지 개선 행동 정하기",
+            origin: "CATALOG_SUGGESTION",
+            sourceInfoCodes: ["improvement_plan"],
+            evidenceIds: [],
+            approvalDecision: "APPROVED",
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "INVALID_IMPROVEMENT_CHOICE" });
     await expect(
       readCompleteCommand(
         jsonRequest("http://localhost/api/complete", "POST", {
           clientCommandId: "complete-2",
           expectedVersion: 2,
           mode: "FORCE_INCOMPLETE",
-          borrowerConfirmed: false,
+          borrowerConfirmed: true,
         }),
       ),
     ).rejects.toMatchObject({ code: "COMPLETION_REASON_REQUIRED" });
@@ -628,7 +682,7 @@ describe("authenticated platform route flow", () => {
           clientCommandId: "api-complete-1",
           expectedVersion: firstMessageEnvelope.data.snapshot.session.version,
           mode: "FORCE_INCOMPLETE",
-          borrowerConfirmed: false,
+          borrowerConfirmed: true,
           reason: "API 통합 테스트 중단",
         },
         cookie,

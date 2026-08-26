@@ -11,6 +11,7 @@ import { ClaudeInterviewTurnPlanner } from "./claude-interview-providers";
 export interface ConfiguredInterviewProviderEnvironment
   extends AnthropicRuntimeEnvironment {
   DONGHAENG_ORCHESTRATOR_PROVIDER?: string;
+  DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS?: string;
 }
 
 export interface ConfiguredInterviewProviderOptions
@@ -71,7 +72,14 @@ export function createConfiguredAsyncInterviewTurnPlanner(
   const client = createAnthropicMessagesClientFromEnvironment(environment, {
     fetchImpl: options.fetchImpl,
   });
-  return new ClaudeInterviewTurnPlanner(client);
+  const rawSoftDeadline = environment.DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS?.trim();
+  const softDeadlineMs = rawSoftDeadline ? Number(rawSoftDeadline) : 8_000;
+  if (!Number.isSafeInteger(softDeadlineMs) || softDeadlineMs < 250 || softDeadlineMs > 8_000) {
+    throw configurationError(
+      "DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS must be an integer between 250 and 8000.",
+    );
+  }
+  return new ClaudeInterviewTurnPlanner(client, { softDeadlineMs });
 }
 
 /**

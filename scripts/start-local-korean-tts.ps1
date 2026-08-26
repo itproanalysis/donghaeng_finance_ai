@@ -16,9 +16,9 @@ if (-not (Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue)) {
 $listener = Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue
 if ($listener) { throw "포트 $Port 에 이미 TTS 또는 다른 프로그램이 실행 중입니다." }
 
-$env:DONGHAENG_LOCAL_TTS_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+$env:DONGHAENG_LOCAL_TTS_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
 $env:DONGHAENG_LOCAL_TTS_MODEL_DIR = Join-Path $root "data\local-voice\tts-models"
-$env:DONGHAENG_LOCAL_TTS_MODEL_PATH = Join-Path $env:DONGHAENG_LOCAL_TTS_MODEL_DIR "Qwen3-TTS-12Hz-1.7B-CustomVoice"
+$env:DONGHAENG_LOCAL_TTS_MODEL_PATH = Join-Path $env:DONGHAENG_LOCAL_TTS_MODEL_DIR "Qwen3-TTS-12Hz-0.6B-CustomVoice"
 $env:DONGHAENG_LOCAL_TTS_SPEAKER = "Sohee"
 $env:DONGHAENG_LOCAL_TTS_TOKEN = "local-tts-runtime"
 Write-Host "[동행금융AI] Qwen3-TTS 한국어 AI 음성을 http://127.0.0.1:$Port 에서 시작합니다." -ForegroundColor Cyan

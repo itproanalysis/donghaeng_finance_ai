@@ -16,9 +16,9 @@
 - SQLite transaction 안의 aggregate 변경과 append-only outbox batch
 - FINAL transcript + message stage 원자 저장, 단일 PENDING partial unique/DB lease, transaction 밖 Anthropic 호출, strict tool/domain 재검증 후 CAS 적용; 명시적 retryable 오류만 동일 stage/transcript를 수동 재시도하고 terminal 오류는 FAILED+receipt로 재호출 차단
 - production의 명시적 `anthropic` provider/API key 요구, 공식 HTTPS endpoint 고정, bounded I/O·timeout·안전한 오류·provider/model/token 메타데이터
-- migration 001~013 checksum, FK/CHECK/JSON/단일 PENDING guard, immutable canonical revision/correction/outbox update
+- migration 001~015 checksum, FK/CHECK/JSON/단일 PENDING guard, immutable canonical revision/correction/outbox update, 비구속 개선후보 append-only ledger와 tenant-scoped audio-turn TTL lease
 - correction의 same-transaction canonical/evidence/feature/summary 재파생과 실패 전체 rollback
-- 18개 runtime HTTP path 전체 OpenAPI 대응, 12개 durable SSE type/WS AsyncAPI와 local contract drift test
+- 19개 runtime HTTP path 전체 OpenAPI 대응, 12개 durable SSE type/WS AsyncAPI와 local contract drift test
 - FINAL insert validation, SHA-256 content hash, update/delete DB trigger
 - raw audio 미저장, partial transcript 미영속, FINAL transcript만 저장
 - API 오류의 request ID와 내부 오류 상세 비노출
@@ -52,7 +52,7 @@ custom `server.ts`는 자체 TLS server가 아닙니다. `NODE_ENV=production`�
 - [ ] aggregate CAS, idempotency receipt, transcript/evidence/projection/outbox가 한 DB transaction에 유지되는지 검증한다.
 - [ ] outbox delivery/replay를 durable broker 또는 다중 인스턴스 안전 dispatcher로 전환한다.
 - [ ] audio resume state를 외부 session store로 이동하거나 sticky routing과 명시적 실패 복구 계약을 둔다.
-- [ ] process-local active-turn/final-transcript-pending 완료 gate를 분산 lease/queue와 연결해 다중 인스턴스에서도 조기 FINAL을 막는다.
+- [x] active-turn/final-transcript-pending 완료 gate를 tenant-scoped DB TTL lease와 owner-token CAS cleanup에 연결해 다른 애플리케이션 인스턴스의 COMPLETE/FORCE도 조기 FINAL을 막는다. 운영 RDBMS 전환 후 동일 transaction 격리를 다시 부하 검증해야 한다.
 - [ ] backup/PITR/restore, 장애조치, schema compatibility, connection pool, capacity/load test를 완료한다.
 - [ ] FINAL 불변성과 개인정보 삭제 요구가 충돌할 때 승인된 tombstone/crypto-shredding/법적 보존 절차를 설계한다.
 
@@ -74,7 +74,7 @@ custom `server.ts`는 자체 TLS server가 아닙니다. `NODE_ENV=production`�
 
 ## P0: 실제 Claude 운영 승인
 
-- [ ] `claude-sonnet-5`와 prompt/tool schema를 versioned artifact로 고정하고, model alias 변경·deprecation 때 offline corpus와 shadow/canary 평가를 거치는 변경 승인 절차를 만든다.
+- [ ] 인터뷰 기본 `claude-sonnet-5`, 명시적 지연 비교용 `claude-haiku-4-5-20251001`, prompt/tool schema를 versioned artifact로 고정하고, 모델 변경·deprecation 때 offline corpus와 shadow/canary 평가를 거치는 변경 승인 절차를 만든다.
 - [ ] Anthropic 계약, DPA, 처리 지역·국외이전, 입력/출력 보존과 학습 opt-out, 삭제·사고통지 조건을 개인정보·법무·보안이 승인한다.
 - [ ] provider timeout, 401/402/403/429/5xx, DNS/TLS 장애, quota·예산 소진 시 사용자 복구 UX와 운영 alert/runbook을 검증한다. 자동 재시도는 중복·비용 상한과 idempotency 정책이 승인된 뒤에만 추가한다.
 - [ ] prompt injection, tool contract 이탈, evidence span 조작, 허용되지 않은 info code/상태전이, 과대 응답, Unicode·한국어 숫자 edge case를 red-team하고 서버 validator fail-closed 회귀를 release gate로 둔다.
@@ -95,10 +95,11 @@ custom `server.ts`는 자체 TLS server가 아닙니다. `NODE_ENV=production`�
 - [ ] STT confidence의 의미와 threshold를 공급자별로 정규화하고 낮은 confidence는 확인 질문으로 보낸다.
 - [ ] VAD threshold/endpointing을 실제 발화 자료로 튜닝하고 수동 “답변 끝내기”와 텍스트 fallback을 유지한다.
 - [ ] TTS가 mic에 재입력되지 않도록 playback/mic gating을 브라우저·장치 matrix에서 검증한다.
+- [ ] 정적 canonical 질문은 Qwen3-TTS 1.7B 오프라인 asset으로 사전 생성하고, 미리 만들 수 없는 동적 문장은 0.6B 실시간 fallback으로 분리하는 hybrid 품질·지연 profile을 한국어 음성 fixture와 실제 장치에서 승인한다. model·voice·asset version/cache key와 fallback 관측도 함께 고정한다.
 
 기본 STT는 비활성 상태이며, 준비되지 않았을 때는 어떤 문장도 임의로 전사하지 않습니다. 로컬 실행기는 loopback `faster-whisper`를 OpenAI-compatible adapter에 연결해 실제 음성을 전사합니다. production startup은 `mock`을 거부하고 HTTPS endpoint/key가 있는 승인된 `openai-compatible` provider를 요구하지만, 로컬 모델의 정확도·지연·개인정보 검토를 대신하지 않습니다. 인터뷰 UI에는 현재 선택된 provider 경계를 계속 표시해야 합니다.
 
-Claude Messages API 연결은 텍스트 transcript 처리만 담당하며 STT를 제공하지 않습니다. `Start-Donghaeng-AI-Claude.cmd`는 설치된 loopback `faster-whisper`를 사용하며, 준비되지 않았을 때는 음성 입력을 실패로 알리고 채팅 입력으로 전환합니다.
+Claude Messages API 연결은 텍스트 transcript 처리만 담당하며 STT를 제공하지 않습니다. 로컬 원클릭 실행기는 설치된 loopback `faster-whisper`와 Qwen3-TTS를 모두 health-check한 뒤 화면을 열고, 엔진이 준비되지 않으면 불완전한 음성 인터뷰를 시작하지 않습니다. 운영 배포에서는 별도의 승인된 STT/TTS 가용성·fallback 정책이 필요합니다.
 
 ## P0: Transcript correction 운영정책
 

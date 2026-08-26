@@ -1,9 +1,13 @@
 const ANTHROPIC_MESSAGES_ENDPOINT = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_API_VERSION = "2023-06-01";
+// The interactive interview profile is pinned instead of using a moving alias.
+// Sonnet 5 is the default interview phrasing/selection model. The compact
+// contract and deterministic fallback bound latency without giving the model
+// authority over extracted facts, evidence, or completion state.
 const DEFAULT_MODEL = "claude-sonnet-5";
-const APPROVED_MODELS = new Set([DEFAULT_MODEL]);
+const APPROVED_MODELS = new Set([DEFAULT_MODEL, "claude-haiku-4-5-20251001"]);
 const DEFAULT_TIMEOUT_MS = 20_000;
-const DEFAULT_MAX_TOKENS = 4_096;
+const DEFAULT_MAX_TOKENS = 2_304;
 const MAX_REQUEST_BYTES = 512_000;
 const MAX_RESPONSE_BYTES = 1_000_000;
 
@@ -52,6 +56,11 @@ export interface AnthropicStructuredToolRequest {
   system: string;
   user: unknown;
   tool: AnthropicStructuredTool;
+  /**
+   * A request-local output ceiling. Realtime phrasing calls are intentionally
+   * tiny and should not inherit the much larger rubric/evaluation allowance.
+   */
+  maxTokens?: number;
 }
 
 export interface ClaudeCallMetadata {
@@ -68,6 +77,10 @@ export interface AnthropicStructuredToolResult {
   metadata: ClaudeCallMetadata;
 }
 
+export interface AnthropicCallOptions {
+  signal?: AbortSignal;
+}
+
 export interface AnthropicMessagesClient {
   readonly provider: "anthropic";
   readonly model: string;
@@ -75,6 +88,7 @@ export interface AnthropicMessagesClient {
   readonly maxTokens: number;
   createToolResult(
     request: AnthropicStructuredToolRequest,
+    options?: AnthropicCallOptions,
   ): Promise<AnthropicStructuredToolResult>;
 }
 
@@ -430,6 +444,7 @@ export function createAnthropicMessagesClientFromEnvironment(
     maxTokens,
     async createToolResult(
       request: AnthropicStructuredToolRequest,
+      options: AnthropicCallOptions = {},
     ): Promise<AnthropicStructuredToolResult> {
       validateTool(request.tool);
       if (!request.system.trim() || request.system.length > 32_000) {
@@ -439,12 +454,24 @@ export function createAnthropicMessagesClientFromEnvironment(
           false,
         );
       }
+      const requestMaxTokens = request.maxTokens ?? maxTokens;
+      if (
+        !Number.isSafeInteger(requestMaxTokens) ||
+        requestMaxTokens < 128 ||
+        requestMaxTokens > maxTokens
+      ) {
+        throw new ClaudeProviderError(
+          "CLAUDE_REQUEST_INVALID",
+          "Claude request maxTokens must be between 128 and the configured ceiling.",
+          false,
+        );
+      }
 
       let bodyText: string;
       try {
         bodyText = JSON.stringify({
           model,
-          max_tokens: maxTokens,
+          max_tokens: requestMaxTokens,
           thinking: { type: "disabled" },
           system: request.system,
           messages: [
@@ -501,7 +528,9 @@ export function createAnthropicMessagesClientFromEnvironment(
             "x-api-key": apiKey,
           },
           body: bodyText,
-          signal: controller.signal,
+          signal: options.signal
+            ? AbortSignal.any([controller.signal, options.signal])
+            : controller.signal,
         });
 
         if (!response.ok) {

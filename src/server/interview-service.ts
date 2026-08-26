@@ -3,6 +3,8 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   assessInterviewCompletion,
   assertOrchestratorTurnPlan,
+  BORROWER_SELECTED_IMPROVEMENT_CANDIDATE,
+  buildAllowlistedImprovementCandidates,
   buildEvidenceLinkedSummary,
   buildInterviewFeatureV2,
   buildInterviewDataQualityEvaluationV1,
@@ -17,17 +19,23 @@ import {
   isFeatureV2Enabled,
   findSohoIndustryProfile,
   hasMaterialAmountConflict,
+  improvementPlanCandidateDisplayValue,
+  isAllowlistedImprovementChoice,
   markConflictRevisions,
   parseMonthlyAverageSales,
   planDeterministicInterviewTurn,
+  questionSelectionContextAfterAnswer,
   resolveCanonicalConflict,
   selectCanonicalRevision,
+  selectEligibleNextQuestions,
   selectNextQuestion,
   validateImmutableFinalSnapshotV1,
   validateRequiredInformationCatalog,
   type CompletionResult,
   type CompletionAssessment,
   type BorrowerFinalConfirmation,
+  type BorrowerImprovementChoice,
+  type BorrowerImprovementSelection,
   type Coverage,
   type CanonicalInformationRecord,
   type CanonicalInformationValue,
@@ -55,7 +63,7 @@ import {
 } from "@/domain";
 
 import { ApplicationError } from "./errors";
-import { interviewActivityRegistry } from "./interview-activity-registry";
+import { InterviewActivityRegistry } from "./interview-activity-registry";
 import {
   LOCAL_WORKSPACE_EMAIL,
   LOCAL_WORKSPACE_TENANT_ID,
@@ -178,6 +186,7 @@ export interface CompleteCommand {
   mode: "COMPLETE" | "FORCE_INCOMPLETE";
   borrowerConfirmed: boolean;
   reason: string | null;
+  improvementChoice?: BorrowerImprovementChoice | null;
 }
 
 type LivePlatformSnapshot = LiveInterviewSnapshot & {
@@ -244,6 +253,7 @@ export interface CompleteCommandResult {
     mode: CompleteCommand["mode"];
     reason: string | null;
   };
+  improvementSelection: BorrowerImprovementSelection | null;
 }
 
 export interface EvaluationListQuery {
@@ -397,6 +407,7 @@ export class InterviewService {
   private readonly now: () => Date;
   private readonly idFactory: () => string;
   private readonly platformRepository: PlatformRepository;
+  private readonly activityRegistry: InterviewActivityRegistry;
   private readonly turnPlanner: InterviewTurnPlanner;
   private readonly asyncTurnPlanner: AsyncInterviewTurnPlanner;
   private readonly beforeAsyncStage: (context: AsyncStagingContext) => void | Promise<void>;
@@ -415,6 +426,7 @@ export class InterviewService {
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? randomUUID;
     this.platformRepository = new PlatformRepository(repository.database);
+    this.activityRegistry = new InterviewActivityRegistry(repository.database);
     this.turnPlanner = createValidatedOrchestratorProvider(
       options.turnPlanner ?? { plan: planDeterministicInterviewTurn },
     );
@@ -1915,10 +1927,19 @@ export class InterviewService {
     }
 
     let updatedItems = this.repository.listInformationItems(interviewId);
-    const preferredInfoCodes = plan.currentInfoCode === "repeat_customer_share"
-      ? ["improvement_plan"]
-      : [];
-    let nextQuestion = selectNextQuestion(updatedItems, null, { preferredInfoCodes });
+    const selectionContext = questionSelectionContextAfterAnswer(
+      updatedItems,
+      plan.currentInfoCode,
+    );
+    const eligibleNextQuestions = selectEligibleNextQuestions(
+      updatedItems,
+      null,
+      selectionContext,
+      3,
+    );
+    let nextQuestion: NextQuestion | null = eligibleNextQuestions.find(
+      (candidate) => candidate.infoCode === plan.nextQuestion?.infoCode,
+    ) ?? eligibleNextQuestions[0] ?? null;
     if (nextQuestion) {
       const nextItem = updatedItems.find((item) => item.infoCode === nextQuestion?.infoCode);
       if (nextItem?.status === "NEEDED") {
@@ -1941,7 +1962,7 @@ export class InterviewService {
           );
         }
         updatedItems = this.repository.listInformationItems(interviewId);
-        nextQuestion = selectNextQuestion(updatedItems, nextItem.infoCode, { preferredInfoCodes });
+        nextQuestion = selectNextQuestion(updatedItems, nextItem.infoCode, selectionContext);
       }
     }
     nextQuestion = withAdaptiveQuestionText(nextQuestion, plan.nextQuestion);
@@ -2160,6 +2181,10 @@ export class InterviewService {
                 : "FORCE_INCOMPLETE",
             reason: null,
           },
+          improvementSelection: this.repository.getBorrowerImprovementSelection(
+            principal.tenantId,
+            interviewId,
+          ),
         };
       }
 
@@ -2182,13 +2207,45 @@ export class InterviewService {
         principal.tenantId,
         now,
       );
+      const improvementChoice = command.improvementChoice ?? null;
+      if (improvementChoice !== null) {
+        const allowlistedCandidates = buildAllowlistedImprovementCandidates({
+          informationItems: live.informationItems.map((item) => ({
+            infoCode: item.infoCode,
+            status: item.status,
+            updatedAt: item.updatedAt,
+            evidenceIds: item.evidenceIds,
+            displayValue: item.infoCode === "improvement_plan"
+              ? improvementPlanCandidateDisplayValue(item.value)
+              : item.status === "CONFIRMED" && item.value !== null
+                ? "CONFIRMED_VALUE"
+                : null,
+          })),
+          goal: {
+            status: live.goalSnapshot.status,
+            title: live.goalSnapshot.title,
+            evidenceIds: live.goalSnapshot.evidenceIds,
+          },
+        });
+        if (!isAllowlistedImprovementChoice(improvementChoice, allowlistedCandidates)) {
+          throw new ApplicationError(
+            422,
+            "IMPROVEMENT_CHOICE_NOT_ALLOWLISTED",
+            "선택한 개선 후보가 현재 인터뷰 기록에서 다시 생성한 후보와 일치하지 않습니다.",
+          );
+        }
+      }
       const borrowerConfirmation = this.recordBorrowerConfirmation(
         interviewId,
         command.borrowerConfirmed,
         now,
       );
       const evidence = this.repository.listEvidence(interviewId);
-      const activity = interviewActivityRegistry.snapshot(interviewId);
+      const activity = this.activityRegistry.snapshot(
+        principal.tenantId,
+        interviewId,
+        now,
+      );
       const assessment = assessInterviewCompletion({
         mode: command.mode === "COMPLETE" ? "STRICT" : "FORCE_INCOMPLETE",
         records: live.canonicalInformationItems,
@@ -2222,6 +2279,34 @@ export class InterviewService {
         assessment,
         now,
       );
+      const improvementSelection = improvementChoice === null
+        ? null
+        : this.repository.insertBorrowerImprovementSelection({
+            id: this.idFactory(),
+            tenantId: principal.tenantId,
+            interviewId,
+            finalSnapshotId: finalized.snapshot.id,
+            choice: improvementChoice,
+            liveVersion: live.session.version,
+            clientCommandId: command.clientCommandId,
+            createdAt: now,
+          });
+      if (improvementSelection) {
+        this.repository.insertAuditEvent(
+          this.idFactory(),
+          interviewId,
+          BORROWER_SELECTED_IMPROVEMENT_CANDIDATE,
+          {
+            tenantId: principal.tenantId,
+            selectionId: improvementSelection.id,
+            finalSnapshotId: finalized.snapshot.id,
+            choice: improvementSelection.choice,
+            nonBinding: true,
+            excludedFrom: ["CREDIT", "APPROVAL", "DATA_QUALITY_SCORE", "CONFIRMED_GOAL"],
+          },
+          now,
+        );
+      }
       const completionDrafts: RealtimeEventDraft[] = [];
       if (finalized.evaluation?.status === "READY") {
         completionDrafts.push({
@@ -2269,6 +2354,7 @@ export class InterviewService {
           mode: command.mode,
           reason: command.reason,
         },
+        improvementSelection,
       };
       this.platformRepository.insertCommandReceipt({
         id: this.idFactory(),

@@ -177,7 +177,12 @@ describe("dev-v1 feature registry/engine", () => {
 });
 
 describe("goal, strict/forced completion, immutable FINAL, A~E data-quality evaluation", () => {
-  function assess(mode: "STRICT" | "FORCE_INCOMPLETE", information = records(), forceReason?: string) {
+  function assess(
+    mode: "STRICT" | "FORCE_INCOMPLETE",
+    information = records(),
+    forceReason?: string,
+    borrowerConfirmation: BorrowerFinalConfirmation = confirmation,
+  ) {
     const features = calculateLiveFeatures({ records: information, stateVersion: 8 });
     const manifest = evidence(information);
     return {
@@ -189,7 +194,7 @@ describe("goal, strict/forced completion, immutable FINAL, A~E data-quality eval
         records: information,
         featureSet: features,
         goal: extractGoalSnapshot(information),
-        borrowerConfirmation: confirmation,
+        borrowerConfirmation,
         knownEvidenceIds: new Set(manifest.map((item) => item.id)),
         catalogValid: true,
         activeTurn: false,
@@ -254,6 +259,21 @@ describe("goal, strict/forced completion, immutable FINAL, A~E data-quality eval
       completionStatus: "INCOMPLETE",
       evaluationEligible: false,
     });
+    const forcedWithoutConfirmation = assess(
+      "FORCE_INCOMPLETE",
+      records(),
+      "차주 요청으로 중단",
+      {
+        status: "PENDING",
+        confirmedAt: null,
+        transcriptSegmentId: null,
+        evidenceId: null,
+      },
+    );
+    expect(forcedWithoutConfirmation.assessment.canFinalize).toBe(false);
+    expect(
+      forcedWithoutConfirmation.assessment.blockers.map((blocker) => blocker.code),
+    ).toContain("BORROWER_CONFIRMATION_MISSING");
   });
 
   it("FINAL evidence integrity를 검증하고 4축 A~E를 신용등급과 분리한다", () => {

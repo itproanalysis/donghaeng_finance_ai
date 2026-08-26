@@ -11,7 +11,9 @@ import {
   assertAudioSessionStartAllowed,
   assertSafeAudioControlIdentifier,
   encodedAudioInterviewIdFromPath,
+  MAX_AUDIO_CONNECTIONS_PER_CLIENT,
   MAX_RESUMABLE_AUDIO_SESSIONS,
+  MAX_RESUMABLE_AUDIO_SESSIONS_PER_PRINCIPAL,
 } from "../../src/realtime/server/audio-session-policy";
 import {
   StreamingSttError,
@@ -110,7 +112,9 @@ describe("audio session server policy", () => {
     }));
   });
 
-  it("caps retained active sessions per authenticated principal", () => {
+  it("allows five concurrent demo sessions and caps the sixth consistently", () => {
+    expect(MAX_AUDIO_CONNECTIONS_PER_CLIENT).toBe(5);
+    expect(MAX_RESUMABLE_AUDIO_SESSIONS_PER_PRINCIPAL).toBe(5);
     expect(() => assertAudioSessionStartAllowed({
       currentAudioSessionId: null,
       hasActiveSession: false,
@@ -118,6 +122,14 @@ describe("audio session server policy", () => {
       requestedSessionExists: false,
       resumableSessionCount: 4,
       principalSessionCount: 4,
+    })).not.toThrow();
+    expect(() => assertAudioSessionStartAllowed({
+      currentAudioSessionId: null,
+      hasActiveSession: false,
+      requestedAudioSessionId: "sixth-session",
+      requestedSessionExists: false,
+      resumableSessionCount: 5,
+      principalSessionCount: 5,
     })).toThrowError(expect.objectContaining({
       code: "AUDIO_CLIENT_SESSION_CAPACITY_EXCEEDED",
       retryable: true,

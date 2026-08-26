@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -70,6 +71,15 @@ const retentionRouteSource = readFileSync(
 const paths = property(document, "paths");
 const components = property(document, "components");
 const schemas = property(components, "schemas");
+const apiRouteRoot = fileURLToPath(new URL("../../src/app/api/", import.meta.url));
+const httpMethods = ["get", "post", "put", "patch", "delete", "options", "head"] as const;
+const runtimeRoutes = globSync("**/route.ts", { cwd: apiRouteRoot }).map((route) => ({
+  path: `/${route
+    .replaceAll("\\", "/")
+    .replace(/\/route\.ts$/u, "")
+    .replace(/\[([^/\]]+)\]/gu, "{$1}")}`,
+  source: readFileSync(`${apiRouteRoot}/${route.replaceAll("\\", "/")}`, "utf8"),
+}));
 
 function operation(path: string, method: string): JsonObject {
   return property(property(paths, path), method);
@@ -80,6 +90,55 @@ function schema(name: string): JsonObject {
 }
 
 describe("OpenAPI contract", () => {
+  it("documents every runtime HTTP route path and method", () => {
+    const runtimePaths = runtimeRoutes.map((route) => route.path).sort();
+    expect(Object.keys(paths).sort()).toEqual(runtimePaths);
+
+    const runtimeOperations = runtimeRoutes
+      .flatMap(({ path, source }) =>
+        Array.from(
+          source.matchAll(
+            /export\s+(?:(?:async\s+)?function\s+|const\s+)(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\b/gu,
+          ),
+          (match) => `${path} ${match[1].toLowerCase()}`,
+        ),
+      )
+      .sort();
+    const documentedOperations = Object.entries(paths)
+      .flatMap(([path, pathItem]) => {
+        const pathObject = asObject(pathItem, path);
+        return httpMethods
+          .filter((method) => pathObject[method] !== undefined)
+          .map((method) => `${path} ${method}`);
+      })
+      .sort();
+    expect(documentedOperations).toEqual(runtimeOperations);
+  });
+
+  it("documents the authenticated bounded question-speech binary endpoint", () => {
+    const speech = operation("/voice/speech", "post");
+    expect(property(property(property(speech, "requestBody"), "content"), "application/json"))
+      .toMatchObject({ schema: { $ref: "#/components/schemas/QuestionSpeechRequest" } });
+    expect(schema("QuestionSpeechRequest")).toMatchObject({
+      type: "object",
+      additionalProperties: false,
+      required: ["text"],
+      properties: {
+        text: { type: "string", minLength: 1, maxLength: 3000, pattern: "\\S" },
+      },
+    });
+    const responses = property(speech, "responses");
+    for (const status of ["200", "400", "401", "403", "415", "500", "502", "503", "504"]) {
+      expect(responses).toHaveProperty(status);
+    }
+    expect(
+      property(
+        property(property(property(responses, "200"), "content"), "audio/wav"),
+        "schema",
+      ),
+    ).toEqual({ type: "string", format: "binary" });
+  });
+
   it("uses OpenAPI 3.1 and JSON Schema 2020-12", () => {
     expect(document.openapi).toBe("3.1.0");
     expect(document.jsonSchemaDialect).toBe(
@@ -99,9 +158,15 @@ describe("OpenAPI contract", () => {
       ["/auth/session", "post", "createSession"],
       ["/auth/session", "delete", "deleteSession"],
       ["/auth/me", "get", "getCurrentIdentity"],
+      ["/voice/speech", "post", "synthesizeQuestionSpeech"],
       ["/interviews", "post", "createInterview"],
       ["/interviews/{id}", "get", "getInterview"],
       ["/interviews/{id}/messages", "post", "addInterviewMessage"],
+      [
+        "/interviews/{id}/realtime-session",
+        "post",
+        "createInterviewRealtimeSession",
+      ],
       [
         "/interviews/{id}/transcript-segments/{segmentId}/corrections",
         "post",
@@ -566,6 +631,7 @@ describe("OpenAPI contract", () => {
       "reason",
     ]);
     const completeProperties = property(completeRequest, "properties");
+    expect(property(completeProperties, "borrowerConfirmed").const).toBe(true);
     expect(property(completeProperties, "mode").enum).toEqual([
       "COMPLETE",
       "FORCE_INCOMPLETE",
@@ -589,6 +655,7 @@ describe("OpenAPI contract", () => {
       mode: "COMPLETE" as const,
       borrowerConfirmed: true,
       reason: null,
+      improvementChoice: null,
     };
     await expect(
       readCompleteCommand(
@@ -625,7 +692,15 @@ describe("OpenAPI contract", () => {
       "snapshot",
       "evaluation",
       "evaluationEligibility",
+      "improvementSelection",
     ]);
+    expect(property(completeProperties, "improvementChoice").oneOf).toBeDefined();
+    expect(schema("AllowlistedImprovementCandidate")).toMatchObject({
+      type: "object",
+      additionalProperties: false,
+    });
+    expect(property(property(schema("BorrowerImprovementSelection"), "properties"), "eventType").const)
+      .toBe("BORROWER_SELECTED_IMPROVEMENT_CANDIDATE");
   });
 
   it("documents append-only transcript correction commands and results", () => {

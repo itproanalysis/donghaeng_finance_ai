@@ -14,7 +14,10 @@ import type {
 } from "./interview";
 import type { CanonicalExtractionCandidate } from "./information-values";
 import type { OrchestratorTurnInput } from "./orchestrator-contract";
-import { selectNextQuestion } from "./question-selector";
+import {
+  questionSelectionContextAfterAnswer,
+  selectEligibleNextQuestions,
+} from "./question-selector";
 import { assertInformationTransition } from "./state-machine";
 
 export interface ProposedInformationTransition {
@@ -122,6 +125,24 @@ function applyProposedStatuses(
   return items.map((item) => ({ ...item, status: finalByCode.get(item.infoCode) ?? item.status }));
 }
 
+/**
+ * Projects only server-validated status transitions, then produces the bounded
+ * next-question allowlist used by deterministic fallback and Claude alike.
+ */
+export function selectTurnNextQuestionCandidates(
+  input: Pick<OrchestratorTurnInput, "currentInfoCode" | "informationItems">,
+  transitions: ProposedInformationTransition[],
+  limit = 3,
+): NextQuestion[] {
+  const projected = applyProposedStatuses(input.informationItems, transitions);
+  return selectEligibleNextQuestions(
+    projected,
+    null,
+    questionSelectionContextAfterAnswer(projected, input.currentInfoCode),
+    limit,
+  );
+}
+
 function terminalAfterFollowupLimit(
   candidate: CanonicalExtractionCandidate,
 ): CanonicalExtractionCandidate {
@@ -138,6 +159,41 @@ function terminalAfterFollowupLimit(
   };
 }
 
+/**
+ * The active question gets one low-pressure clarification after an explicit
+ * unknown or refusal. NEEDS_FOLLOWUP is persisted as the durable retry count;
+ * a second boundary answer is terminal and the interview moves on.
+ */
+function applySingleClarificationPolicy(
+  candidate: CanonicalExtractionCandidate,
+  isCurrent: boolean,
+  followupExhausted: boolean,
+): CanonicalExtractionCandidate {
+  if (!isCurrent) return candidate;
+  if (followupExhausted) {
+    return candidate.proposedStatus === "NEEDS_FOLLOWUP"
+      ? terminalAfterFollowupLimit(candidate)
+      : candidate;
+  }
+  if (
+    candidate.terminalDisposition !== "UNAVAILABLE" &&
+    candidate.terminalDisposition !== "REFUSED"
+  ) {
+    return candidate;
+  }
+  return {
+    ...candidate,
+    valueState: "UNKNOWN",
+    value: null,
+    quality: null,
+    verification: "UNKNOWN",
+    proposedStatus: "NEEDS_FOLLOWUP",
+    terminalDisposition: null,
+    explanation:
+      "첫 확인 불가·답변 곤란 응답이므로 부담 없이 한 번만 추가 확인합니다.",
+  };
+}
+
 export function planDeterministicInterviewTurn(input: OrchestratorTurnInput): DeterministicTurnPlan {
   const text = input.text.trim();
   if (!text) throw new TypeError("확정 transcript는 빈 문자열일 수 없습니다.");
@@ -145,6 +201,12 @@ export function planDeterministicInterviewTurn(input: OrchestratorTurnInput): De
     ? input.currentInfoCode
     : null;
   const followupExhausted = new Set(input.followupExhaustedInfoCodes ?? []);
+  const currentItem = input.informationItems.find(
+    (item) => item.infoCode === currentInfoCode,
+  );
+  if (currentItem?.status === "NEEDS_FOLLOWUP") {
+    followupExhausted.add(currentItem.infoCode);
+  }
   const extractedItems = DEV_V1_ALL_INFORMATION_CATALOG.flatMap((definition) => {
     const isCurrent = definition.infoCode === currentInfoCode;
     if (!isCurrent && !containsStrongAnchor(definition.infoCode, text)) return [];
@@ -152,23 +214,21 @@ export function planDeterministicInterviewTurn(input: OrchestratorTurnInput): De
       currentInfoCode,
     });
     if (!candidate) return [];
-    return [
-      isCurrent &&
-      followupExhausted.has(definition.infoCode) &&
-      candidate.proposedStatus === "NEEDS_FOLLOWUP"
-        ? terminalAfterFollowupLimit(candidate)
-        : candidate,
-    ];
+    return [applySingleClarificationPolicy(
+      candidate,
+      isCurrent,
+      followupExhausted.has(definition.infoCode),
+    )];
   });
 
   if (currentInfoCode && !extractedItems.some((candidate) => candidate.infoCode === currentInfoCode)) {
     const fallback = parseCanonicalInformation(currentInfoCode, text, { currentInfoCode });
     if (fallback) {
-      extractedItems.unshift(
-        followupExhausted.has(currentInfoCode) && fallback.proposedStatus === "NEEDS_FOLLOWUP"
-          ? terminalAfterFollowupLimit(fallback)
-          : fallback,
-      );
+      extractedItems.unshift(applySingleClarificationPolicy(
+        fallback,
+        true,
+        followupExhausted.has(currentInfoCode),
+      ));
     }
   }
 
@@ -178,11 +238,11 @@ export function planDeterministicInterviewTurn(input: OrchestratorTurnInput): De
       ? candidateTransitions(item, candidate, candidate.infoCode === currentInfoCode)
       : [];
   });
-  const projected = applyProposedStatuses(input.informationItems, stateChanges);
-  const preferredInfoCodes = currentInfoCode === "repeat_customer_share"
-    ? ["improvement_plan"]
-    : [];
-  const nextQuestion = selectNextQuestion(projected, null, { preferredInfoCodes });
+  const nextQuestion = selectTurnNextQuestionCandidates(
+    input,
+    stateChanges,
+    1,
+  )[0] ?? null;
   return {
     text,
     currentInfoCode: input.currentInfoCode,

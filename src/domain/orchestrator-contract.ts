@@ -1,5 +1,9 @@
 import { DEV_V1_ALL_INFORMATION_CATALOG } from "./information-catalog";
-import type { DeterministicTurnPlan } from "./interview-orchestrator";
+import {
+  selectTurnNextQuestionCandidates,
+  type DeterministicTurnPlan,
+  type ProposedInformationTransition,
+} from "./interview-orchestrator";
 import {
   INFORMATION_STATUSES,
   type EvidenceKind,
@@ -1054,9 +1058,20 @@ function validateStateChanges(
 function validateNextQuestion(
   value: unknown,
   allowedCodes: ReadonlySet<string>,
+  eligibleQuestions: readonly NextQuestion[],
   issues: OrchestratorContractIssue[],
 ): void {
-  if (value === null) return;
+  if (value === null) {
+    if (eligibleQuestions.length > 0) {
+      issue(
+        issues,
+        "output.nextQuestion",
+        "NEXT_QUESTION_REQUIRED",
+        "At least one server-eligible next question remains.",
+      );
+    }
+    return;
+  }
   const record = strictObject(
     value,
     "output.nextQuestion",
@@ -1076,8 +1091,27 @@ function validateNextQuestion(
       `Unknown next-question infoCode: ${code}`,
     );
   }
+  const eligible = code === null
+    ? null
+    : eligibleQuestions.find((question) => question.infoCode === code) ?? null;
+  if (code !== null && !eligible) {
+    issue(
+      issues,
+      "output.nextQuestion.infoCode",
+      "NEXT_QUESTION_NOT_ELIGIBLE",
+      "The next question must be selected from the server-generated eligible set.",
+    );
+  }
   stringValue(record.text, "output.nextQuestion.text", issues, { nonEmpty: true });
-  enumValue(record.reason, NEXT_QUESTION_REASONS, "output.nextQuestion.reason", issues);
+  const reason = enumValue(record.reason, NEXT_QUESTION_REASONS, "output.nextQuestion.reason", issues);
+  if (eligible && reason !== null && reason !== eligible.reason) {
+    issue(
+      issues,
+      "output.nextQuestion.reason",
+      "NEXT_QUESTION_REASON_MISMATCH",
+      `Expected ${eligible.reason} for ${eligible.infoCode}.`,
+    );
+  }
 }
 
 export function validateOrchestratorTurnPlan(
@@ -1155,7 +1189,31 @@ export function validateOrchestratorTurnPlan(
   }
 
   validateStateChanges(record.stateChanges, input, candidates, allowedCodes, issues);
-  validateNextQuestion(record.nextQuestion, allowedCodes, issues);
+  const safeTransitions: ProposedInformationTransition[] = Array.isArray(record.stateChanges)
+    ? record.stateChanges.flatMap((entry) => {
+        if (!isRecord(entry)) return [];
+        if (
+          typeof entry.infoCode !== "string" ||
+          !INFORMATION_STATUSES.includes(entry.from as InformationStatus) ||
+          !INFORMATION_STATUSES.includes(entry.to as InformationStatus) ||
+          typeof entry.reason !== "string" ||
+          typeof entry.incidentalExtraction !== "boolean"
+        ) return [];
+        return [{
+          infoCode: entry.infoCode,
+          from: entry.from as InformationStatus,
+          to: entry.to as InformationStatus,
+          reason: entry.reason,
+          incidentalExtraction: entry.incidentalExtraction,
+        }];
+      })
+    : [];
+  const eligibleQuestions = selectTurnNextQuestionCandidates(
+    input,
+    safeTransitions,
+    3,
+  );
+  validateNextQuestion(record.nextQuestion, allowedCodes, eligibleQuestions, issues);
   return issues;
 }
 

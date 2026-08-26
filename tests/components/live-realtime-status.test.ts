@@ -96,14 +96,14 @@ describe("presentation realtime status", () => {
     const processing = {
       status: "APPLIED" as const,
       provider: "anthropic",
-      model: "claude-sonnet-5",
+      model: "claude-haiku-4-5-20251001",
       inputTokens: 1_204,
       outputTokens: 287,
       stopReason: "tool_use",
     };
 
     expect(describeMessageProcessingProvider(processing)).toBe(
-      "Claude · claude-sonnet-5",
+      "Claude · Haiku 4.5 · 실시간",
     );
     expect(describeMessageProcessingDetail(processing)).toBe(
       "처리 완료 · 입력 1,204 / 출력 287 토큰 · 종료 tool_use",
@@ -116,6 +116,10 @@ describe("presentation realtime status", () => {
       outputTokens: null,
       stopReason: null,
     })).toBe("분석 거절 · 재처리 차단");
+    expect(describeMessageProcessingProvider({
+      ...processing,
+      model: "claude-sonnet-5",
+    })).toBe("Claude · Sonnet 5 · 고품질");
   });
 
   it("keeps the retryable Claude command explicit and reuses its command id", () => {

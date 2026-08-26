@@ -81,7 +81,12 @@ export function describeMessageProcessingProvider(
     processing.provider?.toLowerCase() === "anthropic"
       ? "Claude"
       : processing.provider ?? "AI 제공자 확인 안 됨";
-  return processing.model ? `${provider} · ${processing.model}` : provider;
+  const model = processing.model === "claude-haiku-4-5-20251001"
+    ? "Haiku 4.5 · 실시간"
+    : processing.model === "claude-sonnet-5"
+      ? "Sonnet 5 · 고품질"
+      : processing.model;
+  return model ? `${provider} · ${model}` : provider;
 }
 
 export function describeMessageProcessingDetail(

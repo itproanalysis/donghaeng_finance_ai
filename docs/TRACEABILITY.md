@@ -13,7 +13,7 @@
 | 03 정보구조 | 구현 | `/interviews/{id}` PREVIEW/FINAL, `/interview-evaluations` tenant 평가 목록, `/interview-evaluations/{id}` FINAL 평가 | `src/app/**/page.tsx`, snapshot discriminator/list contract test |
 | 04 Live 화면 | 구현 | desktop 19/49/32 3-column 대화·단계·정보패널, caption/waveform, coverage/feature/summary/goal PREVIEW, sticky 완료 bar | 실제 server snapshot/SSE로 갱신; 피쳐와 4대축 직전→현재 데이터품질 변화, 1440/1200/900/600px 브라우저 QA |
 | 05 평가 화면 | 구현 | 검색·업종·등급·기간 평가 목록, 차주/사업, 목표, 4대 영역 데이터 품질, feature·정보·근거·transcript 상세 drawer | `evaluation-list.tsx`, `evaluation-report.tsx`; 공식 CB·승인과 분리 |
-| 06 도메인 모델 | 구현 | borrower/business/interview/info/revision/conflict/transcript/evidence/final/evaluation/goal/audit | `src/domain`, migrations 001~010, server integration tests |
+| 06 도메인 모델 | 구현 | borrower/business/interview/info/revision/conflict/transcript/evidence/final/evaluation/goal/audit | `src/domain`, migrations 001~015, server integration tests |
 | 07 필요정보 계약 | 구현(dev-v1) | 필수 core 8개 + allow-listed 선택 보조 3개, TS/JSON Schema/runtime validation, 전체 8~11개, `POST /interviews` RequiredInformationList 수신 | core 각각 정확히 1회·보조 각각 0~1회; 중복/누락/잘못된 초기상태 422 route/contract test |
 | 08 Taxonomy | 구현(dev-v1) | core 8개와 보조 3개 모두 4대 영역 primary category 보유; 보조는 현재상황 | catalog validation 및 fixture test; 전체 상용 taxonomy는 미정 |
 | 09 상태 머신 | 구현 | 표준 상태, 허용 전이, correction/append-only history | `tests/domain/state-machine.test.ts`, revisions tests |
@@ -52,8 +52,8 @@
 | 42 차주 요약 | 구현 | 7개 section, 문장별 evidence 또는 명시적 gap statement | `live-summary.ts`, FINAL validation |
 | 43 평가 상세 UI | 구현 | tenant 평가 목록에서 상세 이동, 560px pillar drawer의 서버 FINAL 기여 feature·필수정보·evidence와 raw/corrected transcript timestamp drill-down | 비기여는 참고로 분리, 기술 산식은 접근 가능한 토글; 모든 등급에 ‘신용등급 아님’ 표시 |
 | 44 목표 표시 | 구현(dev-v1) | PREVIEW와 FINAL에 baseline/target/기간/단위/source/origin/context/BehaviorEvent 표시 | 18%→30%·8주·측정원 계보, 미확정 값을 명시하며 임의 목표 생성 금지 |
-| 45 API 계약 | 구현 | 18개 runtime HTTP path 전체 OpenAPI, SSE/WS 2개 channel AsyncAPI, 공통 `{data,error,meta}` envelope | tenant evaluation list의 q/industry/level/from/to와 실제 evaluation GET 200 Ajv/runtime drift 검사 |
-| 46 DB/migration | 구현(dev) | SQLite 10개 migration, checksum, JSON/CHECK/FK/index/immutable trigger/consent/retention/conflict/outbox tables | 009 `transcript.finalized`, 010 `evaluation.ready`; PostgreSQL/RLS/backup/multi-instance는 gate |
+| 45 API 계약 | 구현 | 19개 runtime HTTP path 전체 OpenAPI(인증된 `/voice/speech` binary 응답 포함), SSE/WS 2개 channel AsyncAPI, JSON API의 공통 `{data,error,meta}` envelope | filesystem runtime route inventory와 OpenAPI path의 정확한 일치, tenant evaluation list의 q/industry/level/from/to 및 실제 evaluation GET 200 Ajv/runtime drift 검사 |
+| 46 DB/migration | 구현(dev) | SQLite 15개 migration(001~015), checksum, JSON/CHECK/FK/index/immutable trigger/consent/retention/conflict/outbox tables | 009 `transcript.finalized`, 010 `evaluation.ready`, 014 비구속 개선후보 ledger, 015 audio-turn TTL lease; PostgreSQL/RLS/backup/multi-instance는 gate |
 | 47 개인정보·보안 | 운영 게이트 | HttpOnly session, tenant scope, versioned mic consent+WS 재검사, same-origin, rate limits, raw audio 미저장 | external IdP/MFA, TLS, secret manager, 승인 동의문·철회/DSR/retention 필요 |
 | 48 지연·오류복구 | 제한 구현 | audio backpressure, 3회 reconnect, bounded replay, SSE gap snapshot resync, text fallback | production smoke가 실제 WS 단절→동일 session/cursor 재접속→final 및 SSE replay 검증; latency SLO·장시간·다중 인스턴스는 운영 게이트 |
 | 49 테스트·데모 | 제한 구현 | 12개 SOHO fixture, 11개 업종 profile, 19개 context, runtime 60 named feature, production HTTP/SSE/WS 11항목 acceptance | local multipart STT stub까지 자동화; 실제 브라우저 권한·한국어 마이크 matrix는 별도 필요 |

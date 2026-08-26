@@ -164,10 +164,16 @@ export function assessInterviewCompletion(
   const realtimePersistencePending = blockers.some((blocker) =>
     blocker.code === "ACTIVE_TURN" || blocker.code === "FINAL_TRANSCRIPT_PENDING",
   );
+  const borrowerConfirmationValid =
+    input.borrowerConfirmation.status === "CONFIRMED" &&
+    Boolean(input.borrowerConfirmation.evidenceId) &&
+    input.knownEvidenceIds.has(input.borrowerConfirmation.evidenceId ?? "");
   const canFinalize =
     input.mode === "STRICT"
       ? readyForStrictCompletion
-      : Boolean(input.forceReason?.trim()) && !realtimePersistencePending;
+      : Boolean(input.forceReason?.trim()) &&
+        !realtimePersistencePending &&
+        borrowerConfirmationValid;
   return {
     policyVersion: DEV_V1_COMPLETION_POLICY_VERSION,
     mode: input.mode,

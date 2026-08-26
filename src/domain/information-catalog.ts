@@ -60,7 +60,7 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     semanticAnchors: ["월평균 매출", "월 매출", "매출"],
     requiredFeatureCodes: ["monthly_average_sales"],
     question:
-      "먼저 최근 매출 흐름부터 편하게 말씀해 주세요. 최근 3개월 기준 현금·카드·배달을 모두 합친 월평균 매출은 어느 정도인가요?",
+      "먼저 최근 매출 흐름부터 편하게 말씀해 주세요. 최근 3개월 기준 이용 중인 판매 채널을 모두 합친 월평균 매출은 어느 정도인가요?",
     followupQuestion:
       "최근 3개월 기준 월평균 총매출을 한 금액 또는 실제 범위로 알려주세요.",
   },
@@ -80,8 +80,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "REQUIRES_CONFIRMATION",
     semanticAnchors: ["고정 운영비", "고정비", "운영비"],
     requiredFeatureCodes: ["fixed_cost_ratio"],
-    question: "최근 3개월 동안 임차료와 인건비 등 월평균 고정 운영비는 얼마인가요?",
-    followupQuestion: "월 기준 고정 운영비의 합계 또는 실제 범위를 알려주세요.",
+    question: "최근 3개월 기준으로 임차료·인건비·정기구독료처럼 매달 반복되는 운영비는 평균 얼마인가요?",
+    followupQuestion: "정확한 합계가 어렵다면, 월 고정 운영비가 대략 어느 범위인지 한 번만 더 알려주세요.",
   },
   {
     catalogVersion: DEV_V1_CATALOG_VERSION,
@@ -99,8 +99,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "OBSERVED_ZERO",
     semanticAnchors: ["개선 계획", "개선", "계획", "문제"],
     requiredFeatureCodes: ["self_plan_exists", "plan_specificity"],
-    question: "현재 가장 먼저 개선하려는 문제와 구체적인 실행 계획은 무엇인가요?",
-    followupQuestion: "실행할 행동과 확인할 수치 또는 기간을 차주님의 말로 알려주세요.",
+    question: "지금 사업에서 가장 먼저 바꾸고 싶은 한 가지는 무엇인가요? 가능하면 어떻게 바꿔볼지도 함께 말씀해 주세요.",
+    followupQuestion: "그 변화를 위해 할 행동과, 잘되고 있는지 확인할 수치 또는 기간을 한 번만 더 알려주세요.",
   },
   {
     catalogVersion: DEV_V1_CATALOG_VERSION,
@@ -118,8 +118,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "OBSERVED_ZERO",
     semanticAnchors: ["실행 준비", "준비", "인력", "예산", "일정"],
     requiredFeatureCodes: ["execution_readiness"],
-    question: "그 계획을 실행하기 위해 이미 준비한 인력·예산·일정이 있나요?",
-    followupQuestion: "준비된 자원, 아직 남은 장애물 또는 시작 일정을 알려주세요.",
+    question: "그 계획을 시작하려면 지금 준비된 것과 아직 막혀 있는 것은 무엇인가요?",
+    followupQuestion: "인력·예산·일정 중 준비된 것 하나와 아직 필요한 것 하나를 알려주세요.",
   },
   {
     catalogVersion: DEV_V1_CATALOG_VERSION,
@@ -137,8 +137,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "OBSERVED_ZERO",
     semanticAnchors: ["확정 예약", "예약", "확정 주문", "수주"],
     requiredFeatureCodes: ["confirmed_reservation_count_4w"],
-    question: "앞으로 4주 안에 확정된 단체 예약이나 주문은 몇 건인가요?",
-    followupQuestion: "앞으로 4주 안의 확정 건수와, 있다면 총액·예정일을 알려주세요.",
+    question: "앞으로 4주 안에 이미 확정된 예약·주문·수주가 있다면 몇 건인가요? 없다면 0건이라고 말씀해 주세요.",
+    followupQuestion: "앞으로 4주 안의 확정 건수를 한 번만 더 확인해 주세요. 알면 총액이나 예정일도 함께 말씀해 주세요.",
   },
   {
     catalogVersion: DEV_V1_CATALOG_VERSION,
@@ -156,8 +156,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "OBSERVED_ZERO",
     semanticAnchors: ["계절성", "향후 석 달", "수요 전망", "전망"],
     requiredFeatureCodes: ["demand_visibility"],
-    question: "향후 석 달의 계절적 수요는 평소와 비교해 어떨 것으로 보시나요?",
-    followupQuestion: "그 전망의 근거가 과거 매출, 예약, 계약 또는 지역행사 중 무엇인지 알려주세요.",
+    question: "앞으로 3개월은 평소보다 손님이나 주문이 늘 것 같나요, 비슷할 것 같나요, 줄 것 같나요? 그렇게 생각한 이유도 알려주세요.",
+    followupQuestion: "그렇게 예상한 근거가 과거 매출·예약·계약·지역행사 중 무엇인지 한 번만 더 알려주세요.",
   },
   {
     catalogVersion: DEV_V1_CATALOG_VERSION,
@@ -175,8 +175,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "REQUIRES_CONFIRMATION",
     semanticAnchors: ["필수 가계지출", "생활비", "가계지출"],
     requiredFeatureCodes: ["essential_living_expense"],
-    question: "주거비와 교육비를 포함한 월 필수 가계지출은 얼마인가요?",
-    followupQuestion: "월 기준 필수 가계지출의 합계 또는 실제 범위를 알려주세요.",
+    question: "마지막으로 사업과 생활이 연결되는 부분을 확인할게요. 주거비·교육비 등 꼭 필요한 가계지출은 한 달에 대략 얼마인가요?",
+    followupQuestion: "정확한 금액이 어렵다면, 월 필수 가계지출이 어느 범위인지 한 번만 더 알려주세요.",
   },
   {
     catalogVersion: DEV_V1_CATALOG_VERSION,
@@ -194,8 +194,8 @@ export const DEV_V1_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] =
     zeroMeaning: "OBSERVED_ZERO",
     semanticAnchors: ["비상자금", "비상금", "생활비를", "감당"],
     requiredFeatureCodes: ["buffer_months"],
-    question: "현재 비상자금으로 필수 생활비를 몇 개월 감당할 수 있나요?",
-    followupQuestion: "필수 생활비를 감당할 수 있는 기간을 개월 수 또는 실제 범위로 알려주세요.",
+    question: "현재 마련해 둔 비상자금으로 필수 생활비를 대략 몇 개월 감당할 수 있나요?",
+    followupQuestion: "정확히 모르시면 1개월 미만·1~3개월·3개월 이상 중 가까운 범위를 알려주세요.",
   },
 ] as const;
 

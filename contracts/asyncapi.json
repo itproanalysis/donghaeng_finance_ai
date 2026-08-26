@@ -107,6 +107,9 @@
         "SttPartial": {
           "$ref": "#/components/messages/SttPartial"
         },
+        "SttRecognized": {
+          "$ref": "#/components/messages/SttRecognized"
+        },
         "SttFinal": {
           "$ref": "#/components/messages/SttFinal"
         },
@@ -239,6 +242,9 @@
         },
         {
           "$ref": "#/channels/interviewAudio/messages/SttPartial"
+        },
+        {
+          "$ref": "#/channels/interviewAudio/messages/SttRecognized"
         },
         {
           "$ref": "#/channels/interviewAudio/messages/SttFinal"
@@ -496,6 +502,15 @@
         "contentType": "application/json",
         "payload": {
           "$ref": "#/components/schemas/SttPartialMessage"
+        }
+      },
+      "SttRecognized": {
+        "name": "stt.recognized",
+        "title": "Recognized speech-to-text transcript",
+        "summary": "Recognition is complete and can be shown immediately while durable turn processing continues",
+        "contentType": "application/json",
+        "payload": {
+          "$ref": "#/components/schemas/SttRecognizedMessage"
         }
       },
       "SttFinal": {
@@ -1584,7 +1599,7 @@
           }
         }
       },
-      "SttFinalMessage": {
+      "SttRecognizedMessage": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "additionalProperties": false,
@@ -1595,6 +1610,41 @@
           "text",
           "provider",
           "serverTime"
+        ],
+        "properties": {
+          "protocolVersion": {
+            "$ref": "#/components/schemas/AudioProtocolVersion"
+          },
+          "type": {
+            "const": "stt.recognized"
+          },
+          "audioSessionId": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "serverTime": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        }
+      },
+      "SttFinalMessage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "protocolVersion",
+          "type",
+          "audioSessionId",
+          "text",
+          "provider",
+          "serverTime",
+          "processingStatus",
+          "processingCode"
         ],
         "properties": {
           "protocolVersion": {
@@ -1614,6 +1664,20 @@
           },
           "serverTime": {
             "$ref": "#/components/schemas/Timestamp"
+          },
+          "processingStatus": {
+            "type": "string",
+            "enum": [
+              "APPLIED",
+              "RETRYABLE_FAILURE",
+              "NON_RETRYABLE_FAILURE"
+            ]
+          },
+          "processingCode": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "tsx scripts/e2e-smoke.mjs",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "benchmark:sonnet": "tsx scripts/live-sonnet-benchmark.ts",
+    "voice:prewarm": "tsx scripts/prewarm-question-speech.ts"
   },
   "dependencies": {
     "lucide-react": "^0.539.0",

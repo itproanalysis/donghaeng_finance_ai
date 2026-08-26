@@ -30,10 +30,14 @@ interface AudioInterviewControlsProps {
   currentQuestion: string | null;
   disabled: boolean;
   onServerFinal: (text: string) => void | Promise<void>;
+  onRecognizedTranscript?: (text: string) => void | Promise<void>;
   onBusyChange?: (busy: boolean) => void;
   onStatusChange?: (status: AudioInterviewStatus) => void;
   showQuestionVoiceControl?: boolean;
   borrowerMode?: boolean;
+  autoStartSignal?: number;
+  externalQuestionVoiceActive?: boolean;
+  onQuestionVoiceInterrupt?: () => void;
 }
 
 const STATE_LABELS = {
@@ -54,19 +58,25 @@ export function AudioInterviewControls({
   currentQuestion,
   disabled,
   onServerFinal,
+  onRecognizedTranscript,
   onBusyChange,
   onStatusChange,
   showQuestionVoiceControl = true,
   borrowerMode = false,
+  autoStartSignal = 0,
+  externalQuestionVoiceActive = false,
+  onQuestionVoiceInterrupt,
 }: AudioInterviewControlsProps) {
-  const [autoEndOnSilence, setAutoEndOnSilence] = useState(false);
+  const [autoEndOnSilence, setAutoEndOnSilence] = useState(borrowerMode);
   const audio = useAudioInterview({
     interviewId,
     disabled,
     autoEndOnSilence,
-    silenceThresholdMs: 1_000,
+    silenceThresholdMs: borrowerMode ? 1_400 : 1_000,
     onFinalTranscript: onServerFinal,
+    onRecognizedTranscript,
   });
+  const beginAiSpeaking = audio.beginAiSpeaking;
   const endAiSpeaking = audio.endAiSpeaking;
   const [voiceQuestionEnabled, setVoiceQuestionEnabled] = useState(false);
   const utterance = useRef<SpeechSynthesisUtterance | null>(null);
@@ -75,12 +85,24 @@ export function AudioInterviewControls({
   const [consentOpen, setConsentOpen] = useState(false);
   const [consentSubmitting, setConsentSubmitting] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const consentConfirmed = useRef(false);
+  const lastAutoStartSignal = useRef(0);
+  const autoStartMicrophone = useRef<() => Promise<void>>(async () => undefined);
+  const externalQuestionVoiceActiveRef = useRef(false);
+  const externalQuestionVoiceLatched = useRef(false);
+
+  useEffect(() => {
+    externalQuestionVoiceActiveRef.current = externalQuestionVoiceActive;
+  }, [externalQuestionVoiceActive]);
 
   useEffect(() => {
     return () => {
       window.speechSynthesis?.cancel();
       utterance.current = null;
-      endAiSpeaking();
+      // Parent-owned high-quality TTS keeps the AI_SPEAKING transition until
+      // its own completion signal. A question change must not release the
+      // microphone while that audio is still playing.
+      if (!externalQuestionVoiceActiveRef.current) endAiSpeaking();
     };
   }, [currentQuestion, endAiSpeaking]);
 
@@ -162,6 +184,10 @@ export function AudioInterviewControls({
   async function startMicrophone() {
     stopQuestionVoice();
     setConsentError(null);
+    if (consentConfirmed.current) {
+      await beginMicrophoneCapture();
+      return;
+    }
     setConsentSubmitting(true);
     try {
       const consentUrl = `/api/interviews/${encodeURIComponent(interviewId)}/consents`;
@@ -177,6 +203,7 @@ export function AudioInterviewControls({
         readApiEnvelope(microphoneResponse),
         readApiEnvelope(cloudAiResponse),
       ]);
+      consentConfirmed.current = true;
       await beginMicrophoneCapture();
     } catch (caught) {
       if (
@@ -234,7 +261,10 @@ export function AudioInterviewControls({
         await readApiEnvelope(cloudAiResponse);
       }
       setConsentOpen(false);
-      if (granted) await beginMicrophoneCapture();
+      if (granted) {
+        consentConfirmed.current = true;
+        await beginMicrophoneCapture();
+      }
     } catch (caught) {
       setConsentError(
         caught instanceof Error ? caught.message : "마이크 동의를 기록하지 못했습니다.",
@@ -244,13 +274,43 @@ export function AudioInterviewControls({
     }
   }
 
+  useEffect(() => {
+    autoStartMicrophone.current = startMicrophone;
+  });
+
   const captureActive = ["LISTENING", "PAUSED", "TRANSCRIBING"].includes(
     audio.uxState,
   );
   const busy =
     captureActive ||
     audio.uxState === "AI_THINKING" ||
-    audio.uxState === "AI_SPEAKING";
+    audio.uxState === "AI_SPEAKING" ||
+    externalQuestionVoiceActive;
+
+  useEffect(() => {
+    if (externalQuestionVoiceActive) {
+      if (!externalQuestionVoiceLatched.current && beginAiSpeaking()) {
+        externalQuestionVoiceLatched.current = true;
+      }
+      return;
+    }
+    if (!externalQuestionVoiceLatched.current) return;
+    externalQuestionVoiceLatched.current = false;
+    endAiSpeaking();
+  }, [beginAiSpeaking, endAiSpeaking, externalQuestionVoiceActive]);
+
+  useEffect(() => {
+    if (
+      !borrowerMode ||
+      autoStartSignal <= 0 ||
+      autoStartSignal === lastAutoStartSignal.current ||
+      disabled ||
+      externalQuestionVoiceActive ||
+      audio.uxState !== "IDLE"
+    ) return;
+    lastAutoStartSignal.current = autoStartSignal;
+    void autoStartMicrophone.current();
+  }, [audio.uxState, autoStartSignal, borrowerMode, disabled, externalQuestionVoiceActive]);
 
   useEffect(() => {
     onBusyChange?.(busy);
@@ -371,20 +431,38 @@ export function AudioInterviewControls({
       )}
 
       <div className="audio-controls__buttons">
-        {["IDLE", "ERROR", "AI_SPEAKING"].includes(audio.uxState) ? (
+        {[
+          "IDLE",
+          "ERROR",
+          "AI_SPEAKING",
+        ].includes(audio.uxState) || externalQuestionVoiceActive ? (
           <button
             type="button"
             className="button button--audio"
-            onClick={() => void startMicrophone()}
+            onClick={() => {
+              if (
+                externalQuestionVoiceActive &&
+                onQuestionVoiceInterrupt
+              ) {
+                onQuestionVoiceInterrupt();
+                return;
+              }
+              void startMicrophone();
+            }}
             disabled={
               disabled ||
               !audio.isSupported ||
               consentSubmitting ||
-              audio.uxState === "AI_SPEAKING"
+              ((audio.uxState === "AI_SPEAKING" || externalQuestionVoiceActive) &&
+                !onQuestionVoiceInterrupt)
             }
           >
             <Mic size={17} />
-            {audio.uxState === "AI_SPEAKING" ? "질문 재생 중" : "마이크로 답변"}
+            {externalQuestionVoiceActive && onQuestionVoiceInterrupt
+              ? "AI 멈추고 답변"
+              : audio.uxState === "AI_SPEAKING" || externalQuestionVoiceActive
+                ? "질문 재생 중"
+                : "마이크로 답변"}
           </button>
         ) : (
           <>
@@ -420,8 +498,8 @@ export function AudioInterviewControls({
 
       {borrowerMode ? (
         <p className="audio-controls__borrower-note">
-          <strong>전사한 문장은 사장님 답변으로 바로 반영됩니다.</strong>
-          <span>말씀을 마친 뒤 “답변 끝내기”를 눌러 주세요.</span>
+          <strong>말씀을 멈추면 답변을 자동으로 정리합니다.</strong>
+          <span>조금 길게 생각하실 때는 일시정지를, 바로 마치려면 “답변 끝내기”를 눌러 주세요.</span>
         </p>
       ) : (
         <>

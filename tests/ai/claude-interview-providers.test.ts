@@ -7,8 +7,11 @@ import {
   ClaudeInterviewTurnPlanner,
   ClaudeRubricClassifier,
   InvalidClaudeTurnWireOutputError,
+  applyClaudeRealtimePhrasing,
+  createClaudeRealtimePhrasingTool,
   encodeClaudeTurnPlanWire,
   parseClaudeTurnPlanWire,
+  type ClaudeRealtimePhrasingWireOutput,
   type ClaudeTurnWireOutput,
 } from "../../src/ai/claude-interview-providers";
 import type {
@@ -20,6 +23,7 @@ import {
   createDevV1AcceptanceRequiredInformationItems,
   createDevV1RequiredInformationItems,
   planDeterministicInterviewTurn,
+  selectTurnNextQuestionCandidates,
   type InformationItem,
   type OrchestratorTurnInput,
 } from "../../src/domain";
@@ -82,6 +86,19 @@ function asRecord(value: ClaudeTurnWireOutput): Record<string, unknown> {
   return value as unknown as Record<string, unknown>;
 }
 
+function compactOutputFor(
+  draft: ReturnType<typeof planDeterministicInterviewTurn>,
+  overrides: Partial<ClaudeRealtimePhrasingWireOutput> = {},
+): Record<string, unknown> {
+  if (!draft.nextQuestion) throw new Error("Test draft requires a next question.");
+  return {
+    selectedInfoCode: draft.nextQuestion.infoCode,
+    reaction: "말씀하신 내용을 확인했어요.",
+    question: "다음 내용도 편하게 말씀해 주실 수 있을까요?",
+    ...overrides,
+  };
+}
+
 function unionParameterCount(value: unknown): number {
   if (Array.isArray(value)) {
     return value.reduce((total, item) => total + unionParameterCount(item), 0);
@@ -135,6 +152,7 @@ describe("Claude interview providers", () => {
     );
     const definitions = createDevV1AcceptanceRequiredInformationItems();
     const roundTrippedCodes = new Set<string>();
+    let largestExactWireBytes = 0;
 
     for (const active of definitions) {
       const informationItems: InformationItem[] = definitions.map((item, index) => ({
@@ -156,6 +174,10 @@ describe("Claude interview providers", () => {
       };
       const draft = planDeterministicInterviewTurn(turnInput);
       const wire = encodeClaudeTurnPlanWire(draft);
+      largestExactWireBytes = Math.max(
+        largestExactWireBytes,
+        new TextEncoder().encode(JSON.stringify(wire)).byteLength,
+      );
 
       expect(
         validate(wire),
@@ -164,9 +186,7 @@ describe("Claude interview providers", () => {
       expect(parseClaudeTurnPlanWire(wire, turnInput)).toEqual(draft);
       await expect(
         new ClaudeInterviewTurnPlanner(
-          clientReturning(
-            JSON.parse(JSON.stringify(wire)) as Record<string, unknown>,
-          ),
+          clientReturning(compactOutputFor(draft)),
         ).plan(turnInput),
       ).resolves.toMatchObject({ metadata });
       draft.extractedItems.forEach((candidate) =>
@@ -177,6 +197,10 @@ describe("Claude interview providers", () => {
     expect(roundTrippedCodes).toEqual(
       new Set(definitions.map((definition) => definition.infoCode)),
     );
+    // This is deliberately stricter than a tokenizer estimate: one output
+    // token cannot encode fewer than one UTF-8 byte. Every exact canonical
+    // single-question plan therefore fits the 2,304-token realtime cap.
+    expect(largestExactWireBytes).toBeLessThanOrEqual(2_304);
   });
 
   it("keeps the actually serialized schema below Anthropic's union limit", () => {
@@ -192,6 +216,7 @@ describe("Claude interview providers", () => {
   it("sends only Anthropic's supported native strict-schema subset", () => {
     for (const schema of [
       CLAUDE_INTERVIEW_TURN_TOOL.inputSchema,
+      createClaudeRealtimePhrasingTool("monthly_average_sales").inputSchema,
       CLAUDE_RUBRIC_TOOL.inputSchema,
     ]) {
       const serializedSchema = JSON.parse(JSON.stringify(schema));
@@ -202,40 +227,114 @@ describe("Claude interview providers", () => {
     }
   });
 
-  it("passes a decoded tool result through the existing fail-closed validator", async () => {
+  it("sends only a compact phrasing payload and records actual Anthropic metadata", async () => {
     const turnInput = input();
     const expected = planDeterministicInterviewTurn(turnInput);
-    const client = clientReturning(asRecord(encodeClaudeTurnPlanWire(expected)));
+    const compactOutput = compactOutputFor(expected);
+    const client = clientReturning(compactOutput);
     const planner = new ClaudeInterviewTurnPlanner(client);
 
     await expect(planner.plan(turnInput)).resolves.toEqual({
-      plan: expected,
+      plan: applyClaudeRealtimePhrasing(compactOutput, expected, turnInput.text),
       metadata,
     });
     expect(client.createToolResult).toHaveBeenCalledOnce();
     const request = vi.mocked(client.createToolResult).mock.calls[0][0];
-    expect(request.tool.name).toBe("commit_interview_turn");
+    expect(request.tool.name).toBe("phrase_realtime_interview_turn");
+    expect(request.maxTokens).toBe(192);
     expect(request.user).toMatchObject({
-      contractVersion: "dev-v1",
-      sourceTranscript: turnInput.text,
+      contractVersion: "realtime-phrasing-v1",
+      untrustedBorrowerAnswer: turnInput.text,
       currentInfoCode: turnInput.currentInfoCode,
+      allowedCandidates: expect.arrayContaining([
+        expect.objectContaining({
+          infoCode: expected.nextQuestion?.infoCode,
+          canonicalQuestion: expected.nextQuestion?.text,
+        }),
+      ]),
     });
+    expect(JSON.stringify(request.user)).not.toContain("extractedItems");
+    expect(JSON.stringify(request.user)).not.toContain("stateChanges");
+    expect(JSON.stringify(request.user).length).toBeLessThan(1_500);
     expect(JSON.stringify(request.user)).not.toContain("ANTHROPIC_API_KEY");
   });
 
-  it("rejects a model plan that rewrites the FINAL transcript", async () => {
+  it("returns the authoritative plan at the deadline and ignores a late success", async () => {
     const turnInput = input();
+    const draft = planDeterministicInterviewTurn(turnInput);
+    const createToolResult: AnthropicMessagesClient["createToolResult"] = vi.fn(
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 35));
+        return { input: compactOutputFor(draft), metadata };
+      },
+    );
+    const client: AnthropicMessagesClient = {
+      provider: "anthropic",
+      model: metadata.model,
+      timeoutMs: 5_000,
+      maxTokens: 2_048,
+      createToolResult,
+    };
+
+    const result = await new ClaudeInterviewTurnPlanner(client, {
+      softDeadlineMs: 10,
+    }).plan(turnInput);
+
+    const presentedQuestion = result.plan.nextQuestion?.text;
+    expect(result.plan).toEqual(draft);
+    expect(result.metadata).toMatchObject({
+      provider: "deterministic",
+      model: "local-realtime-fallback-v1",
+      stopReason: "soft_deadline",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(result.plan.nextQuestion?.text).toBe(presentedQuestion);
+    expect(createToolResult).toHaveBeenCalledOnce();
+  });
+
+  it("converts a provider failure into a deterministic applicable result", async () => {
+    const turnInput = input();
+    const draft = planDeterministicInterviewTurn(turnInput);
+    const client: AnthropicMessagesClient = {
+      ...clientReturning(compactOutputFor(draft)),
+      createToolResult: vi.fn(async () => {
+        throw new Error("network unavailable");
+      }),
+    };
+
+    await expect(
+      new ClaudeInterviewTurnPlanner(client).plan(turnInput),
+    ).resolves.toEqual({
+      plan: draft,
+      metadata: {
+        provider: "deterministic",
+        model: "local-realtime-fallback-v1",
+        requestId: null,
+        inputTokens: null,
+        outputTokens: null,
+        stopReason: "provider_failure",
+      },
+    });
+  });
+
+  it("ignores a legacy full-plan response instead of letting it rewrite facts", async () => {
+    const turnInput = input();
+    const draft = planDeterministicInterviewTurn(turnInput);
     const wire = encodeClaudeTurnPlanWire(
-      planDeterministicInterviewTurn(turnInput),
+      draft,
     );
     wire.text = "모델이 고친 문장";
     const planner = new ClaudeInterviewTurnPlanner(
       clientReturning(asRecord(wire)),
     );
 
-    await expect(planner.plan(turnInput)).rejects.toBeInstanceOf(
-      InvalidOrchestratorOutputError,
-    );
+    await expect(planner.plan(turnInput)).resolves.toEqual({
+      plan: draft,
+      metadata: expect.objectContaining({
+        provider: "deterministic",
+        stopReason: "provider_failure",
+      }),
+    });
   });
 
   it("accepts a contract-valid model-authored next question instead of requiring draft echo", () => {
@@ -250,103 +349,99 @@ describe("Claude interview providers", () => {
     expect(parsed.nextQuestion?.text).not.toBe(draft.nextQuestion?.text);
   });
 
-  it("allows explanation and next-question rewrites without changing authoritative candidate facts", async () => {
+  it("allows only bounded reaction/question phrasing and preserves every server fact", async () => {
     const turnInput = input();
     const draft = planDeterministicInterviewTurn(turnInput);
-    const wire = encodeClaudeTurnPlanWire(draft);
-    wire.extractedItems[0].explanation = "서버 추출 근거를 간결하게 설명합니다.";
-    wire.nextQuestionText = "다음 필수 항목을 구체적으로 알려주세요.";
+    const phrasing = compactOutputFor(draft, {
+      reaction: "말씀하신 내용을 확인했어요.",
+      question: "이어서 월 고정 운영비도 알려주시겠어요?",
+    });
     const planner = new ClaudeInterviewTurnPlanner(
-      clientReturning(asRecord(wire)),
+      clientReturning(phrasing),
     );
 
     const result = await planner.plan(turnInput);
-    expect(result.plan.extractedItems[0].explanation).toBe(
-      wire.extractedItems[0].explanation,
-    );
-    expect(result.plan.nextQuestion?.text).toBe(wire.nextQuestionText);
+    expect(result.metadata).toEqual(metadata);
+    expect(result.plan.extractedItems).toEqual(draft.extractedItems);
+    expect(result.plan.stateChanges).toEqual(draft.stateChanges);
+    expect(result.plan.text).toBe(draft.text);
+    expect(result.plan.currentInfoCode).toBe(draft.currentInfoCode);
+    expect(result.plan.nextQuestion).toEqual({
+      ...draft.nextQuestion,
+      text: `말씀하신 내용을 확인했어요. ${draft.nextQuestion?.text}`,
+    });
   });
 
-  it("allows Claude to omit a local candidate but not invent one", async () => {
+  it("lets Claude choose only within the server-owned top-three candidate set", async () => {
+    const definitions = createDevV1AcceptanceRequiredInformationItems();
+    const turnInput: OrchestratorTurnInput = {
+      text: "최근 3개월 월평균 매출은 2,300만원입니다.",
+      currentInfoCode: "monthly_average_sales",
+      informationItems: definitions.map((item, index) => ({
+        ...item,
+        status: item.infoCode === "monthly_average_sales"
+          ? "ASKING"
+          : item.infoCode === "fixed_operating_costs"
+            ? "CONFIRMED"
+            : "NEEDED",
+        valueState: "MISSING",
+        value: null,
+        quality: null,
+        extractionConfidence: null,
+        verification: null,
+        evidenceIds: [],
+        prefill: null,
+        updatedAt: `2026-08-10T00:00:${String(index).padStart(2, "0")}.000Z`,
+      })),
+    };
+    const draft = planDeterministicInterviewTurn(turnInput);
+    const allowed = selectTurnNextQuestionCandidates(turnInput, draft.stateChanges, 3);
+    expect(allowed.map((question) => question.infoCode)).toEqual([
+      "improvement_plan",
+      "confirmed_reservations",
+      "seasonality_outlook",
+    ]);
+    const selected = allowed[1]!;
+    const client = clientReturning({
+      selectedInfoCode: selected.infoCode,
+      reaction: "알려주신 내용을 정리했어요.",
+      question: "플랫폼 비용도 이어서 살펴볼까요?",
+    });
+    const planner = new ClaudeInterviewTurnPlanner(client);
+
+    const result = await planner.plan(turnInput);
+    expect(result.plan.nextQuestion).toEqual({
+      ...selected,
+      text: `알려주신 내용을 정리했어요. ${selected.text}`,
+    });
+    const request = vi.mocked(client.createToolResult).mock.calls[0][0];
+    expect(request.tool.inputSchema).toMatchObject({
+      properties: {
+        selectedInfoCode: {
+          enum: allowed.map((candidate) => candidate.infoCode),
+        },
+      },
+    });
+  });
+
+  it("falls back when Claude selects another code, adds a number, or asks twice", async () => {
     const turnInput = input();
     const draft = planDeterministicInterviewTurn(turnInput);
-    const omitted = encodeClaudeTurnPlanWire(draft);
-    omitted.extractedItems = [];
-    omitted.stateChanges = [];
-
-    await expect(
-      new ClaudeInterviewTurnPlanner(
-        clientReturning(asRecord(omitted)),
-      ).plan(turnInput),
-    ).resolves.toMatchObject({ plan: { extractedItems: [], stateChanges: [] } });
-
-    const transitionWithoutCandidate = encodeClaudeTurnPlanWire(draft);
-    transitionWithoutCandidate.extractedItems = [];
-    await expect(
-      new ClaudeInterviewTurnPlanner(
-        clientReturning(asRecord(transitionWithoutCandidate)),
-      ).plan(turnInput),
-    ).rejects.toMatchObject({
-      name: "InvalidOrchestratorOutputError",
-      issues: expect.arrayContaining([
-        expect.objectContaining({ code: "TRANSITION_WITHOUT_EXTRACTION" }),
-      ]),
-    });
-
-    const invented = encodeClaudeTurnPlanWire(draft);
-    const inventedCandidate = structuredClone(invented.extractedItems[0]);
-    inventedCandidate.infoCode = "fixed_operating_costs";
-    invented.extractedItems.push(inventedCandidate);
-    expect(() => parseClaudeTurnPlanWire(invented, turnInput)).not.toThrow();
-
-    await expect(
-      new ClaudeInterviewTurnPlanner(
-        clientReturning(asRecord(invented)),
-      ).plan(turnInput),
-    ).rejects.toMatchObject({
-      issueCode: "UNAUTHORIZED_EXTRACTION_CANDIDATE",
-      path: "wire.extractedItems[1].infoCode",
-    });
-  });
-
-  it("rejects a domain-valid inflated canonical amount not produced by the server parser", async () => {
-    const turnInput = input();
-    const wire = encodeClaudeTurnPlanWire(
-      planDeterministicInterviewTurn(turnInput),
-    );
-    const canonical = JSON.parse(wire.extractedItems[0].valueJson) as {
-      amount: { value: number };
-    };
-    canonical.amount.value = 999_999_999_999;
-    wire.extractedItems[0].valueJson = JSON.stringify(canonical);
-    expect(() => parseClaudeTurnPlanWire(wire, turnInput)).not.toThrow();
-
-    await expect(
-      new ClaudeInterviewTurnPlanner(
-        clientReturning(asRecord(wire)),
-      ).plan(turnInput),
-    ).rejects.toMatchObject({
-      issueCode: "UNAUTHORIZED_EXTRACTION_CANDIDATE",
-      path: "wire.extractedItems[0].value",
-    });
-  });
-
-  it("rejects transcript-only evidence promoted to TRANSACTION_SUPPORTED", async () => {
-    const turnInput = input();
-    const wire = encodeClaudeTurnPlanWire(
-      planDeterministicInterviewTurn(turnInput),
-    );
-    wire.extractedItems[0].verification = "TRANSACTION_SUPPORTED";
-    expect(() => parseClaudeTurnPlanWire(wire, turnInput)).not.toThrow();
-
-    await expect(
-      new ClaudeInterviewTurnPlanner(
-        clientReturning(asRecord(wire)),
-      ).plan(turnInput),
-    ).rejects.toMatchObject({
-      issueCode: "UNAUTHORIZED_EXTRACTION_CANDIDATE",
-      path: "wire.extractedItems[0].verification",
-    });
+    for (const unsafe of [
+      compactOutputFor(draft, { selectedInfoCode: "execution_readiness" }),
+      compactOutputFor(draft, { question: "월 고정비가 999억 원인가요?" }),
+      compactOutputFor(draft, { question: "고정비인가요? 임차료도 있나요?" }),
+      compactOutputFor(draft, { reaction: "매출이 줄었다고요?" }),
+    ]) {
+      const result = await new ClaudeInterviewTurnPlanner(
+        clientReturning(unsafe),
+      ).plan(turnInput);
+      expect(result.plan).toEqual(draft);
+      expect(result.metadata).toMatchObject({
+        provider: "deterministic",
+        stopReason: "provider_failure",
+      });
+    }
   });
 
   it("rejects malformed valueJson, trailing data, and non-object JSON", () => {

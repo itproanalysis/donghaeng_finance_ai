@@ -17,9 +17,9 @@ from typing import Literal
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+DEFAULT_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
 DEFAULT_MODEL_DIR = ROOT / "data" / "local-voice" / "tts-models"
-DEFAULT_MODEL_PATH = DEFAULT_MODEL_DIR / "Qwen3-TTS-12Hz-1.7B-CustomVoice"
+DEFAULT_MODEL_PATH = DEFAULT_MODEL_DIR / "Qwen3-TTS-12Hz-0.6B-CustomVoice"
 # Hugging Face reads this setting while importing some of its modules, so set
 # it before importing Qwen3-TTS to keep model weights inside the local runtime.
 os.environ.setdefault("HF_HOME", str(DEFAULT_MODEL_DIR))
@@ -69,6 +69,10 @@ def load_model() -> Qwen3TTSModel:
         str(model_path),
         device_map="cuda:0",
         dtype=torch.bfloat16,
+        # The official 0.6B demo uses SDPA when flash-attn is unavailable. It
+        # avoids the much slower eager attention path without adding a native
+        # build dependency to the one-click Windows setup.
+        attn_implementation="sdpa",
     )
 
 
@@ -110,6 +114,55 @@ def require_local_token(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="LOCAL_TTS_UNAUTHORIZED")
 
 
+def synthesize_wave_payload(
+    model: Qwen3TTSModel,
+    model_name: str,
+    speaker: str,
+    text: str,
+) -> bytes:
+    """Run the complete CUDA + WAV encode path on a worker thread."""
+
+    generation_options = {
+        "text": text,
+        "language": "Korean",
+        "speaker": speaker,
+    }
+    # The official 0.6B checkpoint does not support instruction control.
+    # Retain it only for an explicitly selected 1.7B model.
+    if "1.7B" in model_name:
+        generation_options["instruct"] = (
+            "따뜻하고 자연스러운 한국어 여성 상담가의 목소리로 말합니다. "
+            "질문은 한 문장씩 또렷하고 부드럽게 읽고, 기계적으로 끊지 않습니다."
+        )
+    wavs, sample_rate = model.generate_custom_voice(**generation_options)
+    buffer = io.BytesIO()
+    sf.write(buffer, wavs[0], sample_rate, format="WAV")
+    return buffer.getvalue()
+
+
+async def finish_synthesis_before_unlocking(generation_task: asyncio.Task[bytes]) -> bytes:
+    """Do not release the single-model lock while an uncancellable CUDA call runs.
+
+    Cancelling an HTTP request cannot stop ``asyncio.to_thread``.  Shield the
+    worker and, if the client disconnects, drain it before propagating
+    cancellation so a second request never enters the same model concurrently.
+    """
+
+    try:
+        return await asyncio.shield(generation_task)
+    except asyncio.CancelledError:
+        while not generation_task.done():
+            try:
+                await asyncio.shield(generation_task)
+            except asyncio.CancelledError:
+                # Repeated disconnect/cancellation signals still may not expose
+                # the non-thread-safe CUDA model to another request.
+                continue
+        if not generation_task.cancelled():
+            generation_task.exception()
+        raise
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {
@@ -117,6 +170,7 @@ async def health() -> dict[str, str]:
         "provider": "qwen3-tts",
         "model": app.state.model_name,
         "speaker": app.state.speaker,
+        "latency_profile": "realtime-0.6b-sdpa-v1",
     }
 
 
@@ -130,15 +184,18 @@ async def speech(request: SpeechRequest, authorization: str | None = Header(defa
 
     async with app.state.lock:
         try:
-            wavs, sample_rate = app.state.model.generate_custom_voice(
-                text=request.input,
-                language="Korean",
-                speaker=app.state.speaker,
-                instruct="따뜻하고 자연스러운 한국어 여성 상담가의 목소리로 말합니다. 질문은 한 문장씩 또렷하고 부드럽게 읽고, 기계적으로 끊지 않습니다.",
+            generation_task = asyncio.create_task(
+                asyncio.to_thread(
+                    synthesize_wave_payload,
+                    app.state.model,
+                    app.state.model_name,
+                    app.state.speaker,
+                    request.input,
+                )
             )
-            buffer = io.BytesIO()
-            sf.write(buffer, wavs[0], sample_rate, format="WAV")
-            payload = buffer.getvalue()
+            payload = await finish_synthesis_before_unlocking(generation_task)
+        except asyncio.CancelledError:
+            raise
         except Exception as error:
             # Browser responses never reveal model, GPU, or input details.
             raise HTTPException(status_code=503, detail="LOCAL_TTS_SYNTHESIS_FAILED") from error

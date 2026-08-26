@@ -8,7 +8,12 @@ set "DONGHAENG_STARTER=%DONGHAENG_REPO%scripts\start-local-workspace.ps1"
 set "DONGHAENG_LOCAL_SCRIPT_ROOT=%DONGHAENG_REPO%scripts"
 set "DONGHAENG_LOCAL_SCRIPT_FILE=%DONGHAENG_STARTER%"
 set "DONGHAENG_LAUNCH_MODE=claude"
-if /I "%~1"=="--no-browser" set "DONGHAENG_LOCAL_NO_BROWSER=1"
+set "DONGHAENG_ANTHROPIC_MODEL=claude-sonnet-5"
+for %%A in (%*) do (
+    if /I "%%~A"=="--no-browser" set "DONGHAENG_LOCAL_NO_BROWSER=1"
+    if /I "%%~A"=="--fast" set "DONGHAENG_ANTHROPIC_MODEL=claude-haiku-4-5-20251001"
+    if /I "%%~A"=="--quality" set "DONGHAENG_ANTHROPIC_MODEL=claude-sonnet-5"
+)
 
 if not exist "%DONGHAENG_STARTER%" (
     echo [ERROR] Claude launcher script was not found.
@@ -17,7 +22,12 @@ if not exist "%DONGHAENG_STARTER%" (
     exit /b 1
 )
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$source = Get-Content -LiteralPath $env:DONGHAENG_LOCAL_SCRIPT_FILE -Raw -Encoding UTF8; & ([ScriptBlock]::Create($source))"
+where pwsh.exe > nul 2>&1
+if not errorlevel 1 (
+    pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$source = Get-Content -LiteralPath $env:DONGHAENG_LOCAL_SCRIPT_FILE -Raw -Encoding UTF8; & ([ScriptBlock]::Create($source))"
+) else (
+    powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$source = Get-Content -LiteralPath $env:DONGHAENG_LOCAL_SCRIPT_FILE -Raw -Encoding UTF8; & ([ScriptBlock]::Create($source))"
+)
 set "DONGHAENG_EXIT_CODE=%ERRORLEVEL%"
 
 if not "%DONGHAENG_EXIT_CODE%"=="0" (

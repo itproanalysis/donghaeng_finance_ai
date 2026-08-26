@@ -8,6 +8,19 @@ param(
 
     [ValidateSet("float16", "int8", "int8_float16")]
     [string]$ComputeType = "float16",
+
+    [ValidateRange(1, 5)]
+    [int]$BeamSize = 1,
+
+    [ValidateRange(100, 2000)]
+    [int]$VadMinSilenceMs = 300,
+
+    [ValidateRange(0, 1000)]
+    [int]$VadSpeechPadMs = 120,
+
+    [ValidateRange(10, 120)]
+    [int]$VadMaxSpeechSeconds = 30,
+
     [ValidateRange(1024, 65535)]
     [int]$Port = 8765
 )
@@ -26,6 +39,10 @@ $env:DONGHAENG_LOCAL_STT_MODEL = $Model
 $env:DONGHAENG_LOCAL_STT_DEVICE = $Device
 $env:DONGHAENG_LOCAL_STT_COMPUTE_TYPE = $ComputeType
 $env:DONGHAENG_LOCAL_STT_TOKEN = "local-voice-runtime"
+$env:DONGHAENG_LOCAL_STT_BEAM_SIZE = [string]$BeamSize
+$env:DONGHAENG_LOCAL_STT_VAD_MIN_SILENCE_MS = [string]$VadMinSilenceMs
+$env:DONGHAENG_LOCAL_STT_VAD_SPEECH_PAD_MS = [string]$VadSpeechPadMs
+$env:DONGHAENG_LOCAL_STT_VAD_MAX_SPEECH_SECONDS = [string]$VadMaxSpeechSeconds
 $cudaRuntime = Join-Path $root "data\local-voice\cuda12-runtime"
 if ($Device -eq "cuda") {
     $requiredCublas = Get-ChildItem -LiteralPath $cudaRuntime -Recurse -Filter "cublas64_12.dll" -ErrorAction SilentlyContinue | Select-Object -First 1

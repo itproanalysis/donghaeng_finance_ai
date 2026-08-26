@@ -12,6 +12,7 @@ export * from "./information-parsers";
 export * from "./information-revisions";
 export * from "./information-values";
 export * from "./improvement-feature-pipeline";
+export * from "./improvement-candidate-selection";
 export * from "./interview";
 export * from "./interview-orchestrator";
 export * from "./orchestrator-contract";

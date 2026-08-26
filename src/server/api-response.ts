@@ -3,7 +3,9 @@ import { NextResponse } from "next/server";
 
 import {
   findSohoIndustryProfile,
+  IMPROVEMENT_CANDIDATE_ORIGINS,
   validateRequiredInformationCatalog,
+  type BorrowerImprovementChoice,
   type RequiredInformationItem,
   type SohoIndustryCode,
 } from "@/domain";
@@ -48,6 +50,7 @@ export interface CompleteCommandInput {
   mode: "COMPLETE" | "FORCE_INCOMPLETE";
   borrowerConfirmed: boolean;
   reason: string | null;
+  improvementChoice: BorrowerImprovementChoice | null;
 }
 
 export interface CreateInterviewCommandInput {
@@ -501,6 +504,24 @@ export async function readMessageCommand(request: Request): Promise<MessageComma
 
 export async function readCompleteCommand(request: Request): Promise<CompleteCommandInput> {
   const body = await readJsonObject(request);
+  const unknownKeys = Object.keys(body).filter(
+    (key) => ![
+      "clientCommandId",
+      "expectedVersion",
+      "mode",
+      "borrowerConfirmed",
+      "reason",
+      "improvementChoice",
+    ].includes(key),
+  );
+  if (unknownKeys.length > 0) {
+    throw new ApplicationError(
+      400,
+      "INVALID_COMPLETION_REQUEST",
+      "완료 요청에 허용되지 않은 필드가 있습니다.",
+      { fields: unknownKeys },
+    );
+  }
   const clientCommandId = requiredString(body, "clientCommandId", 128);
   const mode = body.mode;
   if (mode !== "COMPLETE" && mode !== "FORCE_INCOMPLETE") {
@@ -516,6 +537,14 @@ export async function readCompleteCommand(request: Request): Promise<CompleteCom
       { field: "borrowerConfirmed" },
     );
   }
+  if (body.borrowerConfirmed !== true) {
+    throw new ApplicationError(
+      400,
+      "BORROWER_CONFIRMATION_REQUIRED",
+      "인터뷰 완료에는 차주의 명시적 최종 확인이 필요합니다.",
+      { field: "borrowerConfirmed" },
+    );
+  }
   const reason = typeof body.reason === "string" ? body.reason.trim() : null;
   if (mode === "FORCE_INCOMPLETE" && !reason) {
     throw new ApplicationError(
@@ -525,12 +554,91 @@ export async function readCompleteCommand(request: Request): Promise<CompleteCom
       { field: "reason" },
     );
   }
+  const improvementChoice = readImprovementChoice(body.improvementChoice);
   return {
     clientCommandId,
     expectedVersion: expectedVersion(body),
     mode,
     borrowerConfirmed: body.borrowerConfirmed,
     reason,
+    improvementChoice,
+  };
+}
+
+function readImprovementChoice(value: unknown): BorrowerImprovementChoice | null {
+  if (value === undefined || value === null) return null;
+  if (value === "SKIP") return "SKIP";
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ApplicationError(
+      400,
+      "INVALID_IMPROVEMENT_CHOICE",
+      "improvementChoice는 SKIP 또는 개선 후보 객체여야 합니다.",
+      { field: "improvementChoice" },
+    );
+  }
+  const candidate = value as Record<string, unknown>;
+  const allowedKeys = new Set([
+    "id",
+    "title",
+    "origin",
+    "sourceInfoCodes",
+    "evidenceIds",
+  ]);
+  const unknownKeys = Object.keys(candidate).filter((key) => !allowedKeys.has(key));
+  if (unknownKeys.length > 0) {
+    throw new ApplicationError(
+      400,
+      "INVALID_IMPROVEMENT_CHOICE",
+      "개선 후보에 허용되지 않은 필드가 있습니다.",
+      { field: "improvementChoice", fields: unknownKeys },
+    );
+  }
+  const id = candidate.id;
+  const title = candidate.title;
+  const origin = candidate.origin;
+  if (typeof id !== "string" || !id.trim() || id.length > 160) {
+    throw new ApplicationError(400, "INVALID_IMPROVEMENT_CHOICE", "개선 후보 id가 올바르지 않습니다.", {
+      field: "improvementChoice.id",
+    });
+  }
+  if (typeof title !== "string" || !title.trim() || title.length > 300) {
+    throw new ApplicationError(400, "INVALID_IMPROVEMENT_CHOICE", "개선 후보 title이 올바르지 않습니다.", {
+      field: "improvementChoice.title",
+    });
+  }
+  if (
+    typeof origin !== "string" ||
+    !IMPROVEMENT_CANDIDATE_ORIGINS.includes(
+      origin as (typeof IMPROVEMENT_CANDIDATE_ORIGINS)[number],
+    )
+  ) {
+    throw new ApplicationError(400, "INVALID_IMPROVEMENT_CHOICE", "개선 후보 origin이 올바르지 않습니다.", {
+      field: "improvementChoice.origin",
+    });
+  }
+  const readIds = (key: "sourceInfoCodes" | "evidenceIds", maximum: number) => {
+    const ids = candidate[key];
+    if (
+      !Array.isArray(ids) ||
+      ids.length > maximum ||
+      ids.some((entry) => typeof entry !== "string" || !entry.trim() || entry.length > 160)
+    ) {
+      throw new ApplicationError(
+        400,
+        "INVALID_IMPROVEMENT_CHOICE",
+        `개선 후보 ${key}가 올바르지 않습니다.`,
+        { field: `improvementChoice.${key}` },
+      );
+    }
+    return [...new Set(ids.map((entry) => (entry as string).trim()))]
+      .sort((left, right) => left.localeCompare(right));
+  };
+  return {
+    id: id.trim(),
+    title: title.trim(),
+    origin: origin as (typeof IMPROVEMENT_CANDIDATE_ORIGINS)[number],
+    sourceInfoCodes: readIds("sourceInfoCodes", 16),
+    evidenceIds: readIds("evidenceIds", 64),
   };
 }
 

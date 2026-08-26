@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import { StreamingSttError } from "./stt-adapter";
 
 export const MAX_RESUMABLE_AUDIO_SESSIONS = 64;
-export const MAX_RESUMABLE_AUDIO_SESSIONS_PER_PRINCIPAL = 4;
+// A single operator may run up to five side-by-side borrower demonstrations.
+// Keep the WebSocket and retained-session limits aligned so the fifth session
+// is not accepted at upgrade time only to be rejected at audio.start.
+export const MAX_AUDIO_CONNECTIONS_PER_CLIENT = 5;
+export const MAX_RESUMABLE_AUDIO_SESSIONS_PER_PRINCIPAL = 5;
 
 const SAFE_CONTROL_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 

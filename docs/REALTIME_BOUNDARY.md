@@ -1,27 +1,37 @@
 # 실시간·음성 연동 경계
 
-텍스트와 음성은 모두 **FINAL TranscriptSegment 이후** 같은 message command와 결정론적 domain pipeline에 합류합니다. STT partial과 raw audio는 권위 데이터가 아닙니다.
+텍스트, OpenAI Realtime WebRTC, 로컬 STT 음성은 모두 **FINAL TranscriptSegment 이후** 같은 message command와 결정론적 domain pipeline에 합류합니다. STT partial과 raw audio, Realtime assistant 발화는 권위 데이터가 아닙니다. 질문 선택·정보 추출·상태전이·평가의 권위는 계속 서버에 있습니다.
+
+## 통화형 Realtime 우선 경로
+
+음성 인터뷰 시작 시 브라우저는 동일 출처 `POST /api/interviews/{id}/realtime-session`에 단기 자격증명을 요청합니다. 이 route는 세션 인증, tenant-scoped 인터뷰 접근, `MICROPHONE_INTERVIEW`와 `CLOUD_AI_PROCESSING` 동의를 다시 검사하고 사용자·인터뷰별 분당 6회 제한을 적용합니다. 장기 `OPENAI_API_KEY`는 서버 밖으로 나가지 않습니다.
+
+브라우저는 반환된 단기 secret으로 OpenAI `/v1/realtime/calls`에 SDP를 보내 WebRTC peer connection을 만듭니다. 입력에는 echo cancellation·noise suppression·automatic gain control, 한국어 `gpt-transcribe`, semantic VAD와 interruption을 사용하고 출력은 고정 `gpt-realtime-2.1`·`marin` 음성입니다. 원격 오디오 track은 사용자 시작 클릭에서 열린 `<audio autoplay>`로 즉시 재생됩니다.
+
+Realtime 모델은 짧은 공감·확인 발화까지만 자유롭게 만들 수 있습니다. 다음 질문은 message command 반영 후 서버 snapshot의 canonical 질문을 `response.create` 제약으로 전달하며 모델이 새 질문·업종·금액을 지어내지 못하게 합니다. 완료된 사용자 전사는 item ID 기반으로 한 번만 기존 message command에 제출되고, 서버 처리 중에는 마이크 track을 잠가 중복 턴을 막습니다.
+
+세션 발급, WebRTC 협상 또는 공급자 오류가 나면 같은 화면에서 로컬 faster-whisper/Qwen 경로로 자동 전환합니다. fallback 역시 transcript를 기존 message command에 저장하므로 업무 결과는 동일합니다.
 
 ## 두 개의 독립 순서 공간
 
 | 채널 | 목적 | 순서·복구 권위 |
 |---|---|---|
 | SSE `/api/interviews/{id}/events` | 정보·coverage·feature·summary·질문·완료 업무상태 | interview별 durable `seq`, aggregate version, batch, snapshot resync |
+| WebRTC OpenAI Realtime | 통화형 마이크·AI 음성·실시간 자막·VAD | 일시적 Realtime item/event ID; 완료 전사를 message command로 제출할 때만 업무상태가 됨 |
 | WS `/ws/interviews/{id}/audio` | 오디오 control/chunk와 STT/VAD UI event | audio session별 `audioSeq`, ACK, bounded in-memory replay |
 
-`audioSeq`와 SSE `seq`를 서로 비교하거나 한 채널의 ACK를 다른 채널의 commit으로 취급하면 안 됩니다. 음성의 `stt.final`이 message API transaction에 저장된 뒤에야 업무 outbox event가 생성됩니다.
+`audioSeq`, Realtime event/item ID와 SSE `seq`를 서로 비교하거나 한 채널의 완료 신호를 다른 채널의 commit으로 취급하면 안 됩니다. 음성의 완료 전사가 message API transaction에 저장된 뒤에야 업무 outbox event가 생성됩니다.
 
 ## 브라우저 capture
 
-`useAudioInterview`는 다음 제약으로 `getUserMedia`를 호출합니다.
+Realtime WebRTC와 fallback `useAudioInterview`는 다음 제약으로 `getUserMedia`를 호출합니다.
 
 - `echoCancellation`, `noiseSuppression`, `autoGainControl`: true
-- mono channel 요청
-- `MediaRecorder.isTypeSupported()`로 `audio/webm;codecs=opus`, webm, mp4 계열 순서 협상
-- 400ms chunk
-- AudioContext analyser 기반 level meter
+- Realtime은 browser WebRTC 오디오 track을 직접 전송
+- fallback은 mono channel과 `MediaRecorder.isTypeSupported()` 협상 후 400ms chunk 전송
+- fallback은 AudioContext analyser 기반 level meter 사용
 
-마이크 버튼은 먼저 `MICROPHONE_INTERVIEW`의 유효한 versioned 동의를 조회합니다. 동의가 없으면 처리 목적, 현재 환경의 STT provider 경계, raw audio 미저장을 설명하고 grant/deny 결정을 append합니다. grant 이후에만 브라우저 권한과 capture를 시작하며 WebSocket upgrade도 같은 동의를 서버에서 다시 확인합니다.
+마이크 버튼은 먼저 `MICROPHONE_INTERVIEW`의 유효한 versioned 동의를 조회합니다. Realtime을 선택한 경우 외부 실시간 음성·전사 처리를 위한 `CLOUD_AI_PROCESSING` 동의도 필요합니다. 동의가 없으면 처리 목적, provider 경계, raw audio 미저장을 설명하고 grant/deny 결정을 append합니다. grant 이후에만 브라우저 권한과 capture를 시작하며 Realtime 세션 발급 route와 fallback WebSocket도 동의를 다시 확인합니다.
 
 마이크 시작은 WebSocket 연결과 `audio.start` ACK가 끝난 뒤 recorder를 시작합니다. 종료는 recorder의 마지막 `dataavailable` 처리, 모든 pending frame send, 마지막 audio ACK를 기다린 뒤 `audio.end_turn`을 전송합니다. 이 순서가 final transcript보다 마지막 오디오가 늦게 도착하는 경쟁조건을 막습니다.
 
@@ -88,13 +98,13 @@ production E2E는 bounded local multipart stub으로 adapter/network/metadata를
 
 ## VAD와 수동 종료
 
-현재 자동 종료는 production VAD가 아니라 client level meter의 단순 threshold입니다. 사용자가 옵션을 켠 경우 음성이 한 번 감지된 뒤 level이 0.08 미만으로 1초 유지되면 `endTurn`을 호출합니다. 기본값은 off이고 **답변 끝내기** 버튼이 항상 권위 경로입니다.
+Realtime 우선 경로는 OpenAI semantic VAD가 말 시작·종료, 자동 response 생성과 끼어들기를 처리합니다. fallback 자동 종료는 client level meter의 단순 threshold이며, 사용자가 옵션을 켠 경우 음성이 한 번 감지된 뒤 level이 0.08 미만으로 1초 유지되면 `endTurn`을 호출합니다. fallback 기본값은 off이고 **답변 끝내기** 버튼이 항상 권위 경로입니다.
 
 Mock adapter도 speech started/stopped event를 보내지만 실제 acoustic VAD 결과가 아닙니다. provider endpointing 또는 검증된 server VAD를 붙이기 전에는 생각 중 침묵, 소음, 장치 gain에 대한 정확성을 주장할 수 없습니다.
 
 ## 질문 음성 출력
 
-질문 text는 항상 표시합니다. 선택적 질문 음성은 외부 TTS가 아니라 browser `speechSynthesis`의 `ko-KR` utterance입니다. 재생 중 상태를 `AI_SPEAKING`으로 두고 capture를 pause하며 `onend`/`onerror`에서 이전 `LISTENING` 또는 `IDLE` 상태로 복구합니다. 재생 중 마이크 시작 시 음성을 취소하고, TTS 오류가 나도 text 인터뷰는 유지합니다. 장치별 echo/mic gating은 운영 전 실제 브라우저 검증 대상입니다.
+질문 text는 항상 표시합니다. Realtime 우선 경로는 원격 WebRTC audio track의 `marin` 음성을 재생하고, 다시 듣기는 같은 canonical 질문으로 새 `response.create`를 보냅니다. fallback은 Qwen3-TTS Sohee 오디오를 사용하고, 실패할 때만 browser `speechSynthesis`의 `ko-KR` utterance를 최종 보조로 사용합니다. 어떤 TTS 오류도 text 인터뷰나 저장된 질문을 바꾸지 않습니다.
 
 ## SSE event와 replay
 
@@ -135,6 +145,6 @@ cursor가 보존 window보다 오래되면 server는 409 `EVENT_REPLAY_GAP`과 `
 
 ## Raw audio 보존
 
-현재 DB migration과 server에는 raw audio를 저장하는 table, object storage writer, 파일 writer가 없습니다. audio bytes는 browser replay buffer와 server/mock session 메모리에서만 처리하고 stop/timeout/cleanup 때 폐기합니다.
+현재 DB migration과 server에는 raw audio를 저장하는 table, object storage writer, 파일 writer가 없습니다. Realtime raw audio는 동의 후 브라우저에서 OpenAI로 직접 전송되며 앱 서버를 통과하지 않습니다. fallback audio bytes는 browser replay buffer와 server/STT session 메모리에서만 처리하고 stop/timeout/cleanup 때 폐기합니다.
 
 향후 저장 요구가 생겨도 기본 off를 유지하고, 별도 목적 동의·opt-in·암호화·짧은 TTL·접근감사·삭제 검증 전에는 구현하지 않습니다.

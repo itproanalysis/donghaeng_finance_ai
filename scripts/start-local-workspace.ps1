@@ -31,6 +31,71 @@ function Write-Notice {
     Write-Host ("[안내] {0}" -f $Message) -ForegroundColor Yellow
 }
 
+function Test-LocalKoreanSttReady {
+    param([int]$SttPort = 8765)
+    try {
+        $health = Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/health" -f $SttPort) -Method Get -TimeoutSec 3
+        return $health.status -eq "ready" -and
+            $health.provider -eq "faster-whisper" -and
+            $health.model -eq "large-v3-turbo"
+    }
+    catch {
+        return $false
+    }
+}
+
+function Start-LocalKoreanSttIfNeeded {
+    param(
+        [string]$RepositoryRoot,
+        [string]$LogDirectory,
+        [int]$SttPort = 8765,
+        [int]$ReadyTimeoutSeconds = 120
+    )
+
+    if (Test-LocalKoreanSttReady -SttPort $SttPort) {
+        Write-Step "한국어 전사(faster-whisper large-v3-turbo)가 이미 준비되어 있습니다."
+        return
+    }
+    $existingListener = Get-NetTCPConnection -State Listen -LocalPort $SttPort -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -ne $existingListener) {
+        throw "포트 $SttPort 에 응답하지 않는 다른 프로그램이 있어 한국어 전사 엔진을 시작하지 않았습니다."
+    }
+    $sttStarter = Join-Path $RepositoryRoot "scripts\start-local-korean-stt.ps1"
+    $python = Join-Path $RepositoryRoot "data\local-voice\.venv\Scripts\python.exe"
+    if (-not (Test-Path -LiteralPath $sttStarter -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $python -PathType Leaf)) {
+        throw "한국어 전사 모델이 준비되지 않았습니다. Setup-Local-Korean-STT.cmd를 먼저 실행하세요."
+    }
+    New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
+    $timestamp = Get-Date -Format "yyyyMMdd-HHmmssfff"
+    $stdoutLog = Join-Path $LogDirectory ("stt-{0}.out.log" -f $timestamp)
+    $stderrLog = Join-Path $LogDirectory ("stt-{0}.err.log" -f $timestamp)
+    Write-Step "한국어 전사 엔진을 시작합니다."
+    $sttProcess = Start-Process `
+        -FilePath "powershell.exe" `
+        -ArgumentList @("-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $sttStarter, "-Model", "large-v3-turbo", "-Device", "cuda", "-ComputeType", "float16", "-Port", "$SttPort") `
+        -WorkingDirectory $RepositoryRoot `
+        -RedirectStandardOutput $stdoutLog `
+        -RedirectStandardError $stderrLog `
+        -WindowStyle Hidden `
+        -PassThru
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    while ($watch.Elapsed.TotalSeconds -lt $ReadyTimeoutSeconds) {
+        $sttProcess.Refresh()
+        if ($sttProcess.HasExited) {
+            $stdoutTail = if (Test-Path -LiteralPath $stdoutLog) { (Get-Content -LiteralPath $stdoutLog -Tail 20 -Encoding UTF8 -ErrorAction SilentlyContinue) -join [Environment]::NewLine } else { "" }
+            $stderrTail = if (Test-Path -LiteralPath $stderrLog) { (Get-Content -LiteralPath $stderrLog -Tail 20 -Encoding UTF8 -ErrorAction SilentlyContinue) -join [Environment]::NewLine } else { "" }
+            throw "한국어 전사 엔진이 준비되기 전에 종료됐습니다 (종료 코드 $($sttProcess.ExitCode)).`n$stdoutTail`n$stderrTail"
+        }
+        if (Test-LocalKoreanSttReady -SttPort $SttPort) {
+            Write-Step "한국어 전사 엔진 준비를 확인했습니다."
+            return
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "한국어 전사 엔진이 $ReadyTimeoutSeconds 초 안에 준비되지 않았습니다. 로그: $stdoutLog / $stderrLog"
+}
+
 function Test-LocalKoreanTtsReady {
     param([int]$TtsPort = 8766)
 
@@ -41,7 +106,8 @@ function Test-LocalKoreanTtsReady {
             -TimeoutSec 3
         return $health.status -eq "ready" -and
             $health.provider -eq "qwen3-tts" -and
-            $health.model -eq "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+            $health.model -eq "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice" -and
+            $health.latency_profile -eq "realtime-0.6b-sdpa-v1"
     }
     catch {
         return $false
@@ -57,7 +123,7 @@ function Start-LocalKoreanTtsIfNeeded {
     )
 
     if (Test-LocalKoreanTtsReady -TtsPort $TtsPort) {
-        Write-Step "고품질 한국어 AI 음성(Qwen3-TTS Sohee)이 이미 준비되어 있습니다."
+        Write-Step "실시간 한국어 AI 음성(Qwen3-TTS Sohee)이 이미 준비되어 있습니다."
         return
     }
 
@@ -69,21 +135,21 @@ function Start-LocalKoreanTtsIfNeeded {
 
     $python = Join-Path $RepositoryRoot "data\local-voice\tts-venv\Scripts\python.exe"
     $ttsServer = Join-Path $RepositoryRoot "local_voice\tts_server.py"
-    $ttsModel = Join-Path $RepositoryRoot "data\local-voice\tts-models\Qwen3-TTS-12Hz-1.7B-CustomVoice"
+    $ttsModel = Join-Path $RepositoryRoot "data\local-voice\tts-models\Qwen3-TTS-12Hz-0.6B-CustomVoice"
     if (-not (Test-Path -LiteralPath $python -PathType Leaf) -or
         -not (Test-Path -LiteralPath $ttsServer -PathType Leaf) -or
         -not (Test-Path -LiteralPath $ttsModel -PathType Container)) {
-        throw "고품질 한국어 AI 음성 모델이 준비되지 않았습니다. Setup-Local-Korean-TTS.cmd를 먼저 실행하세요."
+        throw "실시간 한국어 AI 음성 모델이 준비되지 않았습니다. Setup-Local-Korean-TTS.cmd를 먼저 실행하세요."
     }
     if (-not (Get-Command nvidia-smi.exe -ErrorAction SilentlyContinue)) {
-        throw "고품질 한국어 AI 음성은 NVIDIA GPU가 필요합니다. GPU 환경을 확인한 뒤 다시 실행하세요."
+        throw "실시간 한국어 AI 음성은 NVIDIA GPU가 필요합니다. GPU 환경을 확인한 뒤 다시 실행하세요."
     }
 
     New-Item -ItemType Directory -Path $LogDirectory -Force | Out-Null
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmssfff"
     $stdoutLog = Join-Path $LogDirectory ("tts-{0}.out.log" -f $timestamp)
     $stderrLog = Join-Path $LogDirectory ("tts-{0}.err.log" -f $timestamp)
-    Write-Step "고품질 한국어 AI 음성(Qwen3-TTS Sohee)을 시작합니다."
+    Write-Step "실시간 한국어 AI 음성(Qwen3-TTS Sohee)을 시작합니다."
     $ttsProcess = Start-Process `
         -FilePath $python `
         -ArgumentList @($ttsServer, "--host", "127.0.0.1", "--port", "$TtsPort") `
@@ -101,12 +167,37 @@ function Start-LocalKoreanTtsIfNeeded {
             throw "AI 음성 엔진이 준비되기 전에 종료됐습니다 (종료 코드 $($ttsProcess.ExitCode)).`n$stdoutTail`n$stderrTail"
         }
         if (Test-LocalKoreanTtsReady -TtsPort $TtsPort) {
-            Write-Step "고품질 한국어 AI 음성 준비를 확인했습니다."
+            Write-Step "실시간 한국어 AI 음성 준비를 확인했습니다."
             return
         }
         Start-Sleep -Milliseconds 500
     }
     throw "AI 음성 엔진이 $ReadyTimeoutSeconds 초 안에 준비되지 않았습니다. 로그: $stdoutLog / $stderrLog"
+}
+
+function Invoke-AllBorrowerVoicePrewarm {
+    param(
+        [string]$Origin,
+        [string]$RepositoryRoot,
+        [string]$NodePath,
+        [string]$TsxCliPath,
+        [int]$TtsPort = 8766
+    )
+
+    if (-not (Test-LocalKoreanTtsReady -TtsPort $TtsPort)) {
+        throw "AI 질문 음성 전체 준비 전에 로컬 TTS 상태를 확인하지 못했습니다."
+    }
+    $prewarmScript = Join-Path $RepositoryRoot "scripts\prewarm-question-speech.ts"
+    if (-not (Test-Path -LiteralPath $prewarmScript -PathType Leaf) -or
+        -not (Test-Path -LiteralPath $TsxCliPath -PathType Leaf)) {
+        throw "AI 질문 음성 사전 준비 스크립트를 찾을 수 없습니다."
+    }
+
+    Write-Step "실시간 인터뷰용 AI 질문 음성 캐시 전체 상태를 확인합니다."
+    & $NodePath $TsxCliPath $prewarmScript "--origin" $Origin
+    if ($LASTEXITCODE -ne 0) {
+        throw "AI 질문 음성 전체 준비가 완료되지 않았습니다. 원클릭 실행기를 다시 실행하면 누락분부터 이어서 준비합니다."
+    }
 }
 
 function Import-ClaudeApiKey {
@@ -142,6 +233,46 @@ function Import-ClaudeApiKey {
     }
     catch {
         throw "Claude 키를 현재 Windows 사용자로 복호화하지 못했습니다. Configure-Claude-Key.cmd로 다시 설정하세요. $($_.Exception.Message)"
+    }
+}
+
+function Import-OpenAIRealtimeApiKeyIfPresent {
+    param([string]$SecretPath)
+
+    if (-not (Test-Path -LiteralPath $SecretPath -PathType Leaf)) {
+        Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+        return $false
+    }
+    try {
+        $ciphertext = (Get-Content -LiteralPath $SecretPath -Raw -Encoding UTF8).Trim()
+        if ([string]::IsNullOrWhiteSpace($ciphertext)) {
+            throw "암호화된 OpenAI 키 파일이 비어 있습니다."
+        }
+        $secureKey = ConvertTo-SecureString -String $ciphertext
+        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureKey)
+        try {
+            $plainKey = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+            if (
+                [string]::IsNullOrWhiteSpace($plainKey) -or
+                -not $plainKey.StartsWith("sk-", [StringComparison]::Ordinal) -or
+                $plainKey.Length -lt 20 -or
+                $plainKey.Length -gt 2048 -or
+                $plainKey -match "\s"
+            ) {
+                throw "복호화된 OpenAI 키 형식이 올바르지 않습니다. Configure-OpenAI-Key.cmd로 다시 설정하세요."
+            }
+            $env:OPENAI_API_KEY = $plainKey
+        }
+        finally {
+            if ($pointer -ne [IntPtr]::Zero) {
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+            }
+            $plainKey = $null
+        }
+        return $true
+    }
+    catch {
+        throw "OpenAI 키를 현재 Windows 사용자로 복호화하지 못했습니다. Configure-OpenAI-Key.cmd로 다시 설정하세요. $($_.Exception.Message)"
     }
 }
 
@@ -406,9 +537,48 @@ try {
     $logDirectory = Join-Path $repositoryRoot "data\local-logs"
     $statePath = Join-Path $repositoryRoot "data\local-launcher-state.json"
     $claudeSecretPath = Join-Path $repositoryRoot "data\secrets\anthropic-api-key.dpapi"
+    $openAISecretPath = Join-Path $repositoryRoot "data\secrets\openai-api-key.dpapi"
+    $realtimeVoiceProvider = if (Test-Path -LiteralPath $openAISecretPath -PathType Leaf) { "openai" } else { "local-fallback" }
+    $realtimeVoiceModel = if ($realtimeVoiceProvider -eq "openai") { "gpt-realtime-2.1" } else { "Qwen3-TTS/faster-whisper" }
     $launchMode = if ($env:DONGHAENG_LAUNCH_MODE -eq "claude") { "claude" } else { "deterministic" }
     $orchestratorProvider = if ($launchMode -eq "claude") { "anthropic" } else { "deterministic" }
-    $orchestratorModel = if ($launchMode -eq "claude") { "claude-sonnet-5" } else { "dev-v1" }
+    $requestedClaudeModel = ([string]$env:DONGHAENG_ANTHROPIC_MODEL).Trim()
+    $approvedClaudeModels = @("claude-haiku-4-5-20251001", "claude-sonnet-5")
+    if ($launchMode -eq "claude" -and
+        -not [string]::IsNullOrWhiteSpace($requestedClaudeModel) -and
+        $requestedClaudeModel -notin $approvedClaudeModels) {
+        throw "지원하지 않는 Claude 모델입니다. 기본은 claude-sonnet-5이며, 명시적 저지연 비교 옵션만 claude-haiku-4-5-20251001입니다."
+    }
+    $orchestratorModel = if ($launchMode -eq "claude") {
+        if ([string]::IsNullOrWhiteSpace($requestedClaudeModel)) {
+            "claude-sonnet-5"
+        }
+        else {
+            $requestedClaudeModel
+        }
+    }
+    else {
+        "dev-v1"
+    }
+    $orchestratorProfile = if ($orchestratorModel -eq "claude-haiku-4-5-20251001") {
+        "realtime-haiku-4.5"
+    }
+    elseif ($orchestratorModel -eq "claude-sonnet-5") {
+        "quality-sonnet-5"
+    }
+    else {
+        "deterministic-dev-v1"
+    }
+    $orchestratorSoftDeadlineMs = if ($orchestratorModel -eq "claude-sonnet-5") {
+        8000
+    }
+    elseif ($launchMode -eq "claude") {
+        2000
+    }
+    else {
+        $null
+    }
+    $orchestratorMaxTokens = if ($launchMode -eq "claude") { 2304 } else { $null }
 
     Write-Step "프로젝트 위치를 확인합니다: $repositoryRoot"
     if (-not (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) -or
@@ -492,13 +662,22 @@ try {
         }
     }
 
-    # The borrower interview must never start in a silent state. The one-click
-    # launcher owns the local neural voice readiness check before it opens the
-    # application, while the browser keeps a text-only fallback for a runtime
-    # network failure after launch.
+    # The one-click path owns both directions of the conversation. It never
+    # opens the borrower room with a missing local speech engine.
+    Start-LocalKoreanSttIfNeeded `
+        -RepositoryRoot $repositoryRoot `
+        -LogDirectory $logDirectory
+
     Start-LocalKoreanTtsIfNeeded `
         -RepositoryRoot $repositoryRoot `
         -LogDirectory $logDirectory
+
+    # Keep the web proxy, disk-cache key and local Qwen runtime on one explicit
+    # profile. The authenticated prewarm CLI inherits these non-secret values.
+    $env:DONGHAENG_TTS_ENDPOINT = "http://127.0.0.1:8766/v1/audio/speech"
+    $env:DONGHAENG_TTS_API_KEY = "local-tts-runtime"
+    $env:DONGHAENG_TTS_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+    $env:DONGHAENG_TTS_VOICE = "Sohee"
 
     $origin = "http://127.0.0.1:$Port"
     $existingState = $null
@@ -533,7 +712,13 @@ try {
                 [string]$existingState.origin -ne $origin -or
                 [int]$existingState.port -ne $Port -or
                 [string]$existingState.orchestratorProvider -ne $orchestratorProvider -or
-                [string]$existingState.orchestratorModel -ne $orchestratorModel) {
+                [string]$existingState.orchestratorModel -ne $orchestratorModel -or
+                [string]$existingState.orchestratorProfile -ne $orchestratorProfile -or
+                [string]$existingState.realtimeVoiceProvider -ne $realtimeVoiceProvider -or
+                [string]$existingState.realtimeVoiceModel -ne $realtimeVoiceModel -or
+                ($launchMode -eq "claude" -and
+                    ([int]$existingState.orchestratorSoftDeadlineMs -ne $orchestratorSoftDeadlineMs -or
+                    [int]$existingState.orchestratorMaxTokens -ne $orchestratorMaxTokens))) {
                 throw "기존 launcher 소유 상태가 현재 프로젝트·origin·port와 일치하지 않아 재사용하지 않았습니다. 어떤 프로세스도 종료하지 않았습니다."
             }
             $serverProcessId = [int]$existingState.processId
@@ -616,9 +801,8 @@ try {
         $env:DONGHAENG_LOCAL_BOOTSTRAP = "1"
         Remove-Item Env:DONGHAENG_LOCAL_PASSWORD -ErrorAction SilentlyContinue
         # The local workspace must not turn arbitrary microphone input into a
-        # scripted answer. The local loopback faster-whisper bridge is optional
-        # and can be started with Start-Local-Korean-STT.cmd; when it is not
-        # running, the mic reports a clear error and chat remains available.
+        # scripted answer. The launcher has already verified the local
+        # faster-whisper bridge before the browser can open.
         $env:DONGHAENG_STT_PROVIDER = "openai-compatible"
         $env:DONGHAENG_STT_ENDPOINT = "http://127.0.0.1:8765/v1/audio/transcriptions"
         $env:DONGHAENG_STT_API_KEY = "local-voice-runtime"
@@ -626,10 +810,21 @@ try {
         $env:DONGHAENG_ORCHESTRATOR_PROVIDER = $orchestratorProvider
         $env:DONGHAENG_ANTHROPIC_MODEL = $orchestratorModel
         if ($launchMode -eq "claude") {
+            $env:DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS = [string]$orchestratorSoftDeadlineMs
+            $env:DONGHAENG_ANTHROPIC_MAX_TOKENS = [string]$orchestratorMaxTokens
             Import-ClaudeApiKey -SecretPath $claudeSecretPath
         }
         else {
+            Remove-Item Env:DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS -ErrorAction SilentlyContinue
+            Remove-Item Env:DONGHAENG_ANTHROPIC_MAX_TOKENS -ErrorAction SilentlyContinue
             Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+        }
+        $openAIRealtimeEnabled = Import-OpenAIRealtimeApiKeyIfPresent -SecretPath $openAISecretPath
+        if ($openAIRealtimeEnabled) {
+            Write-Step "GPT-Realtime-2.1 WebRTC 음성 통화를 활성화합니다."
+        }
+        else {
+            Write-Notice "OpenAI Realtime 키가 없어 로컬 한국어 STT/TTS 폴백으로 실행합니다. Configure-OpenAI-Key.cmd에서 키를 설정할 수 있습니다."
         }
 
         Write-Step "Next.js와 실시간 WebSocket을 포함한 custom dev server를 시작합니다."
@@ -706,6 +901,11 @@ try {
         ownedByLauncher = $serverWasStartedHere
         orchestratorProvider = $orchestratorProvider
         orchestratorModel = $orchestratorModel
+        orchestratorProfile = $orchestratorProfile
+        orchestratorSoftDeadlineMs = $orchestratorSoftDeadlineMs
+        orchestratorMaxTokens = $orchestratorMaxTokens
+        realtimeVoiceProvider = $realtimeVoiceProvider
+        realtimeVoiceModel = $realtimeVoiceModel
         startedAt = $stateStartedAt
         stdoutLog = $stdoutLog
         stderrLog = $stderrLog
@@ -721,6 +921,15 @@ try {
         }
     }
 
+    # The browser opens only after every static, non-personal speech chunk is
+    # available on disk for this exact model/voice key. First setup may take a
+    # few minutes; warm restarts inspect coverage and skip all existing files.
+    Invoke-AllBorrowerVoicePrewarm `
+        -Origin $origin `
+        -RepositoryRoot $repositoryRoot `
+        -NodePath $nodeCommand.Source `
+        -TsxCliPath $tsxCliPath
+
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Green
     Write-Host "  동행금융AI 로컬 작업공간 준비 완료" -ForegroundColor Green
@@ -729,15 +938,22 @@ try {
     Write-Host ""
     if ($launchMode -eq "claude") {
         Write-Notice "텍스트 답변의 정보 추출·후속질문 계획은 Claude $orchestratorModel 실 API를 사용합니다. 키는 DPAPI 암호문에서 child process 환경으로만 주입됩니다."
-        Write-Notice "Claude는 인터뷰 문장 구조화에 사용됩니다. 마이크는 127.0.0.1의 로컬 faster-whisper STT만 사용하며, 준비되지 않으면 임의 전사 없이 채팅으로 전환됩니다."
+        Write-Notice "Claude 프로필: $orchestratorProfile / soft deadline ${orchestratorSoftDeadlineMs}ms / 최대 출력 $orchestratorMaxTokens 토큰. 제한시간을 넘으면 검증된 로컬 질문으로 즉시 이어갑니다."
+        Write-Notice "Claude는 인터뷰 문장 구조화에 사용됩니다. 마이크는 원클릭으로 준비한 127.0.0.1의 faster-whisper STT만 사용합니다."
     }
     elseif ($serverWasStartedHere) {
-        Write-Notice "마이크는 로컬 faster-whisper STT를 사용하도록 설정되었습니다. Start-Local-Korean-STT.cmd가 준비되지 않았다면 채팅으로 계속할 수 있습니다."
+        Write-Notice "마이크는 원클릭으로 준비된 로컬 faster-whisper STT를 사용합니다."
     }
     else {
         Write-Notice "기존 서버를 재사용했습니다. 음성 제공자는 인터뷰 화면의 STT 제공자 표시를 확인하세요. 임의 전사는 기본으로 사용하지 않습니다."
     }
-    Write-Notice "실제 음성 인식은 Start-Local-Korean-STT.cmd로 GPU Whisper 모델을 켠 뒤 이용합니다. AI 질문 음성(Qwen3-TTS Sohee)은 이 원클릭 실행기가 준비했습니다."
+    if ($realtimeVoiceProvider -eq "openai") {
+        Write-Notice "음성 인터뷰는 GPT-Realtime-2.1 WebRTC 직접 음성 통화를 사용하고, 로컬 faster-whisper/Qwen3-TTS는 장애 폴백으로 유지합니다."
+    }
+    else {
+        Write-Notice "GPT-Realtime-2.1을 사용하려면 Configure-OpenAI-Key.cmd로 키를 한 번만 안전하게 저장한 뒤 재기동하세요."
+    }
+    Write-Notice "실제 한국어 음성 인식과 AI 질문 음성(Qwen3-TTS Sohee)을 원클릭 실행기가 함께 준비했습니다."
     Write-Notice "처음 한 번은 .\scripts\setup-local-korean-stt.ps1 -DownloadModel 및 .\scripts\setup-local-korean-tts.ps1 -DownloadModel 을 실행해 로컬 음성 모델을 준비하세요."
     Write-Notice "작업을 마치면 scripts\Stop-Donghaeng-AI.cmd를 실행하세요. 이미 떠 있던 개발 서버를 재사용한 경우에는 원래 서버 창에서 Ctrl+C로 종료해야 합니다."
     if ($stdoutLog) {

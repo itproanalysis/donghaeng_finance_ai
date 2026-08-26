@@ -10,7 +10,6 @@ import {
   AUDIO_PROTOCOL_VERSION,
   encodeAudioFrame,
 } from "../src/realtime/audio-protocol.ts";
-import { encodeClaudeTurnPlanWire } from "../src/ai/claude-interview-providers.ts";
 import { createDevV1AcceptanceRequiredInformationItems } from "../src/domain/information-catalog.ts";
 
 const projectRoot = resolve(import.meta.dirname, "..");
@@ -163,15 +162,19 @@ async function startAnthropicStub() {
         ["type", "name", "disable_parallel_tool_use"],
         "Claude E2E tool choice contract is not exact.",
       );
-      assert(body.model === "claude-sonnet-5", "Claude E2E model이 claude-sonnet-5가 아닙니다.");
-      assert(body.max_tokens === 4096, "Claude E2E max_tokens 상한이 4096이 아닙니다.");
-      assert(typeof body.system === "string" && body.system.length > 0, "Claude E2E system instruction이 없습니다.");
+      assert(body.model === "claude-sonnet-5", "Claude E2E model이 기본 Sonnet 5 품질 프로필이 아닙니다.");
+      assert(body.max_tokens === 192, "실시간 Claude phrasing max_tokens 상한이 192가 아닙니다.");
+      assert(
+        (typeof body.system === "string" && body.system.length > 0) ||
+          (Array.isArray(body.system) && body.system.some((block) => typeof block?.text === "string" && block.text.length > 0)),
+        "Claude E2E system instruction이 없습니다.",
+      );
       assert(body.thinking?.type === "disabled", "Claude E2E extended thinking이 명시적으로 비활성화되지 않았습니다.");
       assert(Array.isArray(body.messages) && body.messages.length === 1, "Claude E2E user message가 정확히 하나가 아닙니다.");
       assert(body.messages[0]?.role === "user" && typeof body.messages[0]?.content === "string", "Claude E2E user content 계약이 잘못됐습니다.");
       assert(Array.isArray(body.tools) && body.tools.length === 1, "Claude E2E strict tool이 정확히 하나가 아닙니다.");
       const tool = body.tools[0];
-      assert(tool?.name === "commit_interview_turn" && tool?.strict === true, "Claude E2E strict interview tool이 강제되지 않았습니다.");
+      assert(tool?.name === "phrase_realtime_interview_turn" && tool?.strict === true, "Claude E2E strict realtime phrasing tool이 강제되지 않았습니다.");
       assert(
         body.tool_choice?.type === "tool" &&
           body.tool_choice?.name === tool.name &&
@@ -183,15 +186,38 @@ async function startAnthropicStub() {
       assert(
         userPayload &&
           typeof userPayload === "object" &&
-          userPayload.contractVersion === "dev-v1" &&
-          userPayload.deterministicDraft &&
-          typeof userPayload.deterministicDraft === "object",
-        "Claude E2E user payload에 deterministicDraft가 없습니다.",
+          userPayload.contractVersion === "realtime-phrasing-v1" &&
+          Array.isArray(userPayload.allowedCandidates) &&
+          userPayload.allowedCandidates.length >= 1 &&
+          userPayload.allowedCandidates.length <= 3 &&
+          userPayload.allowedCandidates.every(
+            (candidate) =>
+              candidate &&
+              typeof candidate === "object" &&
+              typeof candidate.infoCode === "string" &&
+              typeof candidate.canonicalQuestion === "string",
+          ) &&
+          Array.isArray(userPayload.allowedReactions) &&
+          userPayload.allowedReactions.includes("말씀하신 내용을 확인했어요."),
+        "Claude E2E user payload에 server-selected candidate allowlist가 없습니다.",
       );
+      const selectedCandidate = userPayload.allowedCandidates[0];
+      const reaction = "말씀하신 내용을 확인했어요.";
+      // The model-authored question is validation-only; the application always
+      // persists the selected server canonical question. Keep the local stub
+      // within the compact 100-character wire limit even when borrower-facing
+      // canonical wording becomes more explanatory.
+      const phrasedQuestion = selectedCandidate.canonicalQuestion.length <= 68 &&
+          `${reaction} ${selectedCandidate.canonicalQuestion}`.length <= 100
+        ? selectedCandidate.canonicalQuestion
+        : "이어서 이 내용을 조금 더 여쭤봐도 될까요?";
       anthropicStubRequests.push({
         model: body.model,
         toolName: tool.name,
-        sourceTranscript: userPayload.sourceTranscript,
+        sourceTranscript: userPayload.untrustedBorrowerAnswer,
+        allowedInfoCodes: userPayload.allowedCandidates.map((candidate) => candidate.infoCode),
+        selectedInfoCode: selectedCandidate.infoCode,
+        phrasedQuestion,
       });
       const callNumber = anthropicStubRequests.length;
       const responseBody = JSON.stringify({
@@ -205,7 +231,11 @@ async function startAnthropicStub() {
             type: "tool_use",
             id: `toolu_e2e_${callNumber}`,
             name: tool.name,
-            input: encodeClaudeTurnPlanWire(userPayload.deterministicDraft),
+            input: {
+              selectedInfoCode: selectedCandidate.infoCode,
+              reaction,
+              question: phrasedQuestion,
+            },
             caller: { type: "direct" },
           },
         ],
@@ -531,7 +561,8 @@ async function main() {
     ANTHROPIC_API_KEY: "sk-ant-e2e-placeholder-long",
     DONGHAENG_ANTHROPIC_MODEL: "claude-sonnet-5",
     DONGHAENG_ANTHROPIC_TIMEOUT_MS: "20000",
-    DONGHAENG_ANTHROPIC_MAX_TOKENS: "4096",
+    DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS: "8000",
+    DONGHAENG_ANTHROPIC_MAX_TOKENS: "2304",
     DONGHAENG_ANTHROPIC_ENDPOINT: anthropicEndpoint,
     DONGHAENG_E2E_ANTHROPIC_ALLOW_HTTP_LOOPBACK: "1",
   };
@@ -784,14 +815,21 @@ async function main() {
     );
     assert(
       result.processing?.status === "APPLIED",
-      `Claude 턴 처리가 APPLIED가 아닙니다: ${JSON.stringify(result.processing)}`,
+      `Claude 턴 처리가 APPLIED가 아닙니다: ${JSON.stringify(result.processing)}\n${serverLog}`,
     );
-    assert(result.processing?.metadata?.provider === "anthropic", "Claude provider 메타데이터가 응답에 없습니다.");
-    assert(result.processing?.metadata?.model === "claude-sonnet-5", "Claude model 메타데이터가 응답에 없습니다.");
-    assert(
-      anthropicStubRequests.length === claudeCallsBeforeMessage + 1,
-      "텍스트 메시지가 Claude /v1/messages stub을 정확히 한 번 호출하지 않았습니다.",
-    );
+    const noQuestion = result.processing?.metadata?.stopReason === "no_question";
+    if (noQuestion) {
+      assert(result.processing?.metadata?.provider === "deterministic", "질문이 끝난 턴의 로컬 완료 메타데이터가 없습니다.");
+      assert(result.snapshot.nextQuestion === null, "no_question 턴인데 다음 질문이 남았습니다.");
+      assert(anthropicStubRequests.length === claudeCallsBeforeMessage, "질문이 없는 완료 턴이 불필요하게 Claude를 호출했습니다.");
+    } else {
+      assert(result.processing?.metadata?.provider === "anthropic", `Claude provider 메타데이터가 응답에 없습니다: ${JSON.stringify(result.processing)} requests=${JSON.stringify(anthropicStubRequests.slice(-2))}\n${serverLog}`);
+      assert(result.processing?.metadata?.model === "claude-sonnet-5", "Claude Sonnet 5 model 메타데이터가 응답에 없습니다.");
+      assert(
+        anthropicStubRequests.length === claudeCallsBeforeMessage + 1,
+        "텍스트 메시지가 Claude /v1/messages stub을 정확히 한 번 호출하지 않았습니다.",
+      );
+    }
     if (!firstTextCommand) {
       firstTextCommand = command;
       firstTextResult = result;
@@ -805,7 +843,7 @@ async function main() {
         200,
       );
       assert(replayed.snapshot.session.version === firstTextResult.snapshot.session.version, "멱등 message replay가 새 version을 만들었습니다.");
-      assert(anthropicStubRequests.length === claudeCallsBeforeMessage + 1, "멱등 message replay가 Claude를 다시 호출했습니다.");
+      assert(anthropicStubRequests.length === claudeCallsBeforeMessage + (noQuestion ? 0 : 1), "멱등 message replay가 Claude를 다시 호출했습니다.");
       const claudeCallsBeforeStaleMessage = anthropicStubRequests.length;
       const stale = await apiRequest(origin, `/api/interviews/${encodeURIComponent(interviewId)}/messages`, {
         method: "POST",
@@ -995,7 +1033,7 @@ async function main() {
         clientCommandId: "e2e-force-1",
         expectedVersion: forcedCreated.session.version,
         mode: "FORCE_INCOMPLETE",
-        borrowerConfirmed: false,
+        borrowerConfirmed: true,
         reason: "차주 요청으로 E2E 조기 중단",
       },
     }),

@@ -3,7 +3,10 @@ import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
 
 import {
   assertInformationTransition,
+  BORROWER_SELECTED_IMPROVEMENT_CANDIDATE,
   InvalidInformationTransitionError,
+  type BorrowerImprovementChoice,
+  type BorrowerImprovementSelection,
   type Borrower,
   type BusinessProfile,
   type CanonicalInformationRecord,
@@ -87,6 +90,17 @@ export interface EvaluationArtifactInput {
   evidenceIds?: string[];
   pillarId?: string | null;
   status?: "UNRESOLVED" | "SUGGESTED" | "BORROWER_STATED" | "BORROWER_CONFIRMED";
+}
+
+export interface BorrowerImprovementSelectionInsert {
+  id: string;
+  tenantId: string;
+  interviewId: string;
+  finalSnapshotId: string;
+  choice: BorrowerImprovementChoice;
+  liveVersion: number;
+  clientCommandId: string;
+  createdAt: string;
 }
 
 interface PersistableFinalSnapshot {
@@ -1087,5 +1101,78 @@ export class InterviewRepository {
         "INSERT INTO audit_events(id, interview_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?, ?)",
       )
       .run(id, interviewId, eventType, JSON.stringify(payload), now);
+  }
+
+  insertBorrowerImprovementSelection(
+    input: BorrowerImprovementSelectionInsert,
+  ): BorrowerImprovementSelection {
+    const candidate = input.choice === "SKIP" ? null : input.choice;
+    this.database
+      .prepare(
+        `INSERT INTO borrower_improvement_candidate_selections(
+          id, tenant_id, interview_id, final_snapshot_id, event_type,
+          choice_kind, candidate_id, candidate_title, candidate_origin,
+          source_info_codes_json, evidence_ids_json, live_version,
+          client_command_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        input.id,
+        input.tenantId,
+        input.interviewId,
+        input.finalSnapshotId,
+        BORROWER_SELECTED_IMPROVEMENT_CANDIDATE,
+        candidate ? "CANDIDATE" : "SKIP",
+        candidate?.id ?? null,
+        candidate?.title ?? null,
+        candidate?.origin ?? null,
+        JSON.stringify(candidate?.sourceInfoCodes ?? []),
+        JSON.stringify(candidate?.evidenceIds ?? []),
+        input.liveVersion,
+        input.clientCommandId,
+        input.createdAt,
+      );
+    return {
+      id: input.id,
+      eventType: BORROWER_SELECTED_IMPROVEMENT_CANDIDATE,
+      choice: input.choice,
+      liveVersion: input.liveVersion,
+      selectedAt: input.createdAt,
+    };
+  }
+
+  getBorrowerImprovementSelection(
+    tenantId: string,
+    interviewId: string,
+  ): BorrowerImprovementSelection | null {
+    const row = this.database
+      .prepare(
+        `SELECT id, event_type, choice_kind, candidate_id, candidate_title,
+                candidate_origin, source_info_codes_json, evidence_ids_json,
+                live_version, created_at
+         FROM borrower_improvement_candidate_selections
+         WHERE tenant_id = ? AND interview_id = ?`,
+      )
+      .get(tenantId, interviewId);
+    if (!row) return null;
+    const choice: BorrowerImprovementChoice = row.choice_kind === "SKIP"
+      ? "SKIP"
+      : {
+          id: textValue(row.candidate_id),
+          title: textValue(row.candidate_title),
+          origin: textValue(row.candidate_origin) as Exclude<
+            BorrowerImprovementChoice,
+            "SKIP"
+          >["origin"],
+          sourceInfoCodes: parseJson<string[]>(row.source_info_codes_json, []),
+          evidenceIds: parseJson<string[]>(row.evidence_ids_json, []),
+        };
+    return {
+      id: textValue(row.id),
+      eventType: BORROWER_SELECTED_IMPROVEMENT_CANDIDATE,
+      choice,
+      liveVersion: numberValue(row.live_version),
+      selectedAt: textValue(row.created_at),
+    };
   }
 }

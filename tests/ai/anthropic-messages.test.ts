@@ -95,9 +95,16 @@ describe("Anthropic Messages structured-tool client", () => {
       provider: "anthropic",
       model: "claude-sonnet-5",
       timeoutMs: 20_000,
-      maxTokens: 4_096,
+      maxTokens: 2_304,
     });
     expect(JSON.stringify(client)).not.toContain(TEST_API_KEY);
+  });
+
+  it("keeps Sonnet 5 as an explicit approved higher-latency override", () => {
+    const client = createAnthropicMessagesClientFromEnvironment(environment({
+      DONGHAENG_ANTHROPIC_MODEL: "claude-sonnet-5",
+    }));
+    expect(client.model).toBe("claude-sonnet-5");
   });
 
   it("calls only the official endpoint with a forced single tool and returns safe metadata", async () => {
@@ -160,6 +167,27 @@ describe("Anthropic Messages structured-tool client", () => {
     ]);
     expect(JSON.stringify(requestBody)).not.toContain(TEST_API_KEY);
     expect(Object.keys(client)).not.toContain("apiKey");
+  });
+
+  it("honors a smaller request-local token ceiling without changing the client default", async () => {
+    let capturedInit: RequestInit | undefined;
+    const client = createAnthropicMessagesClientFromEnvironment(environment(), {
+      fetchImpl: vi.fn<typeof fetch>(async (_input, init) => {
+        capturedInit = init;
+        return new Response(JSON.stringify(successBody({ accepted: true })), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }),
+    });
+
+    await client.createToolResult({ ...toolRequest, maxTokens: 192 });
+
+    expect(JSON.parse(String(capturedInit?.body)).max_tokens).toBe(192);
+    expect(client.maxTokens).toBe(2_048);
+    await expect(
+      client.createToolResult({ ...toolRequest, maxTokens: 2_049 }),
+    ).rejects.toMatchObject({ code: "CLAUDE_REQUEST_INVALID" });
   });
 
   it.each([

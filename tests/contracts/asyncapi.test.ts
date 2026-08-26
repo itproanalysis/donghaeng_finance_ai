@@ -285,6 +285,7 @@ describe("AsyncAPI contract", () => {
       "vad.speech_started",
       "vad.speech_stopped",
       "stt.partial",
+      "stt.recognized",
       "stt.final",
       "audio.error",
     ];
@@ -302,6 +303,7 @@ describe("AsyncAPI contract", () => {
       "VadSpeechStartedMessage",
       "VadSpeechStoppedMessage",
       "SttPartialMessage",
+      "SttRecognizedMessage",
       "SttFinalMessage",
       "AudioErrorMessage",
     ]) {
@@ -310,8 +312,16 @@ describe("AsyncAPI contract", () => {
     }
     expect(asStringArray(schema("SttPartialMessage").required, "partial.required"))
       .toEqual(expect.arrayContaining(["text", "provider", "serverTime"]));
-    expect(asStringArray(schema("SttFinalMessage").required, "final.required"))
+    expect(asStringArray(schema("SttRecognizedMessage").required, "recognized.required"))
       .toEqual(expect.arrayContaining(["text", "provider", "serverTime"]));
+    expect(asStringArray(schema("SttFinalMessage").required, "final.required"))
+      .toEqual(expect.arrayContaining([
+        "text",
+        "provider",
+        "serverTime",
+        "processingStatus",
+        "processingCode",
+      ]));
     expect(asStringArray(schema("AudioErrorMessage").required, "error.required"))
       .toEqual(expect.arrayContaining(["code", "message", "retryable"]));
   });

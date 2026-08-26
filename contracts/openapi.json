@@ -292,6 +292,76 @@
         }
       }
     },
+    "/voice/speech": {
+      "post": {
+        "operationId": "synthesizeQuestionSpeech",
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Synthesize one authenticated AI interview prompt",
+        "description": "Returns the exact requested interview prompt as bounded audio. The same-origin session is required. Application-owned static phrases may use the local private cache; arbitrary borrower-derived text is never persisted by this endpoint.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionSpeechRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Synthesized WAV audio for the supplied prompt",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "Content-Length": {
+                "description": "Bounded audio payload size in bytes",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8388608
+                }
+              }
+            },
+            "content": {
+              "audio/wav": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "415": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/JsonError"
+          },
+          "503": {
+            "$ref": "#/components/responses/JsonError"
+          },
+          "504": {
+            "$ref": "#/components/responses/JsonError"
+          }
+        }
+      }
+    },
     "/interviews": {
       "post": {
         "operationId": "createInterview",
@@ -456,6 +526,66 @@
         }
       }
     },
+    "/interviews/{id}/realtime-session": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "post": {
+        "operationId": "createInterviewRealtimeSession",
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Mint a short-lived browser credential for an OpenAI Realtime voice call",
+        "description": "Requires the authenticated tenant-scoped interview plus effective MICROPHONE_INTERVIEW and CLOUD_AI_PROCESSING consents. The server-only OpenAI API key is never returned. The response contains only a short-lived client secret used by the browser to establish a direct WebRTC connection. Issuance is rate limited per user and interview.",
+        "responses": {
+          "201": {
+            "description": "Short-lived Realtime WebRTC credential",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              },
+              "X-Realtime-Model": {
+                "description": "Pinned Realtime model for the issued session",
+                "schema": {
+                  "type": "string",
+                  "const": "gpt-realtime-2.1"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RealtimeSessionSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/interviews/{id}/transcript-segments/{segmentId}/corrections": {
       "parameters": [
         {
@@ -534,7 +664,7 @@
           "Interviews"
         ],
         "summary": "Finalize an interview idempotently",
-        "description": "Repeated completion with the same clientCommandId and identical payload returns the stored result. COMPLETE enforces every completion gate. FORCE_INCOMPLETE records an intentionally incomplete FINAL snapshot, never creates an evaluation, and requires a non-blank reason. Both modes return PENDING_MESSAGE_COMMAND while any durable answer is awaiting or actively undergoing Claude processing, preventing FINAL from discarding that transcript result.",
+        "description": "Repeated completion with the same clientCommandId and identical payload returns the stored result. COMPLETE enforces every completion gate. FORCE_INCOMPLETE records an intentionally incomplete FINAL snapshot, never creates an evaluation, and requires a non-blank reason. Both modes return PENDING_MESSAGE_COMMAND while any durable answer is awaiting or actively undergoing Claude processing, preventing FINAL from discarding that transcript result. An optional improvementChoice is accepted only when it exactly matches a candidate deterministically regenerated from the current live snapshot (or SKIP), then stored in an append-only non-binding ledger outside goals, features, scores, credit, and approval logic.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1288,6 +1418,36 @@
           }
         }
       },
+      "UpstreamUnavailable": {
+        "description": "The configured external Realtime provider was unavailable or returned an invalid response",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The requested server-side provider is not configured",
+        "headers": {
+          "X-Request-ID": {
+            "$ref": "#/components/headers/RequestId"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        }
+      },
       "ReplayGap": {
         "description": "EVENT_REPLAY_GAP: the requested event is older than the retained stream. Reload the interview snapshot before reconnecting.",
         "headers": {
@@ -1465,6 +1625,21 @@
         "additionalProperties": false,
         "properties": {},
         "description": "Empty object. The local workspace identity is server-controlled and only available outside production."
+      },
+      "QuestionSpeechRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000,
+            "pattern": "\\S"
+          }
+        }
       },
       "CreateSessionRequest": {
         "type": "object",
@@ -4183,7 +4358,8 @@
             ]
           },
           "borrowerConfirmed": {
-            "type": "boolean"
+            "const": true,
+            "description": "Must be true. COMPLETE and FORCE_INCOMPLETE both require the borrower's explicit final review confirmation."
           },
           "reason": {
             "type": [
@@ -4191,6 +4367,21 @@
               "null"
             ],
             "description": "Required and non-blank for FORCE_INCOMPLETE; optional context (or null) for COMPLETE"
+          },
+          "improvementChoice": {
+            "oneOf": [
+              {
+                "const": "SKIP",
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/AllowlistedImprovementCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional non-binding borrower preference. The server deterministically regenerates the current live-snapshot candidate allowlist and requires an exact match. It is excluded from credit, approval, data-quality scoring, and confirmed goals."
           }
         },
         "allOf": [
@@ -4216,6 +4407,95 @@
             }
           }
         ]
+      },
+      "AllowlistedImprovementCandidate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "origin",
+          "sourceInfoCodes",
+          "evidenceIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "CONFIRMED_GOAL",
+              "CONFIRMED_ANSWER",
+              "CATALOG_SUGGESTION"
+            ]
+          },
+          "sourceInfoCodes": {
+            "type": "array",
+            "maxItems": 16,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          "evidenceIds": {
+            "type": "array",
+            "maxItems": 64,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          }
+        }
+      },
+      "BorrowerImprovementSelection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "eventType",
+          "choice",
+          "liveVersion",
+          "selectedAt"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/Identifier"
+          },
+          "eventType": {
+            "const": "BORROWER_SELECTED_IMPROVEMENT_CANDIDATE"
+          },
+          "choice": {
+            "oneOf": [
+              {
+                "const": "SKIP",
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/AllowlistedImprovementCandidate"
+              }
+            ]
+          },
+          "liveVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "selectedAt": {
+            "$ref": "#/components/schemas/Timestamp"
+          }
+        },
+        "description": "Append-only, non-binding borrower preference stored outside canonical values, goals, features, evaluations, credit, and approval logic."
       },
       "TurnPlannerMetadata": {
         "type": "object",
@@ -4396,7 +4676,8 @@
         "required": [
           "snapshot",
           "evaluation",
-          "evaluationEligibility"
+          "evaluationEligibility",
+          "improvementSelection"
         ],
         "properties": {
           "snapshot": {
@@ -4445,6 +4726,16 @@
                 ]
               }
             }
+          },
+          "improvementSelection": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BorrowerImprovementSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         }
       },
@@ -4459,6 +4750,59 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/BootstrapResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "RealtimeClientSecret": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "expiresAt",
+          "model",
+          "voice"
+        ],
+        "properties": {
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "Short-lived OpenAI Realtime browser credential. This is never the server API key."
+          },
+          "expiresAt": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "exclusiveMinimum": 0
+          },
+          "model": {
+            "type": "string",
+            "const": "gpt-realtime-2.1"
+          },
+          "voice": {
+            "type": "string",
+            "const": "marin"
+          }
+        }
+      },
+      "RealtimeSessionSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RealtimeClientSecret"
           },
           "error": {
             "type": "null"

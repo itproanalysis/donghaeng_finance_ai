@@ -23,9 +23,9 @@ if ($LASTEXITCODE -ne 0) { throw "Qwen3-TTS 의존성 설치가 실패했습니�
 
 if ($DownloadModel) {
     $env:DONGHAENG_LOCAL_TTS_MODEL_DIR = Join-Path $root "data\local-voice\tts-models"
-    $env:DONGHAENG_LOCAL_TTS_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
-    $env:DONGHAENG_LOCAL_TTS_MODEL_PATH = Join-Path $env:DONGHAENG_LOCAL_TTS_MODEL_DIR "Qwen3-TTS-12Hz-1.7B-CustomVoice"
-    Write-Host "[동행금융AI] Qwen3-TTS 1.7B 한국어 Sohee 음성 모델을 로컬 GPU용으로 내려받습니다." -ForegroundColor Cyan
+    $env:DONGHAENG_LOCAL_TTS_MODEL = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"
+    $env:DONGHAENG_LOCAL_TTS_MODEL_PATH = Join-Path $env:DONGHAENG_LOCAL_TTS_MODEL_DIR "Qwen3-TTS-12Hz-0.6B-CustomVoice"
+    Write-Host "[동행금융AI] Qwen3-TTS 0.6B 실시간 한국어 Sohee 음성 모델을 로컬 GPU용으로 내려받습니다." -ForegroundColor Cyan
     & $venvPython (Join-Path $root "local_voice\tts_server.py") --download-model
     if ($LASTEXITCODE -ne 0) { throw "Qwen3-TTS 모델 다운로드가 실패했습니다." }
 }

@@ -4,12 +4,15 @@ import {
   CANONICAL_VALUE_SCHEMA_VERSION,
   createCanonicalValueRevision,
   createDefaultRequiredInformationItems,
+  createDevV1AcceptanceRequiredInformationItems,
   detectCanonicalValueConflict,
   exact,
   isInformationTransitionAllowed,
   markConflictRevisions,
+  questionSelectionContextAfterAnswer,
   resolveCanonicalConflict,
   selectNextQuestion,
+  selectEligibleNextQuestions,
   type InformationItem,
   type PeriodicMoneyValue,
 } from "../../src/domain";
@@ -179,5 +182,122 @@ describe("state transition과 deterministic selector", () => {
     expect(
       selectNextQuestion(candidates, null)?.infoCode,
     ).not.toBe("execution_readiness");
+  });
+
+  it("keeps normal questions in a borrower-friendly business phase order", () => {
+    const candidates = items().map((item) => ({
+      ...item,
+      status: item.infoCode === "monthly_average_sales"
+        ? "CONFIRMED" as const
+        : "NEEDED" as const,
+    }));
+    expect(selectNextQuestion(candidates)?.infoCode).toBe("fixed_operating_costs");
+
+    const afterCurrentState = candidates.map((item) => ({
+      ...item,
+      status: ["monthly_average_sales", "fixed_operating_costs"].includes(item.infoCode)
+        ? "CONFIRMED" as const
+        : "NEEDED" as const,
+    }));
+    expect(selectNextQuestion(afterCurrentState)?.infoCode).toBe("improvement_plan");
+  });
+
+  it("offers multiple ordered required candidates while keeping untouched optional signals out", () => {
+    const acceptance = createDevV1AcceptanceRequiredInformationItems().map((definition, index) => ({
+      ...definition,
+      status: ([
+        "monthly_average_sales",
+        "fixed_operating_costs",
+      ].includes(definition.infoCode) ? "CONFIRMED" : "NEEDED") as InformationItem["status"],
+      valueState: "MISSING" as const,
+      value: null,
+      quality: null,
+      extractionConfidence: null,
+      verification: null,
+      evidenceIds: [],
+      prefill: null,
+      updatedAt: `2026-08-10T00:00:${String(index).padStart(2, "0")}.000Z`,
+    }));
+    const eligible = selectEligibleNextQuestions(acceptance, null, {}, 3);
+    expect(eligible.map((question) => question.infoCode)).toEqual([
+      "improvement_plan",
+      "confirmed_reservations",
+      "seasonality_outlook",
+    ]);
+    expect(eligible.some((question) => [
+      "hall_customer_decline",
+      "platform_fee_pressure",
+      "repeat_customer_share",
+    ].includes(question.infoCode))).toBe(false);
+
+    const withOptionalConflict = acceptance.map((item) =>
+      item.infoCode === "repeat_customer_share"
+        ? { ...item, status: "CONFLICT" as const }
+        : item.infoCode === "improvement_plan"
+          ? { ...item, status: "NEEDS_FOLLOWUP" as const }
+          : item,
+    );
+    expect(selectEligibleNextQuestions(withOptionalConflict).map((question) => question.infoCode))
+      .toEqual(["repeat_customer_share"]);
+    expect(selectEligibleNextQuestions(
+      withOptionalConflict,
+      "repeat_customer_share",
+    ).map((question) => question.infoCode)).toEqual(["repeat_customer_share"]);
+
+    const householdPhase = acceptance.map((item) => ({
+      ...item,
+      status: item.category === "HOUSEHOLD_STATE"
+        ? "NEEDED" as const
+        : "CONFIRMED" as const,
+    }));
+    expect(selectEligibleNextQuestions(householdPhase).map((question) => question.infoCode))
+      .toEqual(["essential_household_expenses"]);
+  });
+
+  it("uses server-owned conversational bridges without bypassing eligibility policy", () => {
+    const afterImprovement = items().map((item) => ({
+      ...item,
+      status: item.infoCode === "improvement_plan"
+        ? "CONFIRMED" as const
+        : item.infoCode === "monthly_average_sales"
+          ? "CONFIRMED" as const
+          : "NEEDED" as const,
+    }));
+    const improvementContext = questionSelectionContextAfterAnswer(
+      afterImprovement,
+      "improvement_plan",
+    );
+    expect(improvementContext).toMatchObject({
+      lastCategory: "IMPROVEMENT_INTENT",
+      preferredInfoCodes: ["execution_readiness"],
+    });
+    expect(selectEligibleNextQuestions(afterImprovement, null, improvementContext, 3)[0]?.infoCode)
+      .toBe("execution_readiness");
+
+    const withoutConfirmedPlan = afterImprovement.map((item) =>
+      item.infoCode === "improvement_plan"
+        ? { ...item, status: "UNAVAILABLE" as const }
+        : item,
+    );
+    expect(selectEligibleNextQuestions(
+      withoutConfirmedPlan,
+      null,
+      questionSelectionContextAfterAnswer(withoutConfirmedPlan, "improvement_plan"),
+      3,
+    ).map((question) => question.infoCode)).not.toContain("execution_readiness");
+
+    const afterReservations = items().map((item) => ({
+      ...item,
+      status: ["monthly_average_sales", "fixed_operating_costs", "confirmed_reservations"]
+        .includes(item.infoCode)
+        ? "CONFIRMED" as const
+        : "NEEDED" as const,
+    }));
+    expect(selectEligibleNextQuestions(
+      afterReservations,
+      null,
+      questionSelectionContextAfterAnswer(afterReservations, "confirmed_reservations"),
+      3,
+    )[0]?.infoCode).toBe("seasonality_outlook");
   });
 });

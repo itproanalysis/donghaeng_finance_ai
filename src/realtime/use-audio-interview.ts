@@ -18,6 +18,7 @@ import type {
   AudioUxState,
   LiveConnectionState,
 } from "./live-store";
+import { realtimeLatencyTelemetry } from "./latency-telemetry";
 
 interface UseAudioInterviewOptions {
   interviewId: string;
@@ -25,6 +26,7 @@ interface UseAudioInterviewOptions {
   autoEndOnSilence?: boolean;
   silenceThresholdMs?: number;
   onFinalTranscript?: (text: string) => void | Promise<void>;
+  onRecognizedTranscript?: (text: string) => void | Promise<void>;
 }
 
 export interface AiSpeakingStartTransition {
@@ -36,6 +38,17 @@ export interface AiSpeakingStartTransition {
 export interface AiSpeakingEndTransition {
   nextState: AudioUxState;
   resumeCapture: boolean;
+}
+
+export function shouldScheduleAudioReconnect(input: {
+  intentionalClose: boolean;
+  currentAudioSessionId: string | null;
+  requestedAudioSessionId: string;
+  reconnectAlreadyScheduled: boolean;
+}): boolean {
+  return !input.intentionalClose &&
+    input.currentAudioSessionId === input.requestedAudioSessionId &&
+    !input.reconnectAlreadyScheduled;
 }
 
 export function beginAiSpeakingTransition(
@@ -155,11 +168,13 @@ export function useAudioInterview({
   autoEndOnSilence = false,
   silenceThresholdMs = 1_000,
   onFinalTranscript,
+  onRecognizedTranscript,
 }: UseAudioInterviewOptions): AudioInterviewController {
   const runtime = useRef<RuntimeResources>(newRuntime());
   const replay = useRef(new BoundedAudioReplayBuffer());
   const mounted = useRef(true);
   const finalCallback = useRef(onFinalTranscript);
+  const recognizedCallback = useRef(onRecognizedTranscript);
   const uxStateRef = useRef<AudioUxState>("IDLE");
   const reconnectCallback = useRef<(audioSessionId: string) => void>(() => undefined);
   const endTurnCallback = useRef<() => Promise<void>>(async () => undefined);
@@ -180,6 +195,10 @@ export function useAudioInterview({
   useEffect(() => {
     finalCallback.current = onFinalTranscript;
   }, [onFinalTranscript]);
+
+  useEffect(() => {
+    recognizedCallback.current = onRecognizedTranscript;
+  }, [onRecognizedTranscript]);
 
   useEffect(() => {
     uxStateRef.current = uxState;
@@ -359,6 +378,7 @@ export function useAudioInterview({
         return;
       }
       if (message.type === "vad.speech_stopped") {
+        realtimeLatencyTelemetry.markSpeechEnded(message.audioSessionId);
         setUxState("TRANSCRIBING");
         return;
       }
@@ -367,13 +387,42 @@ export function useAudioInterview({
         setInterimTranscript(message.text);
         return;
       }
+      if (message.type === "stt.recognized") {
+        realtimeLatencyTelemetry.markRecognized(
+          message.audioSessionId,
+          message.provider,
+        );
+        setProviderLabel(message.provider);
+        setInterimTranscript("");
+        setFinalTranscript(message.text);
+        setUxState("AI_THINKING");
+        cleanupMedia();
+        void Promise.resolve(recognizedCallback.current?.(message.text)).catch(
+          (caught: unknown) => {
+            if (!mounted.current) return;
+            setError(friendlyMicrophoneError(caught));
+          },
+        );
+        return;
+      }
       if (message.type === "stt.final") {
+        realtimeLatencyTelemetry.markProcessingResult(message.audioSessionId, {
+          status: message.processingStatus,
+        });
         setProviderLabel(message.provider);
         setInterimTranscript("");
         setFinalTranscript(message.text);
         setUxState("AI_THINKING");
         cleanupMedia();
         closeSocket();
+        if (message.processingStatus !== "APPLIED") {
+          setError(
+            message.processingStatus === "RETRYABLE_FAILURE"
+              ? "말씀은 저장됐지만 AI 정리가 잠시 지연되고 있어요. 화면에서 다시 시도할 수 있습니다."
+              : "말씀은 저장됐지만 AI 정리를 적용하지 못했습니다. 담당자 확인이 필요합니다.",
+          );
+          setUxState("ERROR");
+        }
         void Promise.resolve(finalCallback.current?.(message.text))
           .catch((caught: unknown) => {
             if (!mounted.current) return;
@@ -381,9 +430,13 @@ export function useAudioInterview({
             setUxState("ERROR");
           })
           .finally(() => {
-            setTimeout(() => {
-              if (mounted.current) setUxState((current) => current === "AI_THINKING" ? "IDLE" : current);
-            }, 600);
+            if (mounted.current) {
+              setUxState((current) =>
+                current === "AI_THINKING" && message.processingStatus === "APPLIED"
+                  ? "IDLE"
+                  : current,
+              );
+            }
           });
         return;
       }
@@ -437,7 +490,12 @@ export function useAudioInterview({
   const reconnectSocket = useCallback(
     (audioSessionId: string) => {
       const resources = runtime.current;
-      if (resources.intentionalClose || resources.audioSessionId !== audioSessionId) return;
+      if (!shouldScheduleAudioReconnect({
+        intentionalClose: resources.intentionalClose,
+        currentAudioSessionId: resources.audioSessionId,
+        requestedAudioSessionId: audioSessionId,
+        reconnectAlreadyScheduled: resources.reconnectTimer !== null,
+      })) return;
       if (resources.reconnectAttempts >= 3) {
         setConnection("ERROR");
         setError("음성 연결 복구에 실패했습니다. 녹음은 중지되었으며 텍스트로 계속할 수 있습니다.");
@@ -451,6 +509,12 @@ export function useAudioInterview({
       setConnection("RECONNECTING");
       setUxState("PAUSED");
       resources.reconnectTimer = setTimeout(() => {
+        const latest = runtime.current;
+        latest.reconnectTimer = null;
+        if (
+          latest.intentionalClose ||
+          latest.audioSessionId !== audioSessionId
+        ) return;
         void openSocket(audioSessionId)
           .then((socket) => {
             const current = runtime.current;
@@ -531,10 +595,10 @@ export function useAudioInterview({
         source.connect(analyser);
         runtime.current.context = context;
         runtime.current.analyser = analyser;
-        startMeter();
       }
 
       const audioSessionId = crypto.randomUUID();
+      realtimeLatencyTelemetry.beginAudioTurn(audioSessionId);
       runtime.current.audioSessionId = audioSessionId;
       runtime.current.audioSeq = 0;
       runtime.current.lastAckedAudioSeq = 0;
@@ -634,6 +698,11 @@ export function useAudioInterview({
           .finally(() => runtime.current.pendingChunkSends.delete(pending));
       });
       recorder.start(DEFAULT_AUDIO_CHUNK_MS);
+      // Start VAD only after MediaRecorder is actually accepting audio. If the
+      // meter runs while the WebSocket handshake is still pending, an early
+      // utterance followed by silence can fire endTurn before a recorder
+      // exists and permanently consume the one-shot auto-finalize guard.
+      startMeter();
       setUxState("LISTENING");
     } catch (caught) {
       cleanupMedia();
@@ -724,6 +793,7 @@ export function useAudioInterview({
     }
     try {
       setUxState("TRANSCRIBING");
+      realtimeLatencyTelemetry.markSpeechEnded(resources.audioSessionId);
       cleanupMeter();
       if (resources.recorder.state === "paused") resources.recorder.resume();
       if (resources.recorder.state !== "inactive") {

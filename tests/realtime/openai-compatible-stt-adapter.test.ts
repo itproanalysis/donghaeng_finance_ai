@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createConfiguredStreamingSttAdapter } from "../../src/realtime/server/configured-stt-adapter";
 import { UnavailableStreamingSttAdapter } from "../../src/realtime/server/unavailable-stt-adapter";
 import {
+  MAX_PARTIAL_TRANSCRIPTS_PER_TURN,
   OpenAiCompatibleStreamingSttAdapter,
   safeAudioFileDescriptor,
 } from "../../src/realtime/server/openai-compatible-stt-adapter";
@@ -199,6 +200,156 @@ describe("OpenAI-compatible multipart STT adapter", () => {
       "partial:최근 한 달 단골 매출은 45%입니다.",
       "final:최근 한 달 단골 매출은 45%입니다.",
     ]);
+  });
+
+  it("emits a rolling caption before endTurn while keeping the final transcript authoritative", async () => {
+    vi.useFakeTimers();
+    const events: string[] = [];
+    let requestCount = 0;
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      requestCount += 1;
+      return (
+      new Response(JSON.stringify({
+        text: requestCount === 1
+          ? "말씀하시는 중입니다"
+          : "최근 매출은 이천만 원입니다.",
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+      );
+    });
+    const session = adapterWith(fetchImpl).createSession({
+      locale: "ko-KR",
+      mimeType: "audio/webm;codecs=opus",
+      callbacks: callbacks(events),
+    });
+
+    await session.start();
+    for (let audioSeq = 1; audioSeq <= 4; audioSeq += 1) {
+      await vi.advanceTimersByTimeAsync(400);
+      await session.pushAudio(new Uint8Array([audioSeq]), audioSeq);
+    }
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(events).toContain("partial:말씀하시는 중입니다");
+    expect(events).not.toContain("stopped");
+
+    await session.endTurn();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(events.at(-1)).toBe("final:최근 매출은 이천만 원입니다.");
+  });
+
+  it("bounds whole-turn preview decodes so concurrent final turns retain priority", async () => {
+    vi.useFakeTimers();
+    let requestCount = 0;
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      requestCount += 1;
+      return new Response(JSON.stringify({ text: `중간 자막 ${requestCount}` }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const session = adapterWith(fetchImpl, { maxChunks: 40 }).createSession({
+      locale: "ko-KR",
+      mimeType: "audio/webm;codecs=opus",
+      callbacks: callbacks(),
+    });
+
+    await session.start();
+    for (let audioSeq = 1; audioSeq <= 24; audioSeq += 1) {
+      await vi.advanceTimersByTimeAsync(400);
+      await session.pushAudio(new Uint8Array([audioSeq]), audioSeq);
+      await vi.advanceTimersByTimeAsync(0);
+    }
+
+    expect(fetchImpl).toHaveBeenCalledTimes(MAX_PARTIAL_TRANSCRIPTS_PER_TURN);
+    await session.endTurn();
+    expect(fetchImpl).toHaveBeenCalledTimes(MAX_PARTIAL_TRANSCRIPTS_PER_TURN + 1);
+  });
+
+  it("aborts a pending preview before starting the authoritative final request", async () => {
+    vi.useFakeTimers();
+    const requestOrder: string[] = [];
+    let requestCount = 0;
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+      requestCount += 1;
+      if (requestCount === 1) {
+        requestOrder.push("partial-started");
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            requestOrder.push("partial-aborted");
+            reject(new DOMException("aborted", "AbortError"));
+          }, { once: true });
+        });
+      }
+      requestOrder.push("final-started");
+      return new Response(JSON.stringify({ text: "최종 답변입니다." }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    const events: string[] = [];
+    const session = adapterWith(fetchImpl).createSession({
+      locale: "ko-KR",
+      mimeType: "audio/webm;codecs=opus",
+      callbacks: callbacks(events),
+    });
+
+    await session.start();
+    for (let audioSeq = 1; audioSeq <= 4; audioSeq += 1) {
+      await vi.advanceTimersByTimeAsync(400);
+      await session.pushAudio(new Uint8Array([audioSeq]), audioSeq);
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requestOrder).toEqual(["partial-started"]);
+
+    await session.endTurn();
+
+    expect(requestOrder).toEqual([
+      "partial-started",
+      "partial-aborted",
+      "final-started",
+    ]);
+    expect(events.at(-1)).toBe("final:최종 답변입니다.");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it("isolates a rolling-caption provider failure from final transcription", async () => {
+    vi.useFakeTimers();
+    let requestCount = 0;
+    const fetchImpl = vi.fn<typeof fetch>(async () => {
+      requestCount += 1;
+      return requestCount === 1
+        ? new Response("preview failed", {
+            status: 503,
+            headers: { "content-type": "text/plain" },
+          })
+        : new Response(JSON.stringify({ text: "실제 최종 답변" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          });
+    });
+    const events: string[] = [];
+    const session = adapterWith(fetchImpl).createSession({
+      locale: "ko-KR",
+      mimeType: "audio/webm;codecs=opus",
+      callbacks: callbacks(events),
+    });
+
+    await session.start();
+    for (let audioSeq = 1; audioSeq <= 4; audioSeq += 1) {
+      await vi.advanceTimersByTimeAsync(400);
+      await session.pushAudio(new Uint8Array([audioSeq]), audioSeq);
+    }
+    await vi.advanceTimersByTimeAsync(0);
+    await session.endTurn();
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(events.some((event) => event.startsWith("error:"))).toBe(false);
+    expect(events.at(-1)).toBe("final:실제 최종 답변");
   });
 
   it("fails closed when the bounded chunk count is exceeded", async () => {

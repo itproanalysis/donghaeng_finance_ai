@@ -7,6 +7,12 @@ import { StreamingSttError } from "./stt-adapter";
 
 const MAX_TRANSCRIPT_CHARACTERS = 100_000;
 const MAX_RESPONSE_BYTES = 1_000_000;
+const PARTIAL_TRANSCRIPT_INTERVAL_MS = 1_600;
+const PARTIAL_TRANSCRIPT_MIN_CHUNKS = 4;
+// Rolling captions are an immersion aid, not the authoritative transcript.
+// Bound whole-utterance preview decodes so 2-5 concurrent interviews cannot
+// continuously occupy the single local GPU ahead of final turns.
+export const MAX_PARTIAL_TRANSCRIPTS_PER_TURN = 3;
 
 const AUDIO_MIME_FILES = new Map<string, { extension: string; mimeType: string }>([
   ["audio/flac", { extension: "flac", mimeType: "audio/flac" }],
@@ -245,6 +251,13 @@ class OpenAiCompatibleSttSession implements StreamingSttSession {
   private stopped = false;
   private failed = false;
   private inFlightController: AbortController | null = null;
+  private partialController: AbortController | null = null;
+  private partialRequest: Promise<void> | null = null;
+  private startedAtMs = 0;
+  private lastPartialAtMs = 0;
+  private lastPartialChunkCount = 0;
+  private lastPartialText = "";
+  private partialTranscriptCount = 0;
 
   constructor(
     private readonly endpoint: URL,
@@ -273,6 +286,7 @@ class OpenAiCompatibleSttSession implements StreamingSttSession {
       );
     }
     this.started = true;
+    this.startedAtMs = Date.now();
   }
 
   async pushAudio(audio: Uint8Array, audioSeq: number): Promise<void> {
@@ -338,6 +352,7 @@ class OpenAiCompatibleSttSession implements StreamingSttSession {
         );
       }
     }
+    this.schedulePartialTranscript();
   }
 
   async pause(): Promise<void> {
@@ -371,6 +386,8 @@ class OpenAiCompatibleSttSession implements StreamingSttSession {
 
     this.ending = true;
     this.paused = false;
+    this.partialController?.abort();
+    this.partialController = null;
     if (this.speechStarted) {
       try {
         this.callbacks.onSpeechStopped();
@@ -488,8 +505,114 @@ class OpenAiCompatibleSttSession implements StreamingSttSession {
 
   async stop(): Promise<void> {
     this.stopped = true;
+    this.partialController?.abort();
+    this.partialController = null;
     this.inFlightController?.abort();
     this.clearBuffer();
+  }
+
+  /**
+   * Produces bounded rolling captions while the borrower is still speaking.
+   * The final end-turn transcription below remains authoritative. Preview
+   * failures are deliberately isolated so a temporary caption miss never
+   * destroys the buffered answer or prevents final persistence.
+   */
+  private schedulePartialTranscript(): void {
+    const now = Date.now();
+    if (
+      this.paused ||
+      this.ending ||
+      this.stopped ||
+      this.failed ||
+      this.partialRequest ||
+      this.partialTranscriptCount >= MAX_PARTIAL_TRANSCRIPTS_PER_TURN ||
+      this.chunks.length < PARTIAL_TRANSCRIPT_MIN_CHUNKS ||
+      this.chunks.length - this.lastPartialChunkCount < PARTIAL_TRANSCRIPT_MIN_CHUNKS ||
+      now - this.startedAtMs < PARTIAL_TRANSCRIPT_INTERVAL_MS ||
+      now - this.lastPartialAtMs < PARTIAL_TRANSCRIPT_INTERVAL_MS
+    ) {
+      return;
+    }
+
+    const audioSnapshot = this.chunks.slice();
+    const snapshotChunkCount = audioSnapshot.length;
+    const controller = new AbortController();
+    this.partialController = controller;
+    this.lastPartialAtMs = now;
+    this.lastPartialChunkCount = snapshotChunkCount;
+    this.partialTranscriptCount += 1;
+    this.partialRequest = this.requestPartialTranscript(audioSnapshot, controller)
+      .then((transcript) => {
+        if (
+          controller.signal.aborted ||
+          this.ending ||
+          this.stopped ||
+          this.failed ||
+          transcript === this.lastPartialText
+        ) {
+          return;
+        }
+        this.lastPartialText = transcript;
+        try {
+          this.callbacks.onPartial(transcript);
+        } catch {
+          // The final transcript path remains authoritative. A presentation
+          // callback cannot invalidate the still-buffered borrower answer.
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (this.partialController === controller) this.partialController = null;
+        this.partialRequest = null;
+      });
+  }
+
+  private async requestPartialTranscript(
+    audioChunks: readonly ArrayBuffer[],
+    controller: AbortController,
+  ): Promise<string> {
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const form = new FormData();
+      form.append(
+        "file",
+        new Blob([...audioChunks], { type: this.descriptor.mimeType }),
+        `interview-partial.${this.descriptor.extension}`,
+      );
+      form.set("model", this.model);
+      form.set("language", "ko");
+      form.set("response_format", "json");
+      const response = await this.fetchImpl(this.endpoint, {
+        method: "POST",
+        redirect: "error",
+        headers: {
+          accept: "application/json",
+          authorization: `Bearer ${this.apiKey}`,
+        },
+        body: form,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        discardResponseBody(response);
+        throw new Error("STT_PARTIAL_PROVIDER_HTTP_ERROR");
+      }
+      const mediaType = (response.headers.get("content-type") ?? "")
+        .toLowerCase()
+        .split(";", 1)[0]
+        .trim();
+      if (mediaType !== "application/json") {
+        discardResponseBody(response);
+        throw new Error("STT_PARTIAL_PROVIDER_RESPONSE_INVALID");
+      }
+      const contentLength = Number(response.headers.get("content-length"));
+      if (Number.isFinite(contentLength) && contentLength > MAX_RESPONSE_BYTES) {
+        discardResponseBody(response);
+        throw new Error("STT_PARTIAL_PROVIDER_RESPONSE_INVALID");
+      }
+      return strictTranscriptResponse(await boundedResponseText(response));
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   private assertUsable(): void {
@@ -515,6 +638,8 @@ class OpenAiCompatibleSttSession implements StreamingSttSession {
 
   private report(error: StreamingSttError): StreamingSttError {
     this.failed = true;
+    this.partialController?.abort();
+    this.partialController = null;
     this.clearBuffer();
     error.reported = true;
     try {

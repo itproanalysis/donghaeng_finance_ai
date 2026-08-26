@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { ApiRequestError, authenticatedFetch, extractInterviewId, readApiEnvelope } from "@/components/api-adapter";
+import {
+  applyBorrowerConversationFocus,
+  BORROWER_CONVERSATION_FOCUS_OPTIONS,
+  type BorrowerConversationFocus,
+} from "@/components/borrower-interview-preferences";
 import { unlockQuestionVoicePlayback } from "@/components/question-voice-playback";
 import {
   createDevV1AcceptanceRequiredInformationItems,
@@ -40,9 +45,13 @@ export function BorrowerInterviewStart() {
   const [borrowerName, setBorrowerName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [industryCode, setIndustryCode] = useState<BorrowerIndustry | "">("");
+  const [conversationFocus, setConversationFocus] = useState<BorrowerConversationFocus>("FULL_REVIEW");
   const [cloudConsent, setCloudConsent] = useState(false);
   const [starting, setStarting] = useState<InterviewMethod | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const selectedFocus = BORROWER_CONVERSATION_FOCUS_OPTIONS.find(
+    (option) => option.id === conversationFocus,
+  ) ?? BORROWER_CONVERSATION_FOCUS_OPTIONS[0]!;
 
   async function recordConsent(interviewId: string, purpose: string, version: string) {
     const response = await authenticatedFetch(`/api/interviews/${encodeURIComponent(interviewId)}/consents`, {
@@ -55,7 +64,7 @@ export function BorrowerInterviewStart() {
 
   async function begin(method: InterviewMethod) {
     if (!cloudConsent) {
-      setError("답변을 AI가 정리하도록 허용한 뒤 인터뷰를 시작할 수 있습니다.");
+      setError("아래 외부 AI 처리 안내를 확인하고 동의한 뒤 인터뷰를 시작할 수 있습니다.");
       return;
     }
     if (!borrowerName.trim() || !businessName.trim() || !industryCode) {
@@ -72,11 +81,13 @@ export function BorrowerInterviewStart() {
       const baseItems = industryCode === "CAFE"
         ? createDevV1AcceptanceRequiredInformationItems()
         : createDevV1RequiredInformationItems();
-      const requiredInformationList: RequiredInformationItem[] = baseItems.map((item) => ({
-        ...item,
-        priority: item.required ? item.priority : "P2",
-        status: item.infoCode === "monthly_average_sales" ? "ASKING" : "NEEDED",
-      }));
+      const requiredInformationList: RequiredInformationItem[] = applyBorrowerConversationFocus(
+        baseItems.map((item) => ({
+          ...item,
+          priority: item.required ? item.priority : "P2",
+        })),
+        conversationFocus,
+      );
       const created = await authenticatedFetch("/api/interviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -131,14 +142,32 @@ export function BorrowerInterviewStart() {
               <label>사업체 이름<input value={businessName} maxLength={80} onChange={(event) => setBusinessName(event.target.value)} placeholder="예: 동행상점" /></label>
               <label>업종<select value={industryCode} onChange={(event) => setIndustryCode(event.target.value as BorrowerIndustry | "")}><option value="">업종을 선택해 주세요</option>{INDUSTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}</select></label>
             </div>
+            <fieldset className="borrower-profile__focus">
+              <legend>오늘 가장 먼저 이야기하고 싶은 것은 무엇인가요?</legend>
+              <p>어디서 시작하든 준비한 필수 내용은 빠뜨리지 않고, 이미 답한 내용은 다시 묻지 않아요.</p>
+              <div>
+                {BORROWER_CONVERSATION_FOCUS_OPTIONS.map((option) => (
+                  <button
+                    type="button"
+                    key={option.id}
+                    aria-pressed={conversationFocus === option.id}
+                    data-selected={conversationFocus === option.id}
+                    onClick={() => setConversationFocus(option.id)}
+                  >
+                    <span>{option.label}{option.recommended ? <small>추천</small> : null}</span>
+                    <p>{option.description}</p>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
             <div className="borrower-profile__actions"><button type="button" className="borrower-text-button" onClick={() => setShowProfile(false)}>이전</button><button type="button" className="borrower-primary-button" onClick={() => { if (!borrowerName.trim() || !businessName.trim() || !industryCode) { setError("세 가지 기본 정보를 모두 입력해 주세요."); return; } setError(null); setShowMethods(true); }}>답변 방식 선택하기 <ChevronRight size={20} /></button></div>
           </section>
         ) : (
           <section className="borrower-methods" aria-labelledby="borrower-method-title">
-            <div className="borrower-methods__heading"><span>마지막 선택</span><h2 id="borrower-method-title">어떤 방식으로 이야기할까요?</h2><p>{businessName} · {INDUSTRY_OPTIONS.find((option) => option.code === industryCode)?.label}</p></div>
+            <div className="borrower-methods__heading"><span>마지막 선택</span><h2 id="borrower-method-title">어떤 방식으로 이야기할까요?</h2><p>{businessName} · {INDUSTRY_OPTIONS.find((option) => option.code === industryCode)?.label} · {selectedFocus.label}</p></div>
             <label className="borrower-consent">
               <input type="checkbox" checked={cloudConsent} onChange={(event) => setCloudConsent(event.target.checked)} />
-              <span>제 답변을 Claude AI가 질문 정리와 다음 질문 준비에 사용하는 것에 동의합니다.<small>대출 승인·거절이나 신용등급을 판단하지 않습니다.</small></span>
+              <span>제 답변을 외부 AI가 질문 정리와 다음 질문 준비에 사용하는 것에 동의합니다.<small>채팅은 Claude, 음성은 OpenAI Realtime을 우선 사용합니다. 대출 승인·거절이나 신용등급을 판단하지 않습니다.</small></span>
             </label>
             <div className="borrower-methods__grid">
               <button type="button" className="borrower-method-card" onClick={() => void begin("chat")} disabled={starting !== null}>
@@ -148,7 +177,7 @@ export function BorrowerInterviewStart() {
                 <span className="borrower-method-card__icon"><Mic size={25} /></span><strong>음성으로 답변</strong><small>AI 질문을 듣고 편하게 말할 때</small>{starting === "voice" ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={18} />}
               </button>
             </div>
-            <p className="borrower-methods__voice-note"><Headphones size={15} /> 음성 방식은 AI 질문을 한국어 음성으로 읽어 주며, 내 컴퓨터의 로컬 Whisper가 실제 발화를 전사합니다.</p>
+            <p className="borrower-methods__voice-note"><Headphones size={15} /> 음성 방식은 GPT-Realtime-2.1과 실시간으로 듣고 말합니다. 연결할 수 없을 때만 내 컴퓨터의 로컬 Whisper·Qwen 음성으로 자동 전환합니다.</p>
             <button type="button" className="borrower-text-button" onClick={() => setShowMethods(false)}>기본 정보 다시 수정하기</button>
           </section>
         )}

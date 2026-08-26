@@ -7,7 +7,7 @@ import {
 } from "@/server/api-response";
 import { getDatabase } from "@/server/database";
 import { ApplicationError } from "@/server/errors";
-import { interviewActivityRegistry } from "@/server/interview-activity-registry";
+import { InterviewActivityRegistry } from "@/server/interview-activity-registry";
 import { getAuthService, getInterviewService } from "@/server/service-instance";
 import {
   TranscriptCorrectionService,
@@ -74,7 +74,10 @@ export async function POST(request: Request, { params }: RouteContext) {
       params,
       readCorrectionCommand(request),
     ]);
-    const activity = interviewActivityRegistry.snapshot(id);
+    const activity = new InterviewActivityRegistry(getDatabase()).snapshot(
+      principal.tenantId,
+      id,
+    );
     if (activity.activeTurn || activity.finalTranscriptPending) {
       throw new ApplicationError(
         409,

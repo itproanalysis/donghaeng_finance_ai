@@ -48,11 +48,21 @@ export type AudioServerMessage =
     }
   | {
       protocolVersion: typeof AUDIO_PROTOCOL_VERSION;
-      type: "stt.partial" | "stt.final";
+      type: "stt.partial" | "stt.recognized";
       audioSessionId: string;
       text: string;
       provider: string;
       serverTime: string;
+    }
+  | {
+      protocolVersion: typeof AUDIO_PROTOCOL_VERSION;
+      type: "stt.final";
+      audioSessionId: string;
+      text: string;
+      provider: string;
+      serverTime: string;
+      processingStatus: "APPLIED" | "RETRYABLE_FAILURE" | "NON_RETRYABLE_FAILURE";
+      processingCode: string | null;
     }
   | {
       protocolVersion: typeof AUDIO_PROTOCOL_VERSION;
@@ -136,12 +146,74 @@ export function parseAudioServerMessage(raw: string): AudioServerMessage {
   if (!value || typeof value !== "object") {
     throw new Error("AUDIO_SERVER_MESSAGE_INVALID");
   }
-  const candidate = value as Partial<AudioServerMessage>;
-  if (
-    candidate.protocolVersion !== AUDIO_PROTOCOL_VERSION ||
-    typeof candidate.type !== "string"
-  ) {
+  const candidate = value as Record<string, unknown>;
+  if (candidate.protocolVersion !== AUDIO_PROTOCOL_VERSION) {
     throw new Error("AUDIO_SERVER_MESSAGE_INVALID");
   }
+
+  const isNonEmptyString = (input: unknown): input is string =>
+    typeof input === "string" && input.length > 0;
+  const hasSessionId = () => isNonEmptyString(candidate.audioSessionId);
+  const hasServerTime = () => isNonEmptyString(candidate.serverTime);
+  const hasTranscript = () =>
+    hasSessionId() &&
+    typeof candidate.text === "string" &&
+    isNonEmptyString(candidate.provider) &&
+    hasServerTime();
+  const hasOptionalIdentifier = (input: unknown) =>
+    input === undefined || isNonEmptyString(input);
+
+  switch (candidate.type) {
+    case "audio.ack":
+      if (
+        !hasSessionId() ||
+        !Number.isSafeInteger(candidate.lastAudioSeq) ||
+        Number(candidate.lastAudioSeq) < 0 ||
+        !hasOptionalIdentifier(candidate.correlationId)
+      ) {
+        throw new Error("AUDIO_SERVER_MESSAGE_INVALID_ACK");
+      }
+      break;
+    case "vad.speech_started":
+    case "vad.speech_stopped":
+      if (!hasSessionId() || !hasServerTime()) {
+        throw new Error("AUDIO_SERVER_MESSAGE_INVALID_VAD");
+      }
+      break;
+    case "stt.partial":
+    case "stt.recognized":
+      if (!hasTranscript()) {
+        throw new Error("AUDIO_SERVER_MESSAGE_INVALID_TRANSCRIPT");
+      }
+      break;
+    case "stt.final":
+      if (
+        !hasTranscript() ||
+        !["APPLIED", "RETRYABLE_FAILURE", "NON_RETRYABLE_FAILURE"].includes(
+          String(candidate.processingStatus),
+        ) ||
+        !(
+          candidate.processingCode === null ||
+          isNonEmptyString(candidate.processingCode)
+        )
+      ) {
+        throw new Error("AUDIO_SERVER_MESSAGE_INVALID_FINAL");
+      }
+      break;
+    case "audio.error":
+      if (
+        !isNonEmptyString(candidate.code) ||
+        !isNonEmptyString(candidate.message) ||
+        typeof candidate.retryable !== "boolean" ||
+        !hasOptionalIdentifier(candidate.audioSessionId) ||
+        !hasOptionalIdentifier(candidate.correlationId)
+      ) {
+        throw new Error("AUDIO_SERVER_MESSAGE_INVALID_ERROR");
+      }
+      break;
+    default:
+      throw new Error("AUDIO_SERVER_MESSAGE_UNKNOWN_TYPE");
+  }
+
   return value as AudioServerMessage;
 }

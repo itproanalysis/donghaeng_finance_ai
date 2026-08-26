@@ -60,9 +60,11 @@ describe("migration integrity", () => {
       "011_async_message_command_staging",
       "012_cloud_ai_processing_consent",
       "013_message_command_retry_integrity",
+      "014_borrower_improvement_candidate_selections",
+      "015_durable_audio_turn_leases",
     ]);
     expect(rows.every((row) => String(row.checksum).length === 64)).toBe(true);
-    expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(13);
+    expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(15);
   });
 
   it("refuses a changed migration checksum", () => {
@@ -316,8 +318,15 @@ describe("tenant-scoped atomic commands", () => {
       clientCommandId: "force-complete-1",
       expectedVersion: created.session.version,
       mode: "FORCE_INCOMPLETE" as const,
-      borrowerConfirmed: false,
+      borrowerConfirmed: true,
       reason: "차주가 인터뷰 중단을 요청함",
+      improvementChoice: {
+        id: "catalog-improvement-action",
+        title: "한 가지 개선 행동 정하기",
+        origin: "CATALOG_SUGGESTION" as const,
+        sourceInfoCodes: ["improvement_plan"],
+        evidenceIds: [],
+      },
     };
     const first = service.completeInterviewCommand(created.session.id, command, principal);
     const second = service.completeInterviewCommand(created.session.id, command, principal);
@@ -332,12 +341,65 @@ describe("tenant-scoped atomic commands", () => {
     });
     expect(first.evaluation).toBeNull();
     expect(first.evaluationEligibility.eligible).toBe(false);
+    expect(first.improvementSelection).toMatchObject({
+      eventType: "BORROWER_SELECTED_IMPROVEMENT_CANDIDATE",
+      choice: command.improvementChoice,
+      liveVersion: created.session.version + 1,
+    });
     expect(read.snapshotType).toBe("FINAL");
     expect(
       database.prepare("SELECT COUNT(*) AS count FROM evaluations WHERE interview_id = ?").get(
         created.session.id,
       )?.count,
     ).toBe(0);
+    expect(
+      database.prepare(
+        "SELECT COUNT(*) AS count FROM borrower_improvement_candidate_selections WHERE interview_id = ?",
+      ).get(created.session.id)?.count,
+    ).toBe(1);
+    expect(
+      database.prepare(
+        "SELECT COUNT(*) AS count FROM audit_events WHERE interview_id = ? AND event_type = 'BORROWER_SELECTED_IMPROVEMENT_CANDIDATE'",
+      ).get(created.session.id)?.count,
+    ).toBe(1);
+    expect(() => database.prepare(
+      "UPDATE borrower_improvement_candidate_selections SET candidate_title = '덮어쓰기' WHERE interview_id = ?",
+    ).run(created.session.id)).toThrow(/immutable/i);
+  });
+
+  it("rejects a client-authored improvement title and rolls back completion CAS", () => {
+    const { database, service, platform } = harness();
+    const created = service.createInterview(principal);
+
+    expect(() => service.completeInterviewCommand(
+      created.session.id,
+      {
+        clientCommandId: "tampered-improvement-choice",
+        expectedVersion: created.session.version,
+        mode: "FORCE_INCOMPLETE",
+        borrowerConfirmed: true,
+        reason: "차주 요청",
+        improvementChoice: {
+          id: "catalog-improvement-action",
+          title: "대출 승인 확정",
+          origin: "CATALOG_SUGGESTION",
+          sourceInfoCodes: ["improvement_plan"],
+          evidenceIds: [],
+        },
+      },
+      principal,
+    )).toThrowError(expect.objectContaining({ code: "IMPROVEMENT_CHOICE_NOT_ALLOWLISTED" }));
+
+    expect(platform.getInterviewAggregate(principal.tenantId, created.session.id)).toMatchObject({
+      lifecycleStatus: "ACTIVE",
+      version: created.session.version,
+    });
+    expect(database.prepare(
+      "SELECT COUNT(*) AS count FROM borrower_improvement_candidate_selections WHERE interview_id = ?",
+    ).get(created.session.id)?.count).toBe(0);
+    expect(database.prepare(
+      "SELECT COUNT(*) AS count FROM final_snapshots WHERE interview_id = ?",
+    ).get(created.session.id)?.count).toBe(0);
   });
 
   it("blocks normal completion until every server condition is satisfied", () => {

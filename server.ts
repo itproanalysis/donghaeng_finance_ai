@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 
 import next from "next";
@@ -18,6 +19,7 @@ import {
   assertAudioSessionStartAllowed,
   assertSafeAudioControlIdentifier,
   encodedAudioInterviewIdFromPath,
+  MAX_AUDIO_CONNECTIONS_PER_CLIENT,
   MAX_RESUMABLE_AUDIO_SESSIONS,
 } from "./src/realtime/server/audio-session-policy";
 import {
@@ -30,10 +32,19 @@ import {
   StreamingSttError,
   type StreamingSttSession,
 } from "./src/realtime/server/stt-adapter";
+import {
+  readPersistedTranscriptProcessing,
+  type PersistedTranscriptProcessingResult,
+} from "./src/realtime/server/final-transcript-processing";
 import { ConsentService } from "./src/server/consent-service";
 import { getDatabase } from "./src/server/database";
 import { ApplicationError } from "./src/server/errors";
-import { interviewActivityRegistry } from "./src/server/interview-activity-registry";
+import {
+  AUDIO_TURN_LEASE_RENEW_INTERVAL_MS,
+  AudioTurnLeaseConflictError,
+  InterviewActivityRegistry,
+  type AudioTurnLeaseIdentity,
+} from "./src/server/interview-activity-registry";
 import { AuthService } from "./src/server/auth";
 import { applyCustomServerRuntimeMode } from "./src/server/runtime-mode";
 import { assertCustomServerAuthenticationConfigured } from "./src/server/production-auth-policy";
@@ -63,7 +74,6 @@ const connectionKeys = new WeakMap<WebSocket, string>();
 const connectionPrincipalKeys = new WeakMap<WebSocket, string>();
 const resumableAudioSessions = new Map<string, ConnectionState>();
 const pendingAudioSessionIds = new Map<string, string>();
-const MAX_AUDIO_CONNECTIONS_PER_CLIENT = 4;
 const MAX_TOTAL_AUDIO_CONNECTIONS = 200;
 const INTERNAL_API_TIMEOUT_MS = 10_000;
 // A final voice turn first waits for STT, then the saved transcript can await
@@ -71,18 +81,27 @@ const INTERNAL_API_TIMEOUT_MS = 10_000;
 // a failed "internal transcription save" even though the speech was valid.
 const INTERNAL_FINAL_TRANSCRIPT_TIMEOUT_MS = 45_000;
 let customServerAuthService: AuthService | undefined;
+let durableInterviewActivityRegistry: InterviewActivityRegistry | undefined;
 
 function getCustomServerAuthService(): AuthService {
   customServerAuthService ??= new AuthService(getDatabase());
   return customServerAuthService;
 }
 
+function getInterviewActivityRegistry(): InterviewActivityRegistry {
+  durableInterviewActivityRegistry ??= new InterviewActivityRegistry(getDatabase());
+  return durableInterviewActivityRegistry;
+}
+
 interface ConnectionState {
   interviewId: string;
+  tenantId: string | null;
   cookie: string;
   principalKey: string;
   activeSocket: WebSocket;
   audioSessionId: string | null;
+  audioLeaseOwnerToken: string | null;
+  audioLeaseRenewedAtEpochMs: number | null;
   lastAudioSeq: number;
   session: StreamingSttSession | null;
   sttProviderLabel: string | null;
@@ -90,6 +109,8 @@ interface ConnectionState {
   expectedVersion: number | null;
   finalized: boolean;
   finalTranscript: string | null;
+  processingStatus: PersistedTranscriptResult["processingStatus"] | null;
+  processingCode: string | null;
   cleanupTimer: ReturnType<typeof setTimeout> | null;
   startedAtEpochMs: number | null;
   speechStoppedAtEpochMs: number | null;
@@ -102,6 +123,8 @@ interface ApiEnvelope {
   data?: unknown;
   error?: { code?: string; message?: string } | null;
 }
+
+type PersistedTranscriptResult = PersistedTranscriptProcessingResult;
 
 function send(socket: WebSocket, message: AudioServerMessage): void {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
@@ -158,10 +181,13 @@ function newConnectionState(
 ): ConnectionState {
   return {
     interviewId,
+    tenantId: null,
     cookie,
     principalKey,
     activeSocket: socket,
     audioSessionId: null,
+    audioLeaseOwnerToken: null,
+    audioLeaseRenewedAtEpochMs: null,
     lastAudioSeq: 0,
     session: null,
     sttProviderLabel: null,
@@ -169,6 +195,8 @@ function newConnectionState(
     expectedVersion: null,
     finalized: false,
     finalTranscript: null,
+    processingStatus: null,
+    processingCode: null,
     cleanupTimer: null,
     startedAtEpochMs: null,
     speechStoppedAtEpochMs: null,
@@ -176,6 +204,78 @@ function newConnectionState(
     receivedAudioFrame: false,
     endTurnRequested: false,
   };
+}
+
+function audioTurnLeaseIdentity(
+  state: ConnectionState,
+  audioSessionId = state.audioSessionId,
+): AudioTurnLeaseIdentity | null {
+  if (!state.tenantId || !audioSessionId || !state.audioLeaseOwnerToken) return null;
+  return {
+    tenantId: state.tenantId,
+    interviewId: state.interviewId,
+    audioSessionId,
+    ownerToken: state.audioLeaseOwnerToken,
+  };
+}
+
+function beginAudioTurnLease(state: ConnectionState): void {
+  const identity = audioTurnLeaseIdentity(state);
+  if (!identity) throw new Error("AUDIO_TURN_LEASE_IDENTITY_MISSING");
+  try {
+    getInterviewActivityRegistry().beginTurn(identity);
+    state.audioLeaseRenewedAtEpochMs = Date.now();
+  } catch (error) {
+    if (error instanceof AudioTurnLeaseConflictError) {
+      throw new StreamingSttError(error.code, error.message, true);
+    }
+    throw error;
+  }
+}
+
+function markAudioTurnTranscriptPending(state: ConnectionState): void {
+  const identity = audioTurnLeaseIdentity(state);
+  if (!identity) throw new Error("AUDIO_TURN_LEASE_IDENTITY_MISSING");
+  try {
+    getInterviewActivityRegistry().markFinalTranscriptPending(identity);
+    state.audioLeaseRenewedAtEpochMs = Date.now();
+  } catch (error) {
+    if (error instanceof AudioTurnLeaseConflictError) {
+      throw new StreamingSttError(error.code, error.message, false);
+    }
+    throw error;
+  }
+}
+
+function renewAudioTurnLeaseIfDue(state: ConnectionState): void {
+  const identity = audioTurnLeaseIdentity(state);
+  if (!identity || state.finalized) return;
+  const now = Date.now();
+  if (
+    state.audioLeaseRenewedAtEpochMs !== null &&
+    now - state.audioLeaseRenewedAtEpochMs < AUDIO_TURN_LEASE_RENEW_INTERVAL_MS
+  ) {
+    return;
+  }
+  if (!getInterviewActivityRegistry().renewTurn(identity, new Date(now))) {
+    throw new StreamingSttError(
+      "AUDIO_TURN_LEASE_LOST",
+      "음성 세션 보호 시간이 만료되었습니다. 답변을 다시 시작해 주세요.",
+      false,
+    );
+  }
+  state.audioLeaseRenewedAtEpochMs = now;
+}
+
+function finishAudioTurnLease(
+  state: ConnectionState,
+  audioSessionId = state.audioSessionId,
+): void {
+  const identity = audioTurnLeaseIdentity(state, audioSessionId);
+  if (!identity) return;
+  getInterviewActivityRegistry().finishTurn(identity);
+  state.audioLeaseOwnerToken = null;
+  state.audioLeaseRenewedAtEpochMs = null;
 }
 
 async function fetchInternalApi(
@@ -228,7 +328,7 @@ async function persistFinalTranscript(
   transcript: string,
   operationController: AbortController,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<PersistedTranscriptResult> {
   assertAudioFinalizationActive({
     expectedController: operationController,
     currentController: state.operationController,
@@ -302,11 +402,14 @@ async function persistFinalTranscript(
   if (!result.ok || envelope.error) {
     throw new Error(envelope.error?.message || `음성 전사 저장 실패 (${result.status})`);
   }
+  const { processingStatus, processingCode } =
+    readPersistedTranscriptProcessing(envelope.data);
+  state.processingStatus = processingStatus;
+  state.processingCode = processingCode;
   state.finalized = true;
   state.finalTranscript = transcript;
-  if (state.audioSessionId) {
-    interviewActivityRegistry.finishTurn(state.interviewId, state.audioSessionId);
-  }
+  finishAudioTurnLease(state);
+  return { processingStatus, processingCode };
 }
 
 async function terminateAudioSession(
@@ -324,7 +427,7 @@ async function terminateAudioSession(
     if (resumableAudioSessions.get(audioSessionId) === state) {
       resumableAudioSessions.delete(audioSessionId);
     }
-    interviewActivityRegistry.finishTurn(state.interviewId, audioSessionId);
+    finishAudioTurnLease(state, audioSessionId);
   }
 }
 
@@ -338,7 +441,7 @@ function evictOneFinalizedReplaySession(): boolean {
     state.session = null;
     resumableAudioSessions.delete(audioSessionId);
     void session?.stop().catch(() => undefined);
-    interviewActivityRegistry.finishTurn(state.interviewId, audioSessionId);
+    finishAudioTurnLease(state, audioSessionId);
     return true;
   }
   return false;
@@ -545,6 +648,7 @@ websocketServer.on(
             if (!state.session || !state.audioSessionId) {
               throw new Error("AUDIO_SESSION_NOT_STARTED");
             }
+            renewAudioTurnLeaseIfDue(state);
             const bytes = new Uint8Array(
               raw instanceof Buffer
                 ? raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength)
@@ -589,6 +693,7 @@ websocketServer.on(
           if (control.interviewId !== state.interviewId) {
             throw new Error("INTERVIEW_ID_MISMATCH");
           }
+          renewAudioTurnLeaseIfDue(state);
           if (control.type === "audio.start") {
             if (!control.mimeType) throw new Error("AUDIO_MIME_TYPE_REQUIRED");
             const principal = authenticateAudioRequest(
@@ -638,10 +743,7 @@ websocketServer.on(
               existing.activeSocket = socket;
               state = existing;
               if (!state.finalized) {
-                interviewActivityRegistry.beginTurn(
-                  state.interviewId,
-                  control.audioSessionId,
-                );
+                beginAudioTurnLease(state);
               }
               send(socket, {
                 protocolVersion: AUDIO_PROTOCOL_VERSION,
@@ -651,6 +753,16 @@ websocketServer.on(
                 lastAudioSeq: state.lastAudioSeq,
               });
               if (state.finalized && state.finalTranscript) {
+                if (state.processingStatus === null) {
+                  errorMessage(
+                    socket,
+                    state,
+                    "TURN_PROCESSING_STATUS_INVALID",
+                    "저장된 음성 답변의 처리 상태를 확인하지 못했습니다. 최신 인터뷰 상태를 다시 확인해 주세요.",
+                    true,
+                  );
+                  return;
+                }
                 send(socket, {
                   protocolVersion: AUDIO_PROTOCOL_VERSION,
                   type: "stt.final",
@@ -658,6 +770,8 @@ websocketServer.on(
                   text: state.finalTranscript,
                   provider: state.sttProviderLabel ?? sttAdapter.providerLabel,
                   serverTime: new Date().toISOString(),
+                  processingStatus: state.processingStatus,
+                  processingCode: state.processingCode,
                 });
               }
               return;
@@ -683,8 +797,11 @@ websocketServer.on(
                 );
               }
               state.audioSessionId = control.audioSessionId;
+              state.tenantId = principal.tenantId;
+              state.audioLeaseOwnerToken = randomUUID();
               state.startedAtEpochMs = Date.now();
               state.operationController = new AbortController();
+              beginAudioTurnLease(state);
               const sessionState = state;
               state.session = sttAdapter.createSession({
                 locale: "ko-KR",
@@ -726,7 +843,22 @@ websocketServer.on(
                     const persistenceSignal = signal
                       ? AbortSignal.any([activeOperationController.signal, signal])
                       : activeOperationController.signal;
-                    await persistFinalTranscript(
+                    // Recognition is complete at this point. Tell the browser
+                    // immediately so it can render the borrower's words while
+                    // durable staging, Claude validation and projections run.
+                    // stt.final below remains the authoritative applied-turn
+                    // boundary and keeps the existing idempotent persistence
+                    // contract intact.
+                    send(sessionState.activeSocket, {
+                      protocolVersion: AUDIO_PROTOCOL_VERSION,
+                      type: "stt.recognized",
+                      audioSessionId: control.audioSessionId,
+                      text,
+                      provider:
+                        sessionState.sttProviderLabel ?? sttAdapter.providerLabel,
+                      serverTime: new Date().toISOString(),
+                    });
+                    const persisted = await persistFinalTranscript(
                       sessionState,
                       text,
                       activeOperationController,
@@ -745,6 +877,8 @@ websocketServer.on(
                       provider:
                         sessionState.sttProviderLabel ?? sttAdapter.providerLabel,
                       serverTime: new Date().toISOString(),
+                      processingStatus: persisted.processingStatus,
+                      processingCode: persisted.processingCode,
                     });
                     if (
                       sessionState.operationController === activeOperationController
@@ -778,7 +912,6 @@ websocketServer.on(
             } finally {
               pendingAudioSessionIds.delete(control.audioSessionId);
             }
-            interviewActivityRegistry.beginTurn(interviewId, control.audioSessionId);
             send(socket, {
               protocolVersion: AUDIO_PROTOCOL_VERSION,
               type: "audio.ack",
@@ -809,10 +942,7 @@ websocketServer.on(
           if (control.type === "audio.resume") await state.session.resume();
           if (control.type === "audio.end_turn") {
             state.endTurnRequested = true;
-            interviewActivityRegistry.markFinalTranscriptPending(
-              state.interviewId,
-              control.audioSessionId,
-            );
+            markAudioTurnTranscriptPending(state);
             try {
               await endTurnWithFailureCleanup(
                 state.session,

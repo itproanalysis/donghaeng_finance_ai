@@ -27,7 +27,10 @@ export async function POST(request: Request) {
       headers: {
         "Content-Type": speech.contentType,
         "Content-Length": String(speech.bytes.byteLength),
-        "Cache-Control": "no-store",
+        // Audio is personalized only by the supplied server-generated text.
+        // Keep it private while allowing the same browser to replay without a
+        // second synthesis request.
+        "Cache-Control": "private, max-age=300",
         "Vary": "Cookie, Authorization",
         "X-Request-ID": requestId,
       },

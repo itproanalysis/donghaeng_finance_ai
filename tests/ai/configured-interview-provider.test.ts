@@ -31,7 +31,7 @@ describe("configured interview orchestrator", () => {
         NODE_ENV: "production",
         DONGHAENG_ORCHESTRATOR_PROVIDER: "anthropic",
         ANTHROPIC_API_KEY: TEST_API_KEY,
-        DONGHAENG_ANTHROPIC_MODEL: "claude-sonnet-5",
+        DONGHAENG_ANTHROPIC_MODEL: "claude-haiku-4-5-20251001",
       },
     });
     expect(planner).toBeInstanceOf(ClaudeInterviewTurnPlanner);
@@ -42,10 +42,31 @@ describe("configured interview orchestrator", () => {
           NODE_ENV: "production",
           DONGHAENG_ORCHESTRATOR_PROVIDER: "anthropic",
           ANTHROPIC_API_KEY: TEST_API_KEY,
-          DONGHAENG_ANTHROPIC_MODEL: "claude-sonnet-5",
+          DONGHAENG_ANTHROPIC_MODEL: "claude-haiku-4-5-20251001",
         },
       }),
     ).not.toThrow();
+  });
+
+  it("accepts only a bounded realtime soft deadline", () => {
+    expect(() => createConfiguredAsyncInterviewTurnPlanner({
+      nodeEnvironment: "production",
+      environment: {
+        NODE_ENV: "production",
+        DONGHAENG_ORCHESTRATOR_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: TEST_API_KEY,
+        DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS: "2000",
+      },
+    })).not.toThrow();
+    expect(() => createConfiguredAsyncInterviewTurnPlanner({
+      nodeEnvironment: "production",
+      environment: {
+        NODE_ENV: "production",
+        DONGHAENG_ORCHESTRATOR_PROVIDER: "anthropic",
+        ANTHROPIC_API_KEY: TEST_API_KEY,
+        DONGHAENG_ANTHROPIC_SOFT_DEADLINE_MS: "8001",
+      },
+    })).toThrow(/SOFT_DEADLINE/);
   });
 
   it.each([

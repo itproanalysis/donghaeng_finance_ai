@@ -79,7 +79,7 @@ describe("retention enforcement", () => {
         clientCommandId: "retention-complete",
         expectedVersion: 1,
         mode: "FORCE_INCOMPLETE",
-        borrowerConfirmed: false,
+        borrowerConfirmed: true,
         reason: "보존 테스트 중단",
       },
       principal,
