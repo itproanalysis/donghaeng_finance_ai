@@ -27,3 +27,8 @@ __pycache__/
 
 # TypeScript
 *.tsbuildinfo
+
+# local-only working notes and reference material
+/references/
+/tasks/
+docs/plan.md
