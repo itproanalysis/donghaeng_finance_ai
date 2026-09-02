@@ -21,6 +21,12 @@ npm run dev
 
 기본 주소는 `http://localhost:3000`입니다.
 
+## Vercel 배포
+
+Vercel 프로젝트의 Root Directory를 `frontend-prototype`으로 지정하고 Production Branch를 `main`으로 설정합니다. 저장소에 포함된 `vercel.json`이 `npm ci`와 `npm run build:vercel`을 적용하며, Nitro가 Vercel Build Output API 형식인 `.vercel/output`을 생성합니다. `package.json`의 Node.js 엔진 조건에 따라 Vercel Node.js 22 이상을 사용해야 합니다.
+
+Typecast 음성을 사용하려면 Vercel 프로젝트 환경 변수에 `TYPECAST_API_KEY`를 등록합니다. 선택 기능인 네이버 지도 파노라마는 `NEXT_PUBLIC_NAVER_MAPS_NCP_KEY_ID`를 등록하지 않아도 fallback 화면으로 동작합니다.
+
 ## 검증
 
 ```bash

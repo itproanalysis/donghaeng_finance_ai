@@ -40,16 +40,28 @@ export default defineConfig(async () => {
   process.env.WRANGLER_LOG_PATH ??= ".wrangler/logs";
   process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
-  // Wrangler snapshots its log path while the Cloudflare plugin is imported.
-  const { cloudflare } = await import("@cloudflare/vite-plugin");
-
-  return {
+  const baseConfig = {
     server: isCodexSeatbeltSandbox
       ? { watch: { useFsEvents: false, usePolling: true } }
       : undefined,
+    plugins: [vinext(), sites()],
+  };
+
+  // Vercel runs the Vinext app through Nitro. Keep the Cloudflare adapter for
+  // the existing local/Workers workflow, but do not load it in Vercel builds.
+  if (process.env.NITRO_PRESET === "vercel") {
+    const { nitro } = await import("nitro/vite");
+    return {
+      ...baseConfig,
+      plugins: [...baseConfig.plugins, nitro()],
+    };
+  }
+
+  const { cloudflare } = await import("@cloudflare/vite-plugin");
+  return {
+    ...baseConfig,
     plugins: [
-      vinext(),
-      sites(),
+      ...baseConfig.plugins,
       cloudflare({
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
         config: localBindingConfig,

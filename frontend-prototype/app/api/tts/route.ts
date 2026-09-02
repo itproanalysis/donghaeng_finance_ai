@@ -8,7 +8,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "인터뷰어 음성 키가 아직 연결되지 않았습니다." }, { status: 503 });
   }
 
-  const body = await request.json().catch(() => null);
+  const body = await request.json().catch(() => null) as { text?: unknown } | null;
   const text = typeof body?.text === "string" ? body.text.trim() : "";
 
   if (!text || text.length > 1000) {
