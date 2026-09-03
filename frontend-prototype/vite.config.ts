@@ -49,7 +49,7 @@ export default defineConfig(async () => {
 
   // Vercel runs the Vinext app through Nitro. Keep the Cloudflare adapter for
   // the existing local/Workers workflow, but do not load it in Vercel builds.
-  if (process.env.NITRO_PRESET === "vercel") {
+  if (["vercel", "node-server"].includes(process.env.NITRO_PRESET ?? "")) {
     const { nitro } = await import("nitro/vite");
     return {
       ...baseConfig,

@@ -1,0 +1,16 @@
+.gcloudignore
+.git
+.gitignore
+node_modules
+.output
+.next
+.vinext
+.wrangler
+.vercel
+dist
+.env*
+*.log
+*.tsbuildinfo
+outputs
+work
+.impeccable

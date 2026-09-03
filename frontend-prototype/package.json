@@ -9,8 +9,12 @@
     "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
     "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "build:vercel": "NITRO_PRESET=vercel vite build",
+    "build:gcp": "node scripts/build-gcp.mjs",
+    "start:gcp": "node .output/server/index.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test:journeys": "node --test tests/journeys.test.mjs",
+    "test:gcp": "node --test tests/gcp-runtime.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .vercel --ignore-pattern .wrangler",
     "db:generate": "drizzle-kit generate"
   },

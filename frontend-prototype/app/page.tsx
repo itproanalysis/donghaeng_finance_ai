@@ -3,8 +3,11 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useRouter } from "next/navigation";
+import { ServiceLinks } from "./components/ServiceNavigation";
+import { recordQuest, useCases } from "./lib/case-store";
 
 const AlleyHopeJourney = lazy(() => import("./components/AlleyHopeJourney"));
+const emptyQuests = [null, null, null];
 
 const missions = [
   {
@@ -42,12 +45,15 @@ export default function Home() {
   const [progress, setProgress] = useState(0);
   const [isLeaving, setIsLeaving] = useState(false);
   const [isQuestOpen, setIsQuestOpen] = useState(false);
-  const [answers, setAnswers] = useState<Array<string | null>>([null, null, null]);
+  const {current} = useCases();
+  const answers = current && !current.completedAt ? current.quests : emptyQuests;
+  const [openedQuest, setOpenedQuest] = useState(0);
+  const [saveError, setSaveError] = useState("");
   const [reward, setReward] = useState<string | null>(null);
   const leavingRef = useRef(false);
   const answersRef = useRef(answers);
   const rewardTimerRef = useRef<number | null>(null);
-  const active = missions[mission];
+  const active = missions[isQuestOpen ? openedQuest : mission];
   const completedQuests = answers.filter(Boolean).length;
 
   useEffect(() => {
@@ -68,12 +74,9 @@ export default function Home() {
   }, []);
 
   const answerQuest = useCallback((choice: string) => {
-    const questIndex = mission;
-    setAnswers((current) => {
-      const next = [...current];
-      next[questIndex] = choice;
-      return next;
-    });
+    const questIndex = openedQuest;
+    try { recordQuest(questIndex, choice); setSaveError(""); }
+    catch (error) { setSaveError(error instanceof Error ? error.message : "답변을 저장하지 못했어요."); return; }
     setReward(missions[questIndex].reward);
     if (rewardTimerRef.current) window.clearTimeout(rewardTimerRef.current);
     rewardTimerRef.current = window.setTimeout(() => {
@@ -81,7 +84,7 @@ export default function Home() {
       setIsQuestOpen(false);
       if (questIndex < missions.length - 1) scrollToQuest(questIndex + 1);
     }, 850);
-  }, [mission, scrollToQuest]);
+  }, [openedQuest, scrollToQuest]);
 
   const handleArrival = useCallback(() => {
     const missingQuest = answers.findIndex((answer) => !answer);
@@ -124,6 +127,7 @@ export default function Home() {
         <header className="mission-road-nav">
           <a href="#start" className="mission-road-brand" aria-label="동행금융 처음으로">동행금융</a>
           <p>{`퀘스트 ${completedQuests} / ${missions.length} · 회복 근거 수집 중`}</p>
+          <ServiceLinks compact />
         </header>
 
         <section
@@ -145,7 +149,7 @@ export default function Home() {
           type="button"
           className={`mission-quest-marker quest-position-${mission}${answers[mission] ? " is-complete" : ""}`}
           style={{ opacity: progress > 0.07 && progress < 0.84 && !isQuestOpen ? 1 : 0, pointerEvents: progress > 0.07 && progress < 0.84 && !isQuestOpen ? "auto" : "none" }}
-          onClick={() => setIsQuestOpen(true)}
+          onClick={() => { setOpenedQuest(mission); setIsQuestOpen(true); }}
           aria-expanded={isQuestOpen}
           aria-controls="mission-quest-dialog"
         >
@@ -164,11 +168,12 @@ export default function Home() {
           aria-modal="false"
           aria-labelledby="mission-quest-question"
           aria-hidden={!isQuestOpen}
+          inert={!isQuestOpen}
         >
           <header>
             <span className="mission-quest-guide" aria-hidden="true">동</span>
             <div>
-              <small>{`AI 동행자 · 퀘스트 ${mission + 1}`}</small>
+              <small>{`AI 동행자 · 퀘스트 ${openedQuest + 1}`}</small>
               <strong>{active.quest}</strong>
             </div>
             <button type="button" className="mission-quest-close" onClick={() => setIsQuestOpen(false)} aria-label="퀘스트 질문 닫기"><i /></button>
@@ -179,7 +184,7 @@ export default function Home() {
               {active.choices.map((choice, index) => (
                 <button
                   type="button"
-                  className={answers[mission] === choice ? "is-selected" : ""}
+                  className={answers[openedQuest] === choice ? "is-selected" : ""}
                   onClick={() => answerQuest(choice)}
                   disabled={Boolean(reward)}
                   key={choice}
@@ -190,6 +195,7 @@ export default function Home() {
               ))}
             </div>
           </div>
+          {saveError && <p className="companion-error" role="alert">{saveError}</p>}
           <footer>
             <span>{`회복 근거 ${completedQuests} / ${missions.length}`}</span>
             <i><b style={{ "--quest-progress": completedQuests / missions.length } as CSSProperties} /></i>
