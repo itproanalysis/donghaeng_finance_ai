@@ -10,6 +10,8 @@ import tseslint from "typescript-eslint";
 const eslintConfig = defineConfig([
   globalIgnores([
     ".next/**",
+    ".output/**",
+    ".vinext/**",
     "dist/**",
     "out/**",
     "build/**",

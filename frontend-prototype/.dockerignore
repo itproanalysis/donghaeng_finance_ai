@@ -1,0 +1,14 @@
+node_modules
+.output
+.next
+.vinext
+.wrangler
+.vercel
+dist
+.git
+.env*
+*.log
+*.tsbuildinfo
+outputs
+work
+.impeccable

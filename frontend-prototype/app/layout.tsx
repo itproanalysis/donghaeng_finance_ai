@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Gowun_Batang, Noto_Sans_KR } from "next/font/google";
 import "./globals.css";
+import "./companion.css";
 
 const sans = Noto_Sans_KR({
   variable: "--font-sans",
