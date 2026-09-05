@@ -64,6 +64,7 @@ import {
 
 import { ApplicationError } from "./errors";
 import { InterviewActivityRegistry } from "./interview-activity-registry";
+import { computeModelingScorecard } from "./modeling-scorecard";
 import {
   LOCAL_WORKSPACE_EMAIL,
   LOCAL_WORKSPACE_TENANT_ID,
@@ -2520,6 +2521,38 @@ export class InterviewService {
           : snapshot && "goalSnapshot" in snapshot
             ? [snapshot.goalSnapshot]
             : [],
+    };
+  }
+
+  /**
+   * FINAL 인터뷰 결과를 modeling 파이프라인에 넘겨 받은 2축 점수. 계산은 이
+   * 서비스가 하지 않고 modeling/scorecard.py가 그대로 맡는다.
+   */
+  async getEvaluationScorecardForPrincipal(idOrInterviewId: string, principal: Principal) {
+    this.platformRepository.assertEvaluationAccess(principal.tenantId, idOrInterviewId);
+    const evaluationRecord = this.repository.getEvaluationRecord(idOrInterviewId);
+    const snapshot = this.repository.getFinalSnapshot<StoredFinalSnapshot>(
+      evaluationRecord.interviewId,
+    );
+    if (!snapshot || !("goalSnapshot" in snapshot)) {
+      throw new ApplicationError(
+        409,
+        "FINAL_SNAPSHOT_MISSING",
+        "2축 점수는 FINAL snapshot이 있어야 계산할 수 있습니다.",
+      );
+    }
+    const result = await computeModelingScorecard({
+      evaluationId: evaluationRecord.id,
+      industryCode: snapshot.business.industry,
+      informationItems: snapshot.informationItems,
+      goalSnapshot: snapshot.goalSnapshot,
+    });
+    return {
+      evaluationId: evaluationRecord.id,
+      interviewId: evaluationRecord.interviewId,
+      snapshotType: "FINAL" as const,
+      snapshotVersion: evaluationRecord.snapshotVersion,
+      ...result,
     };
   }
 

@@ -14,6 +14,7 @@ import {
   reconstructQuestionAnswerHistory,
 } from "@/components/borrower-immersive-prompts";
 import { borrowerMessageCommandPayload } from "@/components/borrower-message-command";
+import { useDemoAutoplay } from "@/components/demo-autoplay";
 import { RealtimeLatencyStatus } from "@/components/realtime-latency-status";
 import { RealtimeVoiceInterview } from "@/components/realtime-voice-interview";
 import {
@@ -602,6 +603,13 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
   const currentInformationItem = live?.informationItems.find(
     (item) => item.infoCode === live.currentQuestionInfoCode,
   ) ?? null;
+
+  // 주소에 ?demo=... 가 있을 때만 대본을 자동으로 넣는다. 없으면 기존 동작 그대로다.
+  useDemoAutoplay({
+    currentQuestionInfoCode: live?.currentQuestionInfoCode ?? null,
+    ready: !responseDisabled,
+    submitAnswer: (text) => void submitAnswer(text),
+  });
   const borrowerExperience = useMemo(
     () => buildBorrowerExperience({
       informationItems: live?.informationItems ?? [],

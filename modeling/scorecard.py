@@ -299,11 +299,15 @@ def _plan_realism(features):
                  "배수 {:.3f} 예산 {:.3f}".format(stretch, budget))
 
 
-def payload(case_id):
-    """앱이 그대로 받는 dict. 문장은 만들지 않는다."""
+def payload(case_id, case_directory=None):
+    """앱이 그대로 받는 dict. 문장은 만들지 않는다.
+
+    case_directory를 주면 data/mock 밖의 폴더도 그대로 계산한다. 인터뷰 결과로
+    만든 케이스가 mock 목록에 섞이면 validate의 케이스 대조가 깨지기 때문이다.
+    """
     from .build import build, case_path
 
-    features, aux = build(case_path(case_id))
+    features, aux = build(case_directory or case_path(case_id))
     result = score(features, aux)
     result["case_id"] = case_id
     return result
@@ -318,7 +322,15 @@ def main():
     parser = argparse.ArgumentParser(description="2축 점수")
     parser.add_argument("case_ids", nargs="*")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--case-dir", help="data/mock 밖 케이스 폴더 경로")
     args = parser.parse_args()
+
+    if args.case_dir:
+        case_id = args.case_ids[0] if args.case_ids else os.path.basename(
+            os.path.normpath(args.case_dir))
+        result = payload(case_id, args.case_dir)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
 
     case_ids = args.case_ids or sorted(os.listdir(MOCK_DIR))
     if args.json:

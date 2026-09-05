@@ -153,8 +153,10 @@ export function selectEligibleNextQuestions(
     // Optional acceptance signals are derived opportunistically from strong
     // borrower anchors. Untouched NEEDED signals must never become unsolicited
     // prompts, while a resulting conflict/follow-up is resolved before moving
-    // on so volunteered evidence is not left ambiguous.
-    .filter((item) => item.required || item.status !== "NEEDED")
+    // on so volunteered evidence is not left ambiguous. 이 기회성 신호는 P2로
+    // 표시된 항목이고, 거래 데이터가 조건에 걸어 넣은 항목은 필수가 아니어도
+    // 물어야 하므로 여기서 빠지지 않는다.
+    .filter((item) => item.required || item.priority !== "P2" || item.status !== "NEEDED")
     .filter((item) => ["NEEDED", "NEEDS_FOLLOWUP", "CONFLICT"].includes(item.status))
     .filter((item) => dependenciesReady(item, items));
   if (candidates.length === 0) return [];

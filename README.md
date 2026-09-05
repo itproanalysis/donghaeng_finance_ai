@@ -97,12 +97,17 @@ npm run typecheck
 npm run lint
 npm run build
 npm run test:e2e
+npm run verify:demo
 ```
+
+`verify:demo`는 서버를 띄우고 [시연 시나리오](docs/DEMO_SCENARIO.md)의 대본대로 인터뷰를 끝까지 진행한 뒤, 그 결과로 계산한 2축 점수를 기준 케이스와 대조합니다. `modeling/requirements.txt`를 설치한 Python이 필요하며 기본 경로는 `.venv/bin/python`입니다.
 
 `test:e2e`는 production build에서 로컬 Claude/STT stub을 사용해 HTTP, SSE, WS, 동의, 11항목 수집, FINAL, 평가 목록까지 확인합니다. 실제 API 키나 외부 과금은 사용하지 않습니다.
 
 ## 문서
 
+- [시연 시나리오](docs/DEMO_SCENARIO.md)
+- [AI 작업 방식](docs/AI_WORKFLOW.md)
 - [HTTP 계약](contracts/openapi.json)
 - [SSE·WS 계약](contracts/asyncapi.json)
 - [아키텍처](docs/ARCHITECTURE.md)

@@ -1142,6 +1142,53 @@
         }
       }
     },
+    "/interview-evaluations/{id}/scorecard": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/EvaluationLookupId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewEvaluationScorecard",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get the modeling two-axis scorecard for a FINAL interview",
+        "description": "Runs the modeling pipeline on the FINAL interview result. Returns an explicit UNAVAILABLE status instead of an estimated score when the pipeline is not configured.",
+        "responses": {
+          "200": {
+            "description": "Modeling scorecard or an explicit unavailable status",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationScorecardSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/interview-evaluations/{id}/goals": {
       "parameters": [
         {
@@ -4126,6 +4173,63 @@
           }
         }
       },
+      "EvaluationScorecardProjection": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EvaluationArtifactBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "unavailableReason",
+              "unavailableMessage",
+              "scorecard",
+              "reproduceCommand",
+              "transactionDataSource"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "READY",
+                  "UNAVAILABLE"
+                ]
+              },
+              "unavailableReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "unavailableMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scorecard": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "reproduceCommand": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "transactionDataSource": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "EvaluationPillarsProjection": {
         "allOf": [
           {
@@ -5112,6 +5216,26 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/LiveFeaturesProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationScorecardSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvaluationScorecardProjection"
           },
           "error": {
             "type": "null"

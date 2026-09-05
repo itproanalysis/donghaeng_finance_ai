@@ -30,12 +30,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   adaptEvaluation,
+  adaptModelingScorecard,
   authenticatedFetch,
   formatDateTime,
   formatPercent,
   selectEvaluationPillarLineage,
   type EvaluationView,
+  type ModelingScorecardView,
   type PillarKey,
+  type ScorecardAxisView,
   readApiEnvelope,
 } from "@/components/api-adapter";
 import { ErrorState, LoadingState } from "@/components/request-state";
@@ -81,12 +84,89 @@ function ScoreBar({ value, label }: { value: number | null; label: string }) {
   );
 }
 
+function ScorecardAxisBlock({ label, axis }: { label: string; axis: ScorecardAxisView }) {
+  return (
+    <div className="scorecard-axis">
+      <div className="scorecard-axis__head">
+        <span>{label}</span>
+        <strong>{axis.scoreLabel}</strong>
+      </div>
+      <ScoreBar value={axis.score} label={`${label} 점수`} />
+      <p className="scorecard-axis__basis">{axis.basis}</p>
+      <ul className="scorecard-axis__items">
+        {axis.items.map((item) => (
+          <li key={item.name} data-excluded={item.excluded || undefined}>
+            <span>{item.name}</span>
+            <em>{item.excluded ? "산출 제외" : `${item.points ?? "—"}점`}</em>
+            <small>
+              {item.band}
+              {item.note ? ` · ${item.note}` : ""}
+            </small>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * modeling 파이프라인이 계산한 2축 점수. 값은 화면에서 만들지 않고 받은 것만
+ * 보여 주며, 파이프라인이 준비되지 않으면 점수 자리를 비워 둔다.
+ */
+function ModelingScorecardCard({ scorecard }: { scorecard: ModelingScorecardView | null }) {
+  return (
+    <article className="assessment-card assessment-card--scorecard">
+      <div className="assessment-card__heading">
+        <div className="assessment-card__icon">
+          <Gauge size={21} aria-hidden="true" />
+        </div>
+        <div>
+          <span>거래 데이터와 인터뷰</span>
+          <h3>2축 스코어카드</h3>
+        </div>
+        <span className="source-chip">심사 참고자료</span>
+      </div>
+
+      {scorecard?.status === "READY" && scorecard.currentSituation && scorecard.improvement ? (
+        <>
+          <ScorecardAxisBlock label="현재 상황" axis={scorecard.currentSituation} />
+          <ScorecardAxisBlock label="개선가능성" axis={scorecard.improvement} />
+          <div className="approval-null">
+            <Info size={15} aria-hidden="true" />
+            승인·거절 판단이 아니며 신용등급도 아닙니다.
+            {scorecard.transactionDataSource
+              ? ` 거래 데이터는 데모용 mock 케이스(${scorecard.transactionDataSource})입니다.`
+              : ""}
+          </div>
+          {scorecard.reproduceCommand && (
+            <p className="scorecard-reproduce">
+              재현: <code>{scorecard.reproduceCommand}</code>
+            </p>
+          )}
+        </>
+      ) : (
+        <div className="assessment-empty">
+          <ShieldAlert size={18} aria-hidden="true" />
+          <div>
+            <strong>2축 점수를 계산하지 않았습니다.</strong>
+            <p>
+              {scorecard?.unavailableMessage ??
+                "modeling 파이프라인 응답을 받지 못했습니다. 점수를 추정해 채우지 않습니다."}
+            </p>
+          </div>
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function EvaluationReport({ evaluationId }: EvaluationReportProps) {
   const [evaluation, setEvaluation] = useState<EvaluationView | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showTechnicalFeatureDetails, setShowTechnicalFeatureDetails] = useState(false);
   const [selectedPillarKey, setSelectedPillarKey] = useState<PillarKey | null>(null);
+  const [scorecard, setScorecard] = useState<ModelingScorecardView | null>(null);
   const drawerCloseRef = useRef<HTMLButtonElement>(null);
   const drawerReturnFocusRef = useRef<HTMLElement | null>(null);
 
@@ -153,6 +233,28 @@ export function EvaluationReport({ evaluationId }: EvaluationReportProps) {
       active = false;
     };
   }, [fetchEvaluation]);
+
+  // 2축 점수는 별도로 읽는다. modeling 파이프라인이 준비되지 않아도 평가 화면은
+  // 그대로 열려야 하기 때문이다.
+  useEffect(() => {
+    let active = true;
+
+    authenticatedFetch(
+      `/api/interview-evaluations/${encodeURIComponent(evaluationId)}/scorecard`,
+      { cache: "no-store" },
+    )
+      .then((response) => readApiEnvelope(response))
+      .then((data) => {
+        if (active) setScorecard(adaptModelingScorecard(data));
+      })
+      .catch(() => {
+        if (active) setScorecard(null);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [evaluationId]);
 
   const closePillarDrawer = useCallback(() => {
     setSelectedPillarKey(null);
@@ -686,6 +788,8 @@ export function EvaluationReport({ evaluationId }: EvaluationReportProps) {
               {evaluation.gradeScope && ` ${evaluation.gradeScope} 범위로만 표시합니다.`}
             </div>
           </article>
+
+          <ModelingScorecardCard scorecard={scorecard} />
         </div>
       </section>
 

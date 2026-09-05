@@ -1684,3 +1684,70 @@ export function formatDateTime(value: string | null): string {
     minute: "2-digit",
   }).format(date);
 }
+
+export interface ScorecardItemView {
+  name: string;
+  points: number | null;
+  excluded: boolean;
+  band: string;
+  note: string | null;
+}
+
+export interface ScorecardAxisView {
+  score: number | null;
+  scoreLabel: string;
+  items: ScorecardItemView[];
+  itemsUsed: number;
+  itemsTotal: number;
+  basis: string;
+  note: string | null;
+}
+
+export interface ModelingScorecardView {
+  status: "READY" | "UNAVAILABLE";
+  unavailableMessage: string | null;
+  currentSituation: ScorecardAxisView | null;
+  improvement: ScorecardAxisView | null;
+  reproduceCommand: string | null;
+  transactionDataSource: string | null;
+}
+
+function scorecardItemViews(value: unknown): ScorecardItemView[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((item) => ({
+    name: stringValue(item.name) ?? "이름 없음",
+    points: numberValue(item.points),
+    excluded: item.excluded === true,
+    band: stringValue(item.band) ?? "—",
+    note: stringValue(item.note),
+  }));
+}
+
+function scorecardAxisView(value: unknown): ScorecardAxisView | null {
+  if (!isRecord(value)) return null;
+  const score = numberValue(value.score);
+  return {
+    score,
+    // 점수 자리에 상태 문자열이 오면 숫자로 바꾸지 않고 그대로 보여 준다.
+    scoreLabel: score === null ? (stringValue(value.score) ?? "산출 불가") : `${score}`,
+    items: scorecardItemViews(value.items),
+    itemsUsed: numberValue(value.items_used) ?? 0,
+    itemsTotal: numberValue(value.items_total) ?? 0,
+    basis: stringValue(value.basis) ?? "",
+    note: stringValue(value.note),
+  };
+}
+
+export function adaptModelingScorecard(input: unknown): ModelingScorecardView {
+  const record = isRecord(input) ? input : {};
+  const data = isRecord(record.data) ? record.data : record;
+  const scorecard = isRecord(data.scorecard) ? data.scorecard : null;
+  return {
+    status: data.status === "READY" ? "READY" : "UNAVAILABLE",
+    unavailableMessage: stringValue(data.unavailableMessage),
+    currentSituation: scorecard ? scorecardAxisView(scorecard.current_situation) : null,
+    improvement: scorecard ? scorecardAxisView(scorecard.improvement) : null,
+    reproduceCommand: stringValue(data.reproduceCommand),
+    transactionDataSource: stringValue(data.transactionDataSource),
+  };
+}

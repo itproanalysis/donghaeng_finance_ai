@@ -3927,7 +3927,8 @@ p {
 
 .assessment-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
+  align-items: start;
   gap: 13px;
 }
 
@@ -3944,6 +3945,90 @@ p {
 .assessment-card--interview {
   border-color: #b9d3fb;
   background: #f8fbff;
+}
+
+.assessment-card--scorecard {
+  border-color: #c8dfd0;
+  background: #f8fcf9;
+}
+
+.assessment-card--scorecard .assessment-card__icon {
+  background: #e4f2e9;
+  color: #2f6b47;
+}
+
+.scorecard-axis + .scorecard-axis {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.scorecard-axis__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.scorecard-axis__head span {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.scorecard-axis__head strong {
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+
+.scorecard-axis__basis {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.scorecard-axis__items {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 5px;
+}
+
+.scorecard-axis__items li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 8px;
+  font-size: 10px;
+}
+
+.scorecard-axis__items li > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scorecard-axis__items li > em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.scorecard-axis__items li > small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.scorecard-axis__items li[data-excluded] > span,
+.scorecard-axis__items li[data-excluded] > em {
+  color: var(--text-muted);
+}
+
+.scorecard-reproduce {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  overflow-wrap: anywhere;
 }
 
 .assessment-card__heading {
