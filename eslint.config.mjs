@@ -8,8 +8,8 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     "coverage/**",
-    "data/*.db*",
-    "data/local-voice/**",
+    "data/**",
+    "frontend-prototype/**",
     "next-env.d.ts"
   ]),
 ]);

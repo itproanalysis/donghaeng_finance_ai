@@ -42,7 +42,8 @@ export interface PeriodicMoneyValue extends CanonicalValueBase {
   basis:
     | "GROSS_SALES"
     | "FIXED_OPERATING_COST_TOTAL"
-    | "ESSENTIAL_HOUSEHOLD_EXPENSE";
+    | "ESSENTIAL_HOUSEHOLD_EXPENSE"
+    | "IMPROVEMENT_PLAN_BUDGET";
   referenceWindow: ReferenceWindow;
   channels?: string[];
   components?: Array<{
@@ -59,13 +60,31 @@ export interface GoalMetricValue {
 }
 
 /**
+ * 영업일이 줄어든 사유의 보기. 사장님이 직접 고른 값만 들어가고, 진술이 어느
+ * 보기에도 닿지 않으면 null로 남긴다.
+ */
+export const OPERATING_DAY_DROP_REASONS = [
+  "HEALTH",
+  "FAMILY",
+  "STAFFING",
+  "DEMAND_DECLINE",
+  "BUSINESS_DOWNSIZING",
+] as const;
+
+export type OperatingDayDropReason = (typeof OPERATING_DAY_DROP_REASONS)[number];
+
+/**
  * Directly observed business-context signals. These are descriptors, not model
  * scores, and deliberately carry no sentiment or voice-derived attributes.
  */
 export interface BusinessSignalValue extends CanonicalValueBase {
   kind: "BUSINESS_SIGNAL";
-  signal: "PLATFORM_FEE_PRESSURE" | "HALL_CUSTOMER_DECLINE";
+  signal: "PLATFORM_FEE_PRESSURE" | "HALL_CUSTOMER_DECLINE" | "OPERATING_DAY_DROP";
   observed: boolean;
+  /** OPERATING_DAY_DROP에서만 값을 갖고 나머지 신호는 null이다. */
+  reason: OperatingDayDropReason | null;
+  /** 사유가 지금은 해소됐는지. 사장님이 밝히지 않으면 null이다. */
+  resolved: boolean | null;
   origin: "BORROWER_DIRECT";
 }
 

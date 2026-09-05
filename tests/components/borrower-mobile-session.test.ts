@@ -16,7 +16,9 @@ describe("borrower long-session and mobile UX", () => {
     expect(roomSource).toContain('className="borrower-phase-guide"');
     expect(roomSource).toContain('aria-current={phase.state === "CURRENT" ? "step" : undefined}');
     expect(roomSource).toContain("conversationGuide.currentPhaseKey");
-    expect(roomSource).toContain('inline: "center"');
+    expect(roomSource).toContain('track.scrollTo({ left:');
+    expect(roomSource).toContain('timeline?.scrollTo({ top: timeline.scrollHeight, behavior })');
+    expect(roomSource).not.toContain('timelineEndRef.current?.scrollIntoView');
   });
 
   it("bounds mobile transcript growth and keeps the chat composer reachable", () => {

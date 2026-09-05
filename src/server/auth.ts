@@ -8,6 +8,8 @@ import {
 import type { DatabaseSync } from "node:sqlite";
 
 import { ApplicationError } from "./errors";
+import { assertPublicReviewOpen, isPublicReviewMode, reserveReviewUsage } from "./public-review";
+import { isGoogleIapMode, verifyIapRequest, type IapIdentity } from "./iap-auth";
 import {
   assertApplicationAuthenticationAvailable,
   type AuthenticationRuntimeEnvironment,
@@ -159,6 +161,9 @@ export class AuthService {
 
   bootstrapLocalWorkspace(): AuthSessionResult {
     assertApplicationAuthenticationAvailable(this.environment);
+    if (isGoogleIapMode(this.environment) || isPublicReviewMode(this.environment)) {
+      throw new ApplicationError(403, "LOCAL_BOOTSTRAP_DISABLED", "Google 인증 환경에서는 로컬 계정을 생성할 수 없습니다.");
+    }
     const password = localWorkspacePassword(this.environment);
     const salt = randomBytes(16).toString("hex");
     const passwordHash = hashPassword(password, salt);
@@ -196,6 +201,9 @@ export class AuthService {
 
   login(email: string, password: string): AuthSessionResult {
     assertApplicationAuthenticationAvailable(this.environment);
+    if (isGoogleIapMode(this.environment) || isPublicReviewMode(this.environment)) {
+      throw new ApplicationError(403, "PASSWORD_LOGIN_DISABLED", "이 서비스는 Google 로그인만 지원합니다.");
+    }
     const normalized = normalizeEmail(email);
     const row = this.database
       .prepare(
@@ -222,9 +230,14 @@ export class AuthService {
 
   authenticate(request: Request): Principal {
     assertApplicationAuthenticationAvailable(this.environment);
+    const review = isPublicReviewMode(this.environment);
+    if (review) assertPublicReviewOpen(this.environment, this.now());
+    if (isGoogleIapMode(this.environment)) {
+      return this.iapPrincipal(verifyIapRequest(request, this.environment, this.now()));
+    }
     const token = parseCookie(request.headers.get("cookie"), SESSION_COOKIE_NAME);
     if (!token) {
-      throw new ApplicationError(401, "AUTHENTICATION_REQUIRED", "로그인이 필요합니다.");
+      throw new ApplicationError(401, review ? "PUBLIC_REVIEW_SESSION_REQUIRED" : "AUTHENTICATION_REQUIRED", review ? "이 브라우저의 상담 기록을 준비합니다." : "로그인이 필요합니다.");
     }
     const row = this.database
       .prepare(
@@ -236,7 +249,11 @@ export class AuthService {
       )
       .get(sha256(token)) as SessionRow | undefined;
     if (!row || String(row.expires_at) <= this.now().toISOString()) {
-      throw new ApplicationError(401, "SESSION_EXPIRED", "세션이 없거나 만료되었습니다.");
+      throw new ApplicationError(401, review ? "PUBLIC_REVIEW_SESSION_REQUIRED" : "SESSION_EXPIRED", "세션이 없거나 만료되었습니다.");
+    }
+    if (review && (!String(row.tenant_id).startsWith("review-") ||
+      !String(row.user_id).startsWith("review-") || String(row.roles_json) !== '["INTERVIEWER"]')) {
+      throw new ApplicationError(403, "REVIEW_IDENTITY_REQUIRED", "공개 심사에서는 방문자 기록만 이용할 수 있습니다.");
     }
     return {
       tenantId: String(row.tenant_id),
@@ -247,17 +264,66 @@ export class AuthService {
     };
   }
 
-  getSession(request: Request): { principal: Principal; expiresAt: string } {
+  getSession(request: Request): {
+    principal: Principal; expiresAt: string;
+    authMode?: "google-iap" | "public-review"; logoutSupported?: boolean;
+  } {
+    if (isGoogleIapMode(this.environment)) {
+      assertApplicationAuthenticationAvailable(this.environment);
+      const identity = verifyIapRequest(request, this.environment, this.now());
+      return {
+        principal: this.iapPrincipal(identity), expiresAt: identity.expiresAt,
+        authMode: "google-iap", logoutSupported: false,
+      };
+    }
     const token = parseCookie(request.headers.get("cookie"), SESSION_COOKIE_NAME);
     const principal = this.authenticate(request);
     const row = this.database
       .prepare("SELECT expires_at FROM auth_sessions WHERE token_hash = ?")
       .get(sha256(token ?? ""));
-    return { principal, expiresAt: String(row?.expires_at ?? "") };
+    return { principal, expiresAt: String(row?.expires_at ?? ""), ...(isPublicReviewMode(this.environment) ? { authMode: "public-review" as const, logoutSupported: false } : {}) };
+  }
+
+  startPublicReview(request: Request): AuthSessionResult | Omit<AuthSessionResult, "token"> {
+    if (!isPublicReviewMode(this.environment)) {
+      throw new ApplicationError(404, "NOT_FOUND", "지원되지 않는 요청입니다.");
+    }
+    assertPublicReviewOpen(this.environment, this.now());
+    try { return this.getSession(request); } catch (error) {
+      if (!(error instanceof ApplicationError) || error.status !== 401) throw error;
+    }
+    const tenantId = `review-${randomUUID()}`;
+    const userId = `review-${randomUUID()}`;
+    const now = this.now().toISOString();
+    const email = `${userId}@visitor.invalid`;
+    this.database.exec("BEGIN IMMEDIATE;");
+    try {
+      reserveReviewUsage(this.database, "visitor", tenantId, 1, this.environment, this.now());
+      this.database.prepare("INSERT INTO tenants(id, slug, name, created_at) VALUES (?, ?, ?, ?)")
+        .run(tenantId, tenantId, "이 브라우저의 상담 기록", now);
+      this.database.prepare(`INSERT INTO users(id, tenant_id, email, email_normalized, display_name,
+        password_salt, password_hash, roles_json, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
+        .run(userId, tenantId, email, email, "이 브라우저의 상담 기록", PASSWORD_SENTINEL, PASSWORD_SENTINEL, '["INTERVIEWER"]', now);
+      const session = this.issueSession(tenantId, userId, now);
+      this.database.exec("COMMIT;");
+      return session;
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   logout(request: Request): void {
     assertApplicationAuthenticationAvailable(this.environment);
+    if (isGoogleIapMode(this.environment)) {
+      // Clearing this application's cookie cannot revoke Google's IAP cookie.
+      // Do not claim a successful logout while the next request stays signed in.
+      verifyIapRequest(request, this.environment, this.now());
+      throw new ApplicationError(
+        409, "IAP_LOGOUT_EXTERNAL_REQUIRED",
+        "Google IAP 로그인은 이 화면에서 종료할 수 없습니다. 사용한 브라우저 프로필을 닫거나 Google 계정에서 로그아웃해 주세요.",
+      );
+    }
     const token = parseCookie(request.headers.get("cookie"), SESSION_COOKIE_NAME);
     if (!token) return;
     this.database
@@ -265,6 +331,61 @@ export class AuthService {
         "UPDATE auth_sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
       )
       .run(this.now().toISOString(), sha256(token));
+  }
+
+  private iapPrincipal(identity: IapIdentity): Principal {
+    const tenantId = identity.tenantId;
+    // Subject, not email, is the durable identity. A second Google subject
+    // cannot take over an existing account merely by presenting the same email.
+    const userId = `google-iap-${sha256(`${tenantId}\0${identity.subject}`)}`;
+    const roles = ["ADMIN", "INTERVIEWER"];
+    const principal = { tenantId, userId, email: identity.email, displayName: identity.email, roles };
+    const current = this.database.prepare(
+      "SELECT active, email, email_normalized, display_name, roles_json FROM users WHERE tenant_id = ? AND id = ?",
+    ).get(tenantId, userId);
+    if (current?.active === 0) {
+      throw new ApplicationError(403, "IAP_ACCOUNT_DISABLED", "운영 계정을 사용할 수 없습니다.");
+    }
+    // Frequent interview polling must not rewrite the same identity to disk.
+    if (current?.active === 1 && current.email === identity.email &&
+      current.email_normalized === identity.email && current.display_name === identity.email &&
+      current.roles_json === JSON.stringify(roles)) {
+      return principal;
+    }
+    const now = this.now().toISOString();
+    this.database.exec("BEGIN IMMEDIATE;");
+    try {
+      this.database.prepare(
+        `INSERT INTO tenants(id, slug, name, created_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING`,
+      ).run(tenantId, `google-iap-${sha256(tenantId).slice(0, 32)}`, "동행금융 운영 작업공간", now);
+      const existing = this.database.prepare(
+        "SELECT id, active FROM users WHERE tenant_id = ? AND id = ?",
+      ).get(tenantId, userId);
+      const emailOwner = this.database.prepare(
+        "SELECT id FROM users WHERE tenant_id = ? AND email_normalized = ?",
+      ).get(tenantId, identity.email);
+      if ((existing && existing.active !== 1) || (emailOwner && emailOwner.id !== userId)) {
+        throw new ApplicationError(403, "IAP_ACCOUNT_DISABLED", "운영 계정을 사용할 수 없습니다.");
+      }
+      if (existing) {
+        this.database.prepare(
+          "UPDATE users SET email = ?, email_normalized = ?, display_name = ?, roles_json = ? WHERE tenant_id = ? AND id = ?",
+        ).run(identity.email, identity.email, identity.email, JSON.stringify(roles), tenantId, userId);
+      } else {
+        this.database.prepare(
+          `INSERT INTO users(id, tenant_id, email, email_normalized, display_name,
+             password_salt, password_hash, roles_json, active, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        ).run(userId, tenantId, identity.email, identity.email, identity.email,
+          PASSWORD_SENTINEL, PASSWORD_SENTINEL, JSON.stringify(roles), now);
+      }
+      this.database.exec("COMMIT;");
+      return principal;
+    } catch (error) {
+      this.database.exec("ROLLBACK;");
+      throw error;
+    }
   }
 
   private issueSession(tenantId: string, userId: string, now: string): AuthSessionResult {
@@ -279,7 +400,9 @@ export class AuthService {
     }
 
     const token = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(new Date(now).getTime() + SESSION_DURATION_MS).toISOString();
+    const expiresAt = isPublicReviewMode(this.environment)
+      ? new Date(this.environment.DONGHAENG_REVIEW_CLOSES_AT!).toISOString()
+      : new Date(new Date(now).getTime() + SESSION_DURATION_MS).toISOString();
     this.database
       .prepare(
         `INSERT INTO auth_sessions(

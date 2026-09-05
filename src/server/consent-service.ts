@@ -102,7 +102,7 @@ export class ConsentService {
         now,
         command.granted ? null : now,
         expiresAt,
-        JSON.stringify({ collectionMode: "LOCAL_WORKSPACE", rawAudioDefault: false }),
+        JSON.stringify({ collectionMode: process.env.DONGHAENG_AUTH_MODE === "google-iap" ? "GOOGLE_IAP" : process.env.DONGHAENG_AUTH_MODE === "public-review" ? "PUBLIC_REVIEW" : "LOCAL_WORKSPACE", rawAudioDefault: false }),
       );
     return this.getLatest(interviewId, command.purpose, principal) as ConsentDecisionView;
   }
@@ -159,7 +159,7 @@ export class ConsentService {
           ? "마이크 인터뷰 목적과 처리방식에 대한 현재 동의가 필요합니다."
           : purpose === "RAW_AUDIO_STORAGE"
             ? "원음 저장은 별도의 명시적 동의가 필요합니다."
-            : "확정 전사와 현재 인터뷰 정보를 외부 Claude API에서 처리하기 위한 명시적 동의가 필요합니다.",
+            : "음성·전사와 현재 인터뷰 정보를 외부 AI 서비스에서 처리하기 위한 명시적 동의가 필요합니다.",
         { interviewId, purpose },
       );
     }

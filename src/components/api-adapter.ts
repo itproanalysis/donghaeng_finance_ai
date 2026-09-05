@@ -258,6 +258,7 @@ export interface FinalInterviewView {
   overallRate: number | null;
   evaluationEligible: boolean;
   evaluationId: string | null;
+  goal?: GoalView | null;
 }
 
 export type InterviewSnapshotView = LiveInterviewView | FinalInterviewView;
@@ -373,6 +374,8 @@ export interface EvaluationListItemView {
 export interface EvaluationListView {
   items: EvaluationListItemView[];
   total: number;
+  limit: number;
+  offset: number;
   facets: {
     industries: string[];
     levels: string[];
@@ -514,6 +517,10 @@ const LEVEL_LABELS: Record<string, string> = {
 };
 
 const INFO_LABELS: Record<string, string> = {
+  platform_fee_pressure: "플랫폼 비용부담",
+  hall_customer_decline: "홀 고객 감소",
+  repeat_customer_share: "반복고객 비중",
+  operating_day_drop_reason: "영업일 감소 사유",
   monthly_average_sales: "월평균 매출",
   fixed_operating_costs: "월 고정 운영비",
   improvement_plan: "사업 개선 계획",
@@ -755,6 +762,11 @@ function formatInformationValue(value: unknown): string | null {
     }
     if (signal === "HALL_CUSTOMER_DECLINE") {
       return observed ? "홀매출 감소 확인" : "홀매출 감소 없음";
+    }
+    if (signal === "OPERATING_DAY_DROP") {
+      const reason = stringValue(value.reason);
+      const reasons: Record<string, string> = { HEALTH: "건강", FAMILY: "가족 사정", STAFFING: "일손 부족", DEMAND_DECLINE: "수요 감소", BUSINESS_DOWNSIZING: "사업 축소" };
+      return `${reason ? reasons[reason] ?? "사유 확인 필요" : "사유 확인 필요"} · ${value.resolved === true ? "현재 해소됨" : value.resolved === false ? "현재 지속 중" : "해소 여부 미확인"}`;
     }
     return observed ? "확인" : "해당 없음";
   }
@@ -1136,6 +1148,7 @@ export function adaptLiveSnapshot(input: unknown): LiveInterviewView {
 
 export function adaptFinalSnapshot(input: unknown): FinalInterviewView {
   const record = snapshotRecord(input);
+  const transcriptsById = new Map(transcriptViews(record.transcript).map(segment => [segment.id, segment]));
   const session = isRecord(record.session) ? record.session : {};
   const borrower = isRecord(record.borrower) ? record.borrower : {};
   const business = isRecord(record.business) ? record.business : {};
@@ -1169,7 +1182,7 @@ export function adaptFinalSnapshot(input: unknown): FinalInterviewView {
     industry: stringValue(business.industry) ?? "업종 정보 없음",
     informationItems,
     evidence: evidenceSource
-      .map((value) => evidenceView(value))
+      .map((value) => evidenceView(value, transcriptsById))
       .filter((item): item is EvidenceView => item !== null),
     transcriptSummary:
       stringValue(record.transcriptSummary) ??
@@ -1182,6 +1195,7 @@ export function adaptFinalSnapshot(input: unknown): FinalInterviewView {
       record.evaluationEligible === true || completionStatus === "COMPLETE",
     evaluationId:
       stringValue(record.evaluationId) ?? stringValue(evaluation?.id),
+    goal: optionalGoal(record, null),
   };
 }
 
@@ -1562,6 +1576,8 @@ export function adaptEvaluationList(input: unknown): EvaluationListView {
 
   return {
     items,
+    limit: Math.max(1, Math.trunc(numberValue(record.limit) ?? 24)),
+    offset: Math.max(0, Math.trunc(numberValue(record.offset) ?? 0)),
     total: numberValue(record.total) ?? items.length,
     facets: {
       industries:
@@ -1609,29 +1625,48 @@ export async function readApiEnvelope(response: Response): Promise<unknown> {
   return payload;
 }
 
-/**
- * Local development uses an explicit workspace bootstrap endpoint. Production
- * deployments return 401 from that endpoint and should route the operator to
- * the normal session login screen.
- */
+let sessionBootstrap: Promise<Response> | null = null;
+let sessionGeneration = 0;
+
+export function isPublicReviewBrowser(): boolean {
+  return typeof document !== "undefined" && document.documentElement.dataset.authMode === "public-review";
+}
+
+/** One in-flight bootstrap prevents parallel first requests replacing cookies. */
 export async function authenticatedFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ): Promise<Response> {
   const requestInit: RequestInit = { ...init, credentials: "include" };
+  const requestGeneration = sessionGeneration;
   let response = await fetch(input, requestInit);
-  if (response.status !== 401 || String(input).includes("/api/auth/")) {
+  if (response.status !== 401 || (String(input).includes("/api/auth/") && !String(input).includes("/api/auth/me"))) {
     return response;
   }
-
-  const bootstrap = await fetch("/api/auth/bootstrap", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: "{}",
-    credentials: "include",
-  });
-  if (!bootstrap.ok) return response;
+  const errorPayload = await response.clone().json().catch(() => null);
+  const publicReview = errorPayload?.error?.code === "PUBLIC_REVIEW_SESSION_REQUIRED";
+  // A slow 401 may arrive after another request has already established the
+  // visitor cookie. Do not create a second tenant and replace that new cookie.
+  if (requestGeneration === sessionGeneration && !sessionBootstrap) {
+    sessionBootstrap = fetch(publicReview ? "/api/auth/visitor-session" : "/api/auth/bootstrap", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: "{}", credentials: "include",
+    }).then((result) => {
+      if (result.ok) sessionGeneration += 1;
+      return result;
+    }).finally(() => { sessionBootstrap = null; });
+  }
+  if (sessionBootstrap) {
+    const bootstrap = await sessionBootstrap;
+    if (!bootstrap.ok) return publicReview ? bootstrap.clone() : response;
+  }
   response = await fetch(input, requestInit);
+  if (publicReview && response.status === 401) {
+    return Response.json({ data: null, error: {
+      code: "PUBLIC_REVIEW_COOKIE_REQUIRED",
+      message: "상담 기록을 이어가려면 이 사이트의 쿠키를 허용해 주세요. 일반 Chrome·Safari·Edge에서 링크를 열거나, 입력 없이 분석 사례를 볼 수 있습니다.",
+    } }, { status: 409 });
+  }
   return response;
 }
 
@@ -1683,4 +1718,71 @@ export function formatDateTime(value: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+export interface ScorecardItemView {
+  name: string;
+  points: number | null;
+  excluded: boolean;
+  band: string;
+  note: string | null;
+}
+
+export interface ScorecardAxisView {
+  score: number | null;
+  scoreLabel: string;
+  items: ScorecardItemView[];
+  itemsUsed: number;
+  itemsTotal: number;
+  basis: string;
+  note: string | null;
+}
+
+export interface ModelingScorecardView {
+  status: "READY" | "UNAVAILABLE";
+  unavailableMessage: string | null;
+  currentSituation: ScorecardAxisView | null;
+  improvement: ScorecardAxisView | null;
+  reproduceCommand: string | null;
+  transactionDataSource: string | null;
+}
+
+function scorecardItemViews(value: unknown): ScorecardItemView[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isRecord).map((item) => ({
+    name: stringValue(item.name) ?? "이름 없음",
+    points: numberValue(item.points),
+    excluded: item.excluded === true,
+    band: stringValue(item.band) ?? "—",
+    note: stringValue(item.note),
+  }));
+}
+
+function scorecardAxisView(value: unknown): ScorecardAxisView | null {
+  if (!isRecord(value)) return null;
+  const score = numberValue(value.score);
+  return {
+    score,
+    // 점수 자리에 상태 문자열이 오면 숫자로 바꾸지 않고 그대로 보여 준다.
+    scoreLabel: score === null ? (stringValue(value.score) ?? "산출 불가") : `${score}`,
+    items: scorecardItemViews(value.items),
+    itemsUsed: numberValue(value.items_used) ?? 0,
+    itemsTotal: numberValue(value.items_total) ?? 0,
+    basis: stringValue(value.basis) ?? "",
+    note: stringValue(value.note),
+  };
+}
+
+export function adaptModelingScorecard(input: unknown): ModelingScorecardView {
+  const record = isRecord(input) ? input : {};
+  const data = isRecord(record.data) ? record.data : record;
+  const scorecard = isRecord(data.scorecard) ? data.scorecard : null;
+  return {
+    status: data.status === "READY" ? "READY" : "UNAVAILABLE",
+    unavailableMessage: stringValue(data.unavailableMessage),
+    currentSituation: scorecard ? scorecardAxisView(scorecard.current_situation) : null,
+    improvement: scorecard ? scorecardAxisView(scorecard.improvement) : null,
+    reproduceCommand: stringValue(data.reproduceCommand),
+    transactionDataSource: stringValue(data.transactionDataSource),
+  };
 }

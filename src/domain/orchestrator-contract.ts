@@ -15,6 +15,7 @@ import {
 } from "./interview";
 import {
   assertCanonicalInformationValue,
+  OPERATING_DAY_DROP_REASONS,
   type CanonicalInformationValue,
   type CanonicalExtractionCandidate,
   type TextEvidenceSpan,
@@ -370,6 +371,7 @@ function periodicMoney(
       "GROSS_SALES",
       "FIXED_OPERATING_COST_TOTAL",
       "ESSENTIAL_HOUSEHOLD_EXPENSE",
+      "IMPROVEMENT_PLAN_BUDGET",
     ]),
     `${path}.basis`,
     issues,
@@ -455,7 +457,7 @@ function businessSignal(
   const record = strictObject(
     value,
     path,
-    ["schemaVersion", "kind", "signal", "observed", "origin"],
+    ["schemaVersion", "kind", "signal", "observed", "reason", "resolved", "origin"],
     [],
     issues,
   );
@@ -468,11 +470,30 @@ function businessSignal(
   }
   enumValue(
     record.signal,
-    new Set(["PLATFORM_FEE_PRESSURE", "HALL_CUSTOMER_DECLINE"]),
+    new Set(["PLATFORM_FEE_PRESSURE", "HALL_CUSTOMER_DECLINE", "OPERATING_DAY_DROP"]),
     `${path}.signal`,
     issues,
   );
   booleanValue(record.observed, `${path}.observed`, issues);
+  if (record.reason !== null) {
+    enumValue(
+      record.reason,
+      new Set(OPERATING_DAY_DROP_REASONS),
+      `${path}.reason`,
+      issues,
+    );
+  }
+  if (record.resolved !== null) {
+    booleanValue(record.resolved, `${path}.resolved`, issues);
+  }
+  if (record.signal !== "OPERATING_DAY_DROP" && (record.reason !== null || record.resolved !== null)) {
+    issue(
+      issues,
+      `${path}.reason`,
+      "INVALID_CANONICAL_VALUE",
+      "reason과 resolved는 OPERATING_DAY_DROP에서만 값을 가질 수 있습니다.",
+    );
+  }
   if (record.origin !== "BORROWER_DIRECT") {
     issue(issues, `${path}.origin`, "INVALID_CANONICAL_VALUE", "Expected BORROWER_DIRECT.");
   }

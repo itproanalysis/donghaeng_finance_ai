@@ -7,6 +7,7 @@ import { InterviewRepository } from "./interview-repository";
 import { InterviewService } from "./interview-service";
 import { RetentionService } from "./retention-service";
 import { assertApplicationAuthenticationAvailable } from "./production-auth-policy";
+import { reserveReviewUsage } from "./public-review";
 
 const globalServices = globalThis as typeof globalThis & {
   __donghaengInterviewService?: InterviewService;
@@ -36,6 +37,7 @@ export function getInterviewService(): InterviewService {
                 "CLOUD_AI_PROCESSING",
                 principal,
               );
+              reserveReviewUsage(getDatabase(), "ai", principal.tenantId);
             },
           }
         : {},

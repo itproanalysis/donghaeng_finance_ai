@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createNetServer } from "node:net";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
 import WebSocket from "ws";
 
@@ -570,6 +570,33 @@ async function main() {
   await initializeLocalWorkspace(environment);
   await startProductionServer(environment, origin);
 
+  const modelingIndexResult = await apiRequest(origin, "/api/demo/modeling");
+  const modelingIndex = expectSuccess(modelingIndexResult, 200);
+  assert(modelingIndex.schemaVersion === "modeling_web_v1", "모델링 공개 API schemaVersion이 다릅니다.");
+  assert(modelingIndex.defaultCaseId === "case_operating_drop", "기본 모델링 사례가 영업일 감소 사례가 아닙니다.");
+  assert(modelingIndex.model?.featureCount === 94, "모델링 공개 API의 Feature 수가 94개가 아닙니다.");
+  assert(modelingIndex.cases?.length === 10, "모델링 공개 API의 mock 사례 수가 10개가 아닙니다.");
+  assert(modelingIndex.validation?.existingModelingValidation?.checksPassed === 82, "Python 모델링 검증 82개 통과 결과가 공개 API에 없습니다.");
+  assert(
+    modelingIndexResult.response.headers.get("cache-control")?.includes("public"),
+    "모델링 공개 API에 public cache 정책이 없습니다.",
+  );
+
+  const modelingCase = expectSuccess(
+    await apiRequest(origin, "/api/demo/modeling/case_operating_drop"),
+    200,
+  );
+  assert(modelingCase.caseId === "case_operating_drop", "요청한 모델링 사례가 반환되지 않았습니다.");
+  assert(modelingCase.features?.length === 94, "사례별 모델링 API의 Feature 수가 94개가 아닙니다.");
+  assert(modelingCase.scorecard?.currentSituation?.score === 78, "영업일 감소 사례의 현재상황 점수가 다릅니다.");
+  assert(modelingCase.scorecard?.improvement?.score === 67.5, "영업일 감소 사례의 개선가능성 점수가 다릅니다.");
+  assert(
+    modelingCase.externalContext?.includedInFeatureVector === false &&
+      modelingCase.externalContext?.includedInScore === false,
+    "외부 참고자료가 Feature 또는 점수 산식에 섞였습니다.",
+  );
+  expectError(await apiRequest(origin, "/api/demo/modeling/not-a-case"), 404, "MODELING_CASE_NOT_FOUND");
+
   const unauthenticatedCreate = await apiRequest(origin, "/api/interviews", {
     method: "POST",
     mutationOrigin: origin,
@@ -583,6 +610,15 @@ async function main() {
   });
   expectSuccess(login, 201);
   const cookie = cookieFrom(login.response);
+
+  for (const [path, marker] of [["/", "entrance-scene"], ["/borrower", "borrower-start"], ["/interviews", "operations-board"], ["/interview-evaluations", "evaluation-list-page"], ["/modeling?case=case_operating_drop", "modeling-heading"]]) {
+    const page = await fetch(`${origin}${path}`, { headers: { cookie } });
+    assert(page.status === 200 && (await page.text()).includes(marker), `${path} 실제 서비스 화면을 렌더링하지 못했습니다.`);
+  }
+  const oldDemo = await fetch(`${origin}/demo/borrower`, { headers: { cookie } });
+  assert(new URL(oldDemo.url).pathname === "/borrower", "기존 시연 경로가 실제 사장님 화면으로 연결되지 않았습니다.");
+  const emptyOperations = expectSuccess(await apiRequest(origin, "/api/interviews", { cookie }), 200);
+  assert(emptyOperations.total === 0 && emptyOperations.items.length === 0, "관리자 관제판에 실제 생성 전 예시 기록이 있습니다.");
 
   const crossSiteCreate = await apiRequest(origin, "/api/interviews", {
     method: "POST",
@@ -603,6 +639,9 @@ async function main() {
   assert(created.snapshotType === "PREVIEW", "생성 snapshot은 PREVIEW여야 합니다.");
   assert(created.informationItems.length === 8, "dev-v1 필수정보 8개가 생성되지 않았습니다.");
   assert(created.nextQuestion?.infoCode === "monthly_average_sales", "첫 질문이 월평균 매출이 아닙니다.");
+
+  const operations = expectSuccess(await apiRequest(origin, "/api/interviews?status=ACTIVE&limit=1", { cookie }), 200);
+  assert(operations.total === 1 && operations.items[0].id === interviewId, "관리자 관제판이 생성한 인터뷰와 연결되지 않았습니다.");
 
   const consentRequired = await apiRequest(
     origin,
@@ -1043,8 +1082,20 @@ async function main() {
   assert(forced.evaluation === null && forced.evaluationEligibility.eligible === false, "INCOMPLETE에 READY 평가가 생성됐습니다.");
   assert(forced.snapshot.evaluationId === null, "INCOMPLETE FINAL에 evaluationId가 있습니다.");
 
+  const draftPath = `/api/interviews/${encodeURIComponent(interviewId)}/consultation-draft`;
+  const draftData = { proposalId: "e2e-working-proposal", owner: "사장님 + 담당 상담사", period: "4주 후 점검", documents: ["사업자등록 정보 확인"], reviewed: false, institutionId: null };
+  const draft = expectSuccess(await apiRequest(origin, draftPath, { method: "PUT", cookie, mutationOrigin: origin, body: { expectedRevision: 0, data: draftData } }), 200);
+  assert(draft.revision === 1, "상담 초안이 저장되지 않았습니다.");
+  expectError(await apiRequest(origin, draftPath, { method: "PUT", cookie, mutationOrigin: origin, body: { expectedRevision: 0, data: { ...draftData, proposalId: "stale-overwrite" } } }), 409, "CONSULTATION_DRAFT_CONFLICT");
+  await stopProductionServer();
+  await startProductionServer(environment, origin);
+  const reloadedDraft = expectSuccess(await apiRequest(origin, draftPath, { cookie }), 200);
+  assert(JSON.stringify(reloadedDraft.data) === JSON.stringify(draftData) && reloadedDraft.revision === 1, "재기동 후 상담 초안이 유실됐습니다.");
+  const completedOperations = expectSuccess(await apiRequest(origin, "/api/interviews?status=COMPLETE", { cookie }), 200);
+  assert(completedOperations.items.some((item) => item.id === interviewId && item.evaluationId), "완료 기록에서 실제 평가로 이어지지 않습니다.");
+
   process.stdout.write(
-    `E2E PASS: auth/tenant/CSRF, versioned cloud-AI consent, local Claude strict-tool adapter/metadata (${anthropicStubRequests.length} calls), audio WS reconnect/STT metadata, correction, SSE replay, 8-item core + 11-item acceptance FINAL/evaluation/list, forced incomplete (${origin})\n`,
+    `E2E PASS: modeling judge page/public API/94-feature boundary, real role routes/legacy redirects, operator queue, persisted consultation draft/restart/conflict, auth/tenant/CSRF, versioned cloud-AI consent, local Claude strict-tool adapter/metadata (${anthropicStubRequests.length} calls), audio WS reconnect/STT metadata, correction, SSE replay, 8-item core + 11-item acceptance FINAL/evaluation/list, forced incomplete (${origin})\n`,
   );
 }
 
@@ -1057,6 +1108,7 @@ try {
   await stopProductionServer();
   await stopAnthropicStub();
   await stopSttStub();
+  assert(dirname(resolve(tempDirectory)) === resolve(projectRoot, "data") && basename(tempDirectory).startsWith("e2e-"), "E2E cleanup target is outside the dedicated test directory.");
   rmSync(tempDirectory, {
     recursive: true,
     force: true,

@@ -17,6 +17,7 @@ import {
   type GoalMetricValue,
   type ImprovementPlanValue,
   type NumericMeasure,
+  type OperatingDayDropReason,
   type PeriodicMoneyValue,
   type ReadinessResourceType,
   type SeasonalityBasisKind,
@@ -88,6 +89,7 @@ const OFF_TURN_STRONG_ANCHORS: Record<DevV1AllInfoCode, readonly string[]> = {
   platform_fee_pressure: ["플랫폼 수수료", "배달 수수료", "수수료가", "수수료는"],
   hall_customer_decline: ["홀 손님", "홀손님", "홀 매출", "매장 손님"],
   repeat_customer_share: ["반복고객", "단골"],
+  operating_day_drop_reason: ["문 연 날", "문 여는 날", "영업일"],
 };
 
 function normalize(text: string): string {
@@ -441,6 +443,9 @@ function numericMetricFromText(text: string, anchor: RegExp): GoalMetricValue | 
   if (semanticUnit === "건") {
     return { value: exact(numeric), unit: "CASE" };
   }
+  if (semanticUnit === "일") {
+    return { value: exact(numeric), unit: "DAY" };
+  }
   if (semanticUnit === "원" || magnitude) {
     const amount = amountFromParts(match[1], magnitude);
     return amount === null ? null : { value: exact(amount), unit: "KRW" };
@@ -511,7 +516,7 @@ export function parseImprovementPlan(
     : null;
   const metricNumber = "([0-9]+(?:\\.[0-9]+)?)";
   const moneyMagnitude = "(억|천만|백만|십만|만|천|백)?";
-  const metricUnit = "(원|%|퍼센트|건)?";
+  const metricUnit = "(원|%|퍼센트|건|일)?";
   const baseline = numericMetricFromText(
     span.text,
     new RegExp(
@@ -588,6 +593,8 @@ export function parsePlatformFeePressure(
       kind: "BUSINESS_SIGNAL",
       signal: "PLATFORM_FEE_PRESSURE",
       observed: pressured && !relieved,
+      reason: null,
+      resolved: null,
       origin: "BORROWER_DIRECT",
     },
     "LOW",
@@ -618,11 +625,77 @@ export function parseHallCustomerDecline(
       kind: "BUSINESS_SIGNAL",
       signal: "HALL_CUSTOMER_DECLINE",
       observed: declined && !notDeclined,
+      reason: null,
+      resolved: null,
       origin: "BORROWER_DIRECT",
     },
     "LOW",
     [],
     "홀 손님 변화의 직접 진술만 구조화했으며 감정분석을 사용하지 않았습니다.",
+  );
+}
+
+const OPERATING_DAY_DROP_REASON_PATTERNS: ReadonlyArray<
+  readonly [OperatingDayDropReason, RegExp]
+> = [
+  ["HEALTH", /(건강|아파|아팠|다쳐|다쳤|수술|입원|치료)/i],
+  ["FAMILY", /(가족|간병|돌봄|육아|장례|상을\s*당)/i],
+  ["STAFFING", /(일손|인력|직원|구인|사람을?\s*못\s*구)/i],
+  ["DEMAND_DECLINE", /(손님이?\s*(?:줄|없)|수요\s*(?:감소|가\s*줄)|장사가?\s*안\s*(?:돼|되))/i],
+  ["BUSINESS_DOWNSIZING", /(사업을?\s*축소|규모를?\s*줄|영업\s*시간을?\s*줄|정리하려)/i],
+];
+
+const OPERATING_DAY_DROP_UNRESOLVED_PATTERN =
+  /(아직|여전히|계속되|나아지지\s*않|그대로|진행\s*중)/i;
+const OPERATING_DAY_DROP_RESOLVED_PATTERN =
+  /(치료가?\s*끝|다\s*나았|회복(?:했|됐|되었)|해결(?:했|됐|되었)|지금은\s*(?:괜찮|정상)|다시\s*매일)/i;
+
+/**
+ * 데이터에서 영업일 감소가 확인됐을 때만 묻는 사유 질문. 사유 보기와 해소 여부만
+ * 뽑고, 어느 보기에도 닿지 않으면 값을 만들지 않고 다시 묻는다.
+ */
+export function parseOperatingDayDropReason(
+  text: string,
+  context: InformationParserContext,
+): CanonicalExtractionCandidate | null {
+  const definition = informationDefinition("operating_day_drop_reason");
+  const span = findClause(text, definition, context);
+  if (!span) return null;
+  const boundary = boundaryCandidate(definition, span, { notApplicableAllowed: true });
+  if (boundary) return boundary;
+
+  const reason =
+    OPERATING_DAY_DROP_REASON_PATTERNS.find(([, pattern]) => pattern.test(span.text))?.[0] ?? null;
+  if (!reason) {
+    return ambiguousCandidate(
+      definition,
+      span,
+      ["reason"],
+      "영업일이 줄어든 사유를 보기 중 하나로 확인하지 못해 값을 만들지 않았습니다.",
+    );
+  }
+
+  const resolved = OPERATING_DAY_DROP_UNRESOLVED_PATTERN.test(span.text)
+    ? false
+    : OPERATING_DAY_DROP_RESOLVED_PATTERN.test(span.text)
+      ? true
+      : null;
+
+  return presentCandidate(
+    definition,
+    span,
+    {
+      schemaVersion: CANONICAL_VALUE_SCHEMA_VERSION,
+      kind: "BUSINESS_SIGNAL",
+      signal: "OPERATING_DAY_DROP",
+      observed: true,
+      reason,
+      resolved,
+      origin: "BORROWER_DIRECT",
+    },
+    "LOW",
+    resolved === null ? ["resolution"] : [],
+    "사유 보기와 해소 여부만 구조화했고 말투는 사용하지 않았습니다.",
   );
 }
 
@@ -692,6 +765,15 @@ function resourcesFromSpan(span: TextEvidenceSpan): ExecutionReadinessValue["res
   );
 }
 
+/**
+ * 실행 준비 진술에 예산 금액이 함께 있을 때만 뽑는다. 금액이 여럿이거나 없으면
+ * 어느 쪽도 예산으로 정하지 않는다.
+ */
+function planBudgetAmount(text: string): NumericMeasure | null {
+  if (!/(예산|자금)/i.test(text)) return null;
+  return parseKoreanMoneyMeasure(text);
+}
+
 export function parseExecutionReadiness(
   text: string,
   context: InformationParserContext,
@@ -704,12 +786,24 @@ export function parseExecutionReadiness(
   const notStarted = /(아직|전혀).{0,8}(준비|시작).{0,6}(못|안)|준비.{0,6}(없|못|안\s*됐)/i.test(span.text);
   const resources = notStarted ? [] : resourcesFromSpan(span);
   const ready = /(준비.{0,5}(완료|됐|되어)|바로\s*시작|확보했)/i.test(span.text);
+  const budgetAmount = notStarted ? null : planBudgetAmount(span.text);
   const value: ExecutionReadinessValue = {
     schemaVersion: CANONICAL_VALUE_SCHEMA_VERSION,
     kind: "EXECUTION_READINESS",
     state: notStarted ? "NOT_STARTED" : ready ? "READY" : "PARTIAL",
     resources,
-    budget: null,
+    budget: budgetAmount
+      ? {
+          schemaVersion: CANONICAL_VALUE_SCHEMA_VERSION,
+          kind: "PERIODIC_MONEY",
+          amount: budgetAmount,
+          currency: "KRW",
+          cadence: "MONTH",
+          aggregation: "TOTAL",
+          basis: "IMPROVEMENT_PLAN_BUDGET",
+          referenceWindow: { unit: "MONTH", count: 1, relation: "FORWARD", source: "QUESTION_CONTEXT" },
+        }
+      : null,
     schedule: null,
     blockers: /(부족|어렵|장애|문제)/i.test(span.text) ? [span.text] : [],
     pastExamples: /(전에|과거|지난번).{0,20}(했|실행|개선)/i.test(span.text) ? [span.text] : [],
@@ -904,6 +998,7 @@ export const DEV_V1_INFORMATION_PARSERS: Readonly<
   platform_fee_pressure: parsePlatformFeePressure,
   hall_customer_decline: parseHallCustomerDecline,
   repeat_customer_share: parseRepeatCustomerShare,
+  operating_day_drop_reason: parseOperatingDayDropReason,
 };
 
 export function parseCanonicalInformation(

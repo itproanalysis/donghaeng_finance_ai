@@ -1,21 +1,19 @@
 "use client";
 
-import { ChevronRight, Headphones, LoaderCircle, MessageCircle, Mic, ShieldCheck, Sparkles } from "lucide-react";
+import { ChevronRight, Headphones, LoaderCircle, MessageCircle, Mic, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiRequestError, authenticatedFetch, extractInterviewId, readApiEnvelope } from "@/components/api-adapter";
 import {
-  applyBorrowerConversationFocus,
+  createBorrowerRequiredInformationList,
   BORROWER_CONVERSATION_FOCUS_OPTIONS,
   type BorrowerConversationFocus,
 } from "@/components/borrower-interview-preferences";
 import { unlockQuestionVoicePlayback } from "@/components/question-voice-playback";
-import {
-  createDevV1AcceptanceRequiredInformationItems,
-  createDevV1RequiredInformationItems,
-} from "@/domain/information-catalog";
-import type { RequiredInformationItem } from "@/domain/interview";
+import { BORROWER_JOURNEY, JourneyNav } from "@/components/journey-nav";
+import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
 
 type InterviewMethod = "chat" | "voice";
 type BorrowerIndustry = "RESTAURANT" | "CAFE" | "OFFLINE_RETAIL" | "ONLINE_SHOPPING" | "BEAUTY" | "ACADEMY" | "LODGING" | "AUTO_REPAIR" | "INTERIOR" | "TRANSPORT" | "WHOLESALE_SMALL_MANUFACTURING";
@@ -37,21 +35,60 @@ const INDUSTRY_OPTIONS: readonly { code: BorrowerIndustry; label: string }[] = [
 const CLOUD_AI_CONSENT_VERSION = "cloud-ai-processing-v1";
 const MICROPHONE_CONSENT_VERSION = "microphone-interview-v1";
 
-export function BorrowerInterviewStart() {
+export function BorrowerInterviewStart({ publicReview = false, sampleEntry = false, scenarioEntry = false, demoSet = "primary" }: { publicReview?: boolean; sampleEntry?: boolean; scenarioEntry?: boolean; demoSet?: "primary" | "control" }) {
   const router = useRouter();
-  const [showProfile, setShowProfile] = useState(false);
-  const [showMethods, setShowMethods] = useState(false);
+  const scenario = scenarioEntry ? OPERATING_DAY_DEMO_SCENARIO : null;
+  const [showProfile, setShowProfile] = useState(publicReview);
+  const [showMethods, setShowMethods] = useState(sampleEntry || scenarioEntry);
   const [showGuide, setShowGuide] = useState(false);
-  const [borrowerName, setBorrowerName] = useState("");
-  const [businessName, setBusinessName] = useState("");
-  const [industryCode, setIndustryCode] = useState<BorrowerIndustry | "">("");
+  const [borrowerName, setBorrowerName] = useState(scenario?.persona.borrowerName ?? (sampleEntry ? "체험 사장님" : ""));
+  const [businessName, setBusinessName] = useState(scenario?.persona.businessName ?? (sampleEntry ? "체험용 가상 카페" : ""));
+  const [industryCode, setIndustryCode] = useState<BorrowerIndustry | "">(scenario ? "RESTAURANT" : sampleEntry ? "CAFE" : "");
+  const [usingSample, setUsingSample] = useState(sampleEntry);
   const [conversationFocus, setConversationFocus] = useState<BorrowerConversationFocus>("FULL_REVIEW");
   const [cloudConsent, setCloudConsent] = useState(false);
   const [starting, setStarting] = useState<InterviewMethod | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [validateFields, setValidateFields] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const businessRef = useRef<HTMLInputElement>(null);
+  const industryRef = useRef<HTMLSelectElement>(null);
+  const consentRef = useRef<HTMLInputElement>(null);
+  const startButtonRef = useRef<HTMLButtonElement>(null);
+  const profileHeadingRef = useRef<HTMLHeadingElement>(null);
+  const methodHeadingRef = useRef<HTMLHeadingElement>(null);
+  const previousStageRef = useRef("welcome");
+  const createdInterviewRef = useRef<string | null>(null);
+  const createdProfileRef = useRef<string | null>(null);
+  const startingRef = useRef(false);
+  const stage = showMethods ? "method" : showProfile ? "profile" : "welcome";
+  useEffect(() => {
+    if (previousStageRef.current === stage) return;
+    previousStageRef.current = stage;
+    const target = stage === "method" ? methodHeadingRef.current : stage === "profile" ? profileHeadingRef.current : startButtonRef.current;
+    target?.focus();
+  }, [stage]);
   const selectedFocus = BORROWER_CONVERSATION_FOCUS_OPTIONS.find(
     (option) => option.id === conversationFocus,
   ) ?? BORROWER_CONVERSATION_FOCUS_OPTIONS[0]!;
+
+  function continueToMethods() {
+    setValidateFields(true);
+    const missing = !borrowerName.trim() ? nameRef.current : !businessName.trim() ? businessRef.current : !industryCode ? industryRef.current : null;
+    if (missing) { missing.focus(); return; }
+    if (borrowerName !== "체험 사장님" || businessName !== "체험용 가상 카페" || industryCode !== "CAFE") setUsingSample(false);
+    setError(null);
+    setShowMethods(true);
+  }
+
+  function startSample() {
+    setBorrowerName("체험 사장님");
+    setBusinessName("체험용 가상 카페");
+    setIndustryCode("CAFE");
+    setUsingSample(true);
+    setError(null);
+    setShowMethods(true);
+  }
 
   async function recordConsent(interviewId: string, purpose: string, version: string) {
     const response = await authenticatedFetch(`/api/interviews/${encodeURIComponent(interviewId)}/consents`, {
@@ -63,10 +100,13 @@ export function BorrowerInterviewStart() {
   }
 
   async function begin(method: InterviewMethod) {
+    if (startingRef.current) return;
     if (!cloudConsent) {
-      setError("아래 외부 AI 처리 안내를 확인하고 동의한 뒤 인터뷰를 시작할 수 있습니다.");
+      setError("AI 처리 안내를 확인하고 동의해 주세요.");
+      consentRef.current?.focus();
       return;
     }
+
     if (!borrowerName.trim() || !businessName.trim() || !industryCode) {
       setError("인터뷰 전에 사장님 성함, 사업체 이름과 업종을 알려주세요.");
       return;
@@ -75,34 +115,32 @@ export function BorrowerInterviewStart() {
     // and preserve the context through client-side navigation so the first AI
     // greeting can actually play on arrival.
     if (method === "voice") unlockQuestionVoicePlayback();
+    startingRef.current = true;
     setStarting(method);
     setError(null);
     try {
-      const baseItems = industryCode === "CAFE"
-        ? createDevV1AcceptanceRequiredInformationItems()
-        : createDevV1RequiredInformationItems();
-      const requiredInformationList: RequiredInformationItem[] = applyBorrowerConversationFocus(
-        baseItems.map((item) => ({
-          ...item,
-          priority: item.required ? item.priority : "P2",
-        })),
-        conversationFocus,
-      );
-      const created = await authenticatedFetch("/api/interviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          industryCode,
-          profile: {
-            borrowerName: borrowerName.trim(),
-            businessName: businessName.trim(),
-          },
-          requiredInformationList,
-        }),
-      });
-      const data = await readApiEnvelope(created);
-      const interviewId = extractInterviewId(data);
-      if (!interviewId) throw new Error("새 인터뷰 식별자를 확인하지 못했습니다.");
+      const requiredInformationList = createBorrowerRequiredInformationList(industryCode, conversationFocus, scenario?.id);
+      const profileKey = JSON.stringify([borrowerName.trim(), businessName.trim(), industryCode, conversationFocus]);
+      let interviewId = createdProfileRef.current === profileKey ? createdInterviewRef.current : null;
+      if (!interviewId) {
+        const created = await authenticatedFetch("/api/interviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            industryCode,
+            profile: {
+              borrowerName: borrowerName.trim(),
+              businessName: businessName.trim(),
+            },
+            requiredInformationList,
+          }),
+        });
+        const data = await readApiEnvelope(created);
+        interviewId = extractInterviewId(data);
+        if (!interviewId) throw new Error("새 인터뷰 식별자를 확인하지 못했습니다.");
+        createdInterviewRef.current = interviewId;
+        createdProfileRef.current = profileKey;
+      }
 
       await recordConsent(interviewId, "CLOUD_AI_PROCESSING", CLOUD_AI_CONSENT_VERSION);
       if (method === "voice") {
@@ -110,81 +148,82 @@ export function BorrowerInterviewStart() {
       }
       router.push(
         `/borrower/interviews/${encodeURIComponent(interviewId)}?mode=${method}${
-          method === "voice" ? "&autoplay=1" : ""
+          scenario ? `&demo=${scenario.id}&demoSet=${demoSet}` : method === "voice" ? "&autoplay=1" : ""
         }`,
       );
     } catch (caught) {
-      if (caught instanceof ApiRequestError && ["AUTHENTICATION_REQUIRED", "SESSION_EXPIRED"].includes(caught.code ?? "")) {
+      if (!publicReview && caught instanceof ApiRequestError && ["AUTHENTICATION_REQUIRED", "SESSION_EXPIRED"].includes(caught.code ?? "")) {
         router.push("/login?next=%2Fborrower");
         return;
       }
       setError(caught instanceof Error ? caught.message : "인터뷰를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
       setStarting(null);
+    } finally {
+      startingRef.current = false;
     }
   }
 
   return (
-    <main id="main-content" className="borrower-start">
-      <section className="borrower-start__hero" aria-labelledby="borrower-start-title">
-        <span className="borrower-start__eyebrow"><Sparkles size={16} /> 사장님을 위한 AI 인터뷰</span>
-        <h1 id="borrower-start-title">말씀하신 내용을<br />차근차근 정리해 드릴게요.</h1>
-        <p>어려운 금융 용어 대신, 사장님의 사업 이야기를 듣고 다음에 필요한 질문을 하나씩 드립니다. 언제든지 직접 확인하고 고칠 수 있어요.</p>
+    <main id="main-content" className="borrower-start" data-stage={stage}>
+      <JourneyNav steps={BORROWER_JOURNEY} current={0} label="사장님 인터뷰 전체 흐름" />
+      <aside className="borrower-start__place" aria-hidden="true"><span>동행금융</span><p>골목<br />상담소</p></aside>
+      <section className="borrower-start__hero" aria-labelledby={stage === "profile" ? "borrower-profile-title" : stage === "method" ? "borrower-method-title" : "borrower-start-title"} aria-busy={starting !== null}>
+        <span className="borrower-start__eyebrow">{stage === "welcome" ? "사장님 인터뷰" : stage === "profile" ? "시작 준비 · 1 / 2" : "시작 준비 · 2 / 2"}</span>
+        {stage === "welcome" ? <><h1 id="borrower-start-title">가게 현황 입력</h1><p>AI가 묻고 사장님이 답하는 인터뷰입니다.<br />잘 모르거나 답하기 어려운 내용은 넘어가셔도 됩니다.</p></> : stage === "profile" ? <h1 ref={profileHeadingRef} tabIndex={-1} id="borrower-profile-title">기본 정보</h1> : <h1 ref={methodHeadingRef} tabIndex={-1} id="borrower-method-title">답변 방식 선택</h1>}
         {!showProfile ? (
           <div className="borrower-start__actions">
-            <button type="button" className="borrower-primary-button" onClick={() => setShowProfile(true)}>인터뷰 시작하기 <ChevronRight size={20} /></button>
-            <button type="button" className="borrower-text-button" onClick={() => setShowGuide((value) => !value)}>인터뷰 방식 알아보기</button>
+            <button ref={startButtonRef} type="button" className="borrower-primary-button" onClick={() => { setShowGuide(false); setError(null); setShowProfile(true); }}>
+              인터뷰 시작 <ChevronRight size={20} />
+            </button>
+            <button type="button" className="borrower-text-button" aria-expanded={showGuide} aria-controls="borrower-guide" onClick={() => setShowGuide((value) => !value)}>
+              인터뷰 방식 알아보기
+            </button>
           </div>
         ) : !showMethods ? (
-          <section className="borrower-profile" aria-labelledby="borrower-profile-title">
-            <div className="borrower-methods__heading"><span>시작 전 기본 정보</span><h2 id="borrower-profile-title">어떤 사업 이야기를 들려주실 건가요?</h2><p>첫 질문을 사장님 상황에 맞추기 위한 정보예요. 카드 매출이나 플랫폼 이용을 미리 가정하지 않습니다.</p></div>
+          <form className="borrower-profile" aria-labelledby="borrower-profile-title" noValidate onSubmit={(event) => { event.preventDefault(); continueToMethods(); }}>
+            {publicReview && <div className="borrower-quick-start"><strong>가게가 없어도 체험할 수 있어요</strong><p>가상의 호칭·카페 업종으로 시작합니다. 매출이나 답변은 직접 입력해 주세요.</p><button type="button" className="borrower-primary-button" onClick={startSample}>체험용 카페로 바로 시작 <ChevronRight size={20} /></button><Link href="/modeling?case=case_operating_drop">입력 없이 분석 사례 먼저 보기</Link></div>}
+            <p className="borrower-profile__intro">{publicReview ? "내 가게로 시작하려면 아래 세 가지만 알려주세요. 실명 대신 별칭을 써도 됩니다." : "아래 세 가지만 알려주세요. 업종에 맞춰 이야기 나눌게요."}</p>
             <div className="borrower-profile__fields">
-              <label>사장님 성함 또는 호칭<input value={borrowerName} maxLength={80} onChange={(event) => setBorrowerName(event.target.value)} placeholder="예: 김동행" autoComplete="name" /></label>
-              <label>사업체 이름<input value={businessName} maxLength={80} onChange={(event) => setBusinessName(event.target.value)} placeholder="예: 동행상점" /></label>
-              <label>업종<select value={industryCode} onChange={(event) => setIndustryCode(event.target.value as BorrowerIndustry | "")}><option value="">업종을 선택해 주세요</option>{INDUSTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}</select></label>
+              <label>성함 또는 편한 호칭<input ref={nameRef} required aria-invalid={validateFields && !borrowerName.trim()} aria-describedby={validateFields && !borrowerName.trim() ? "borrower-name-error" : undefined} value={borrowerName} maxLength={80} onChange={(event) => setBorrowerName(event.target.value)} placeholder="예: 김동행" autoComplete="name" />{validateFields && !borrowerName.trim() && <span className="borrower-field-error" id="borrower-name-error">어떻게 불러드리면 될까요?</span>}</label>
+              <label>사업체 이름<input ref={businessRef} required aria-invalid={validateFields && !businessName.trim()} aria-describedby={validateFields && !businessName.trim() ? "borrower-business-error" : undefined} value={businessName} maxLength={80} onChange={(event) => setBusinessName(event.target.value)} placeholder="예: 동행상점" autoComplete="organization" />{validateFields && !businessName.trim() && <span className="borrower-field-error" id="borrower-business-error">사업체 이름을 입력해 주세요.</span>}</label>
+              <label>업종<select ref={industryRef} required aria-invalid={validateFields && !industryCode} aria-describedby={validateFields && !industryCode ? "borrower-industry-error" : undefined} value={industryCode} onChange={(event) => setIndustryCode(event.target.value as BorrowerIndustry | "")}><option value="">업종을 선택해 주세요</option>{INDUSTRY_OPTIONS.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}</select>{validateFields && !industryCode && <span className="borrower-field-error" id="borrower-industry-error">실제 운영하시는 업종을 골라 주세요.</span>}</label>
             </div>
             <fieldset className="borrower-profile__focus">
-              <legend>오늘 가장 먼저 이야기하고 싶은 것은 무엇인가요?</legend>
-              <p>어디서 시작하든 준비한 필수 내용은 빠뜨리지 않고, 이미 답한 내용은 다시 묻지 않아요.</p>
-              <div>
-                {BORROWER_CONVERSATION_FOCUS_OPTIONS.map((option) => (
-                  <button
-                    type="button"
-                    key={option.id}
-                    aria-pressed={conversationFocus === option.id}
-                    data-selected={conversationFocus === option.id}
-                    onClick={() => setConversationFocus(option.id)}
-                  >
-                    <span>{option.label}{option.recommended ? <small>추천</small> : null}</span>
-                    <p>{option.description}</p>
-                  </button>
-                ))}
-              </div>
+              <legend>어떤 이야기부터 할까요?</legend>
+              <select aria-label="먼저 이야기할 주제" aria-describedby="borrower-focus-description" value={conversationFocus} onChange={(event) => setConversationFocus(event.target.value as BorrowerConversationFocus)}>{BORROWER_CONVERSATION_FOCUS_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}{option.recommended ? " (추천)" : ""}</option>)}</select>
+              <p id="borrower-focus-description">{selectedFocus.description}</p>
             </fieldset>
-            <div className="borrower-profile__actions"><button type="button" className="borrower-text-button" onClick={() => setShowProfile(false)}>이전</button><button type="button" className="borrower-primary-button" onClick={() => { if (!borrowerName.trim() || !businessName.trim() || !industryCode) { setError("세 가지 기본 정보를 모두 입력해 주세요."); return; } setError(null); setShowMethods(true); }}>답변 방식 선택하기 <ChevronRight size={20} /></button></div>
-          </section>
+            <div className="borrower-profile__actions"><button type="button" className="borrower-text-button" onClick={() => { setError(null); setValidateFields(false); setShowProfile(false); }}>이전</button><button type="submit" className="borrower-primary-button">다음 · 답변 방식 <ChevronRight size={20} /></button></div>
+          </form>
         ) : (
           <section className="borrower-methods" aria-labelledby="borrower-method-title">
-            <div className="borrower-methods__heading"><span>마지막 선택</span><h2 id="borrower-method-title">어떤 방식으로 이야기할까요?</h2><p>{businessName} · {INDUSTRY_OPTIONS.find((option) => option.code === industryCode)?.label} · {selectedFocus.label}</p></div>
+            <div className="borrower-methods__heading"><p>{businessName} · {INDUSTRY_OPTIONS.find((option) => option.code === industryCode)?.label} · {selectedFocus.label}</p></div>
+            {usingSample && <p className="borrower-sample-note">체험용 가상 가게입니다. 이름·업종만 준비했으며, 사업 수치와 인터뷰 답변은 채우지 않았습니다.</p>}
+            {scenario && <div className="demo-scenario-notice"><strong>답변에서 평가까지 · 합성 시연</strong><p>{demoSet === "control" ? "사유·목표를 답하지 않은 대조 사례" : "영업일 사유와 목표를 확인한 사례"}입니다. 등록된 대본을 선택해 입력하고, 같은 합성 거래자료에 결합한 2축 점수를 확인합니다.</p><Link href={`/borrower?scenario=operating-day&demoSet=${demoSet === "control" ? "primary" : "control"}`}>{demoSet === "control" ? "사유·목표 확인 사례로 변경" : "사유·목표 미확인 사례로 변경"}</Link></div>}
+            {publicReview && !usingSample && <p className="borrower-sample-note">가입 없이 이용하며, 마이크가 없어도 채팅으로 진행할 수 있습니다.</p>}
             <label className="borrower-consent">
-              <input type="checkbox" checked={cloudConsent} onChange={(event) => setCloudConsent(event.target.checked)} />
-              <span>제 답변을 외부 AI가 질문 정리와 다음 질문 준비에 사용하는 것에 동의합니다.<small>채팅은 Claude, 음성은 OpenAI Realtime을 우선 사용합니다. 대출 승인·거절이나 신용등급을 판단하지 않습니다.</small></span>
+              <input ref={consentRef} type="checkbox" checked={cloudConsent} disabled={starting !== null} onChange={(event) => { setCloudConsent(event.target.checked); setError(null); }} />
+              <span>제 답변을 질문 정리와 다음 질문 준비를 위해 외부 AI로 처리하는 것에 동의합니다.<small>채팅은 Claude, 음성은 OpenAI Realtime을 우선 사용합니다. 답변은 인터뷰 기록에 저장되며 대출 승인·거절이나 신용등급을 자동으로 판단하지 않습니다.</small></span>
             </label>
             <div className="borrower-methods__grid">
               <button type="button" className="borrower-method-card" onClick={() => void begin("chat")} disabled={starting !== null}>
-                <span className="borrower-method-card__icon"><MessageCircle size={25} /></span><strong>채팅으로 답변</strong><small>조용한 곳에서 천천히 입력할 때</small>{starting === "chat" ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={18} />}
+                <span className="borrower-method-card__icon"><MessageCircle size={25} /></span><strong>채팅으로 답변</strong><small>글자로 입력합니다</small>{starting === "chat" ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={18} />}
               </button>
-              <button type="button" className="borrower-method-card borrower-method-card--voice" onClick={() => void begin("voice")} disabled={starting !== null}>
-                <span className="borrower-method-card__icon"><Mic size={25} /></span><strong>음성으로 답변</strong><small>AI 질문을 듣고 편하게 말할 때</small>{starting === "voice" ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={18} />}
-              </button>
+              {!scenario && <button type="button" className="borrower-method-card borrower-method-card--voice" onClick={() => void begin("voice")} disabled={starting !== null}>
+                <span className="borrower-method-card__icon"><Mic size={25} /></span><strong>음성으로 답변</strong><small>질문을 듣고 말로 답합니다</small>{starting === "voice" ? <LoaderCircle className="spin" size={18} /> : <ChevronRight size={18} />}
+              </button>}
             </div>
-            <p className="borrower-methods__voice-note"><Headphones size={15} /> 음성 방식은 GPT-Realtime-2.1과 실시간으로 듣고 말합니다. 연결할 수 없을 때만 내 컴퓨터의 로컬 Whisper·Qwen 음성으로 자동 전환합니다.</p>
-            <button type="button" className="borrower-text-button" onClick={() => setShowMethods(false)}>기본 정보 다시 수정하기</button>
+            {!scenario && <p className="borrower-methods__voice-note"><Headphones size={15} /> 음성 인터뷰에는 마이크가 필요합니다. 도중에 채팅으로 바꿀 수 있습니다.</p>}
+            {starting && <p role="status">인터뷰 준비 중…</p>}
+            {scenario ? <Link className="borrower-text-button" href="/borrower">내 사업 현황 직접 입력하기</Link> : <button type="button" className="borrower-text-button" disabled={starting !== null} onClick={() => { setError(null); setShowMethods(false); }}>기본 정보 다시 수정하기</button>}
           </section>
         )}
         {error && <p className="borrower-start__error" role="alert">{error}</p>}
+        {error && publicReview && <Link className="borrower-text-button" href="/modeling?case=case_operating_drop">입력 없이 분석 사례 계속 보기 <ChevronRight size={16} /></Link>}
       </section>
-      <aside className="borrower-start__assurance" aria-label="인터뷰 안내"><ShieldCheck size={22} /><div><strong>사장님이 확인한 내용만 저장합니다.</strong><p>음성 원본은 저장하지 않고, 확정한 답변과 그 근거만 인터뷰 기록에 남습니다.</p></div></aside>
-      {showGuide && <section className="borrower-guide" aria-label="인터뷰 방식 안내"><article><span>01</span><h2>AI의 질문을 듣습니다</h2><p>한 번에 질문 하나만 드리고, 듣기 버튼으로 다시 들을 수 있습니다.</p></article><article><span>02</span><h2>편한 방식으로 답합니다</h2><p>채팅 입력과 실제 음성 전사 중 원하는 방식을 고를 수 있습니다.</p></article><article><span>03</span><h2>오른쪽에서 다시 확인합니다</h2><p>했던 질문을 누르면 사장님 답변을 바로 다시 볼 수 있습니다.</p></article></section>}
+      <aside className="borrower-start__assurance" aria-label="인터뷰 안내"><ShieldCheck size={19} /><p>답변은 기록에 저장되며 완료 전에 고칠 수 있습니다. 음성 원본은 저장하지 않습니다.</p></aside>
+      {showGuide && <section id="borrower-guide" className="borrower-guide" aria-label="인터뷰 방식 안내"><article><span>01</span><h2>가게 소개</h2><p>성함과 사업체 이름, 업종을 알려주세요.</p></article><article><span>02</span><h2>질문과 답변</h2><p>AI가 한 번에 하나씩 묻습니다. 모르는 내용이나 답하기 싫은 내용은 넘어갈 수 있습니다.</p></article><article><span>03</span><h2>기록 확인</h2><p>저장된 답변을 확인하고, 잘못 옮겨진 부분을 수정한 뒤 인터뷰를 마칩니다.</p></article></section>}
+
     </main>
   );
 }

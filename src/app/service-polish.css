@@ -1,0 +1,76 @@
+/* Public service surfaces share the same type, navigation and reading background. */
+html[data-auth-mode="public-review"] body { --font-display: var(--font-sans); --alley-bg: #f5f6f3; --alley-surface: #fff; --alley-surface-warm: #fff; --alley-surface-cream: #f5f7f2; --alley-border: #dce3d7; --alley-border-strong: #d1dbc9; --alley-border-accent: #d6e0ce; --alley-text-muted: #6c786b; --alley-text-gold: #547048; --shadow-alley: none; --shadow-alley-card: none; background: #f5f6f3; }
+html[data-auth-mode="public-review"] body:has(.app-header) { background: #f5f6f3; }
+html[data-auth-mode="public-review"] .app-header { position: sticky; top: 0; height: 68px; color: #253c33; background: #fff; border-bottom: 1px solid #dce2dc; backdrop-filter: none; box-shadow: none; }
+html[data-auth-mode="public-review"] .app-header__inner { max-width: 1184px; margin: auto; padding-inline: 32px; }
+html[data-auth-mode="public-review"] .app-header .brand__name { color: #24513c; font-family: var(--font-sans), sans-serif; font-size: 22px; letter-spacing: -.06em; text-shadow: none; }
+html[data-auth-mode="public-review"] .app-header__path-label { display: none; }
+html[data-auth-mode="public-review"] .app-header .primary-nav__link { color: #657268; background: transparent; border: 0; border-radius: 0; }
+html[data-auth-mode="public-review"] .app-header .primary-nav__link[data-active="true"] { color: #24513c; border-bottom: 2px solid #24513c; }
+html[data-auth-mode="public-review"] .app-header .app-header__admin-link { color: #4e6557; font-size: .85rem; }
+html[data-auth-mode="public-review"] .operator-session { border: 0; background: transparent; color: #778279; font-size: .8rem; }
+html[data-auth-mode="public-review"] .operator-session svg { display: none; }
+html[data-auth-mode="public-review"] .borrower-start__hero { background: white; box-shadow: none; border: 1px solid #d8dfd8; }
+html[data-auth-mode="public-review"] :is(.borrower-start__hero, .borrower-result) h1 { font-size: clamp(1.5rem, 3vw, 2rem); }
+html[data-auth-mode="public-review"] .borrower-start { display: block; width: min(760px, 100%); padding: 28px 24px 40px; }
+html[data-auth-mode="public-review"] .borrower-start__place { display: none; }
+html[data-auth-mode="public-review"] .borrower-start > .journey-nav { padding: 0; margin-bottom: 22px; border: 0; background: transparent; }
+html[data-auth-mode="public-review"] .borrower-start__hero { padding: 28px; }
+html[data-auth-mode="public-review"] .borrower-start h1[tabindex="-1"]:focus { outline: none; }
+html[data-auth-mode="public-review"] .borrower-sample-note { border: 0; padding: 0; background: transparent; color: #778173; font-size: .8rem; }
+html[data-auth-mode="public-review"] .borrower-start .borrower-consent { background: #f4f6f0; border: 1px solid #dce4d5; font-size: .9rem; }
+html[data-auth-mode="public-review"] .borrower-start .borrower-consent small { color: #798271; font-size: .8rem; }
+html[data-auth-mode="public-review"] .borrower-start .borrower-method-card { min-height: 104px; background: #fff; padding: 17px; }
+html[data-auth-mode="public-review"] .borrower-start__assurance { margin-top: 14px; padding: 6px 0; border: 0; background: transparent; }
+html[data-auth-mode="public-review"] .borrower-start__assurance svg { display: none; }
+html[data-auth-mode="public-review"] .journey-nav li > span { border: 0; border-radius: 0; background: transparent; color: #728168; }
+html[data-auth-mode="public-review"] .journey-nav li[data-state="current"]::after { background: #426236; }
+html[data-auth-mode="public-review"] :is(.workspace-page, .evaluation-list-page, .evaluation-page) { box-shadow: none; }
+@media (max-width: 700px) { html[data-auth-mode="public-review"] .app-header { height: 60px; } html[data-auth-mode="public-review"] .app-header__inner { padding-inline: 22px; } html[data-auth-mode="public-review"] .operator-session { display: none; } }
+
+html[data-auth-mode="public-review"] .dh-header-nav { display: flex; gap: 22px; align-items: center; }
+.demo-scenario-notice, .demo-scenario-controls { padding: 18px 20px; border: 1px solid #c6d6c2; background: #f2f6ee; color: #385438; font-size: .85rem; line-height: 1.7; margin-block: 16px; }
+.demo-scenario-notice p, .demo-scenario-controls p { margin: 5px 0; }
+.demo-scenario-notice a { color: #365e33; text-underline-offset: 4px; }
+.demo-scenario-controls { display: flex; justify-content: space-between; gap: 22px; align-items: center; }
+@media (max-width: 700px) { .demo-scenario-controls { flex-direction: column; align-items: flex-start; gap: 12px; } }
+html[data-auth-mode="public-review"] .dh-header-nav a { color: #536e5c; font-size: .85rem; text-decoration: none; white-space: nowrap; }
+@media (max-width: 700px) { html[data-auth-mode="public-review"] .dh-header-nav { gap: 14px; overflow-x: auto; margin-left: 15px; } html[data-auth-mode="public-review"] .dh-header-nav a:nth-child(n+3) { display: none; } html[data-auth-mode="public-review"] .app-header--simple .app-header__admin-link { display: none; } }
+/* Keep business scoring prominent; record diagnostics remain available on demand. */
+.evaluation-disclosure { margin-block: 14px; border-block: 1px solid #dce3d7; }
+.evaluation-disclosure > summary { padding: 17px 4px; color: #36513f; font-size: .9rem; font-weight: 500; cursor: pointer; }
+.evaluation-disclosure > section { margin: 0 0 18px; }
+.evaluation-record-details { color: #617264; font-size: .8rem; overflow-wrap: anywhere; }
+.evaluation-record-details summary, .borrower-summary__narrative summary, .source-information-quality summary { cursor: pointer; }
+.evaluation-record-details > span { display: block; margin-top: 8px; }
+.evaluation-page summary:focus-visible { outline: 2px solid #42664a; outline-offset: 4px; }
+html[data-auth-mode="public-review"] .assessment-card--scorecard { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; padding: 24px; border-radius: 3px; background: #fff; }
+html[data-auth-mode="public-review"] .assessment-card--scorecard > :is(.assessment-card__heading, .scorecard-source, .scorecard-axis__basis, .assessment-empty, a, [role="status"]) { grid-column: 1 / -1; margin: 0; }
+html[data-auth-mode="public-review"] .assessment-card--scorecard h3 { font-size: 1.15rem; }
+html[data-auth-mode="public-review"] .scorecard-axis { min-width: 0; padding: 18px; border: 1px solid #dce5d9; background: #f7faf5; }
+html[data-auth-mode="public-review"] .scorecard-axis + .scorecard-axis { margin-top: 0; padding-top: 18px; }
+html[data-auth-mode="public-review"] .scorecard-axis__head h4 { margin: 0; font-size: 1rem; font-weight: 500; }
+html[data-auth-mode="public-review"] .scorecard-axis__head strong { font-size: 1.8rem; color: #24513c; }
+html[data-auth-mode="public-review"] .scorecard-axis__basis, html[data-auth-mode="public-review"] .scorecard-axis__items li > small { font-size: .75rem; line-height: 1.7; }
+html[data-auth-mode="public-review"] .scorecard-axis__items { gap: 12px; margin-top: 18px; }
+html[data-auth-mode="public-review"] .scorecard-axis__items li { font-size: .85rem; }
+html[data-auth-mode="public-review"] .scorecard-axis__items li > span { white-space: normal; }
+html[data-auth-mode="public-review"] .evaluation-page .goal-sufficiency-grid { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+html[data-auth-mode="public-review"] .evaluation-page .goal-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+html[data-auth-mode="public-review"] .evaluation-page :is(.goal-values, .source-information-grid, .sufficiency-card, .borrower-summary__narrative) :is(p, dd) { font-size: .85rem; line-height: 1.8; }
+html[data-auth-mode="public-review"] .evaluation-page :is(.goal-values dt, .goal-status-line span, .source-information-grid small, .sufficiency-meta, .evidence-item__heading small) { font-size: .75rem; line-height: 1.7; }
+html[data-auth-mode="public-review"] .evaluation-page :is(.goal-card, .sufficiency-card) { min-width: 0; }
+html[data-auth-mode="public-review"] .evaluation-page .evaluation-hero__seal { box-shadow: none; border-radius: 3px; transform: none; }
+html[data-auth-mode="public-review"] .evaluation-page .evaluation-footer { box-shadow: none; background: transparent; }
+@media (max-width: 700px) {
+  html[data-auth-mode="public-review"] .assessment-card--scorecard { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 16px; }
+  html[data-auth-mode="public-review"] .evaluation-page .goal-sufficiency-grid { grid-template-columns: minmax(0, 1fr); }
+  .evaluation-topline { flex-wrap: wrap; gap: 10px; }
+  .evaluation-record-details { max-width: 100%; }
+}
+@media print {
+  body:has(#modeling-review-report) *:has(#modeling-review-report) { display: block !important; position: static !important; padding: 0 !important; margin: 0 !important; min-height: 0 !important; width: auto !important; max-width: none !important; background: white !important; border: 0 !important; }
+  body:has(#modeling-review-report) *:has(#modeling-review-report) > :not(:has(#modeling-review-report)):not(#modeling-review-report), body:has(#modeling-review-report) > :not(:has(#modeling-review-report)) { display: none !important; }
+  #modeling-review-report { margin: 0; box-shadow: none; }
+  @page { size: A4; margin: 16mm; }
+}

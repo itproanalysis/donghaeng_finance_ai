@@ -1,10 +1,11 @@
 "use client";
 
-import { KeyRound, LoaderCircle, LogIn, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { type FormEvent, useState } from "react";
 
 import { readApiEnvelope } from "@/components/api-adapter";
+import { safeLoginReturnPath } from "@/domain/login-return-path";
 
 export function LoginForm() {
   const router = useRouter();
@@ -27,11 +28,7 @@ export function LoginForm() {
         body: JSON.stringify({ email, password }),
       });
       await readApiEnvelope(response);
-      const requested = search.get("next");
-      const next = requested?.startsWith("/") && !requested.startsWith("//")
-        ? requested
-        : "/";
-      router.replace(next);
+      router.replace(safeLoginReturnPath(search.get("next")));
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "로그인하지 못했습니다.");
@@ -41,43 +38,72 @@ export function LoginForm() {
 
   return (
     <main id="main-content" className="login-page">
-      <section className="login-card" aria-labelledby="login-title">
-        <div className="login-card__icon"><KeyRound size={24} /></div>
-        <p className="panel-kicker">OPERATOR SESSION</p>
-        <h1 id="login-title">상담사 로그인</h1>
-        <p className="login-card__description">
-          인터뷰·근거·평가는 tenant가 분리된 상담사 세션에서만 조회할 수 있습니다.
-        </p>
-        <form onSubmit={submit}>
-          <label htmlFor="login-email">이메일</label>
-          <input
-            id="login-email"
-            type="email"
-            autoComplete="username"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <label htmlFor="login-password">비밀번호</label>
-          <input
-            id="login-password"
-            type="password"
-            autoComplete="current-password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-          {error && <p className="form-error" role="alert">{error}</p>}
-          <button className="button button--primary button--large" type="submit" disabled={submitting}>
-            {submitting ? <LoaderCircle className="spin" size={18} /> : <LogIn size={18} />}
-            {submitting ? "로그인 확인 중" : "로그인"}
-          </button>
-        </form>
-        <div className="login-card__boundary">
-          <ShieldCheck size={17} />
-          <p>로컬 작업공간 인증은 이 컴퓨터에서만 사용합니다. 운영 환경에는 외부 IdP·MFA가 필요합니다.</p>
-        </div>
-      </section>
+      <header className="login-page-nav">
+        <Link href="/" className="login-page-brand">
+          <span className="login-brand-badge">동</span> 동행금융
+        </Link>
+        <Link href="/" className="login-page-back">← 동행길 안내로 돌아가기</Link>
+      </header>
+
+      <div className="login-signboard-wrapper">
+        <section className="login-card" aria-labelledby="login-title">
+          <div className="login-stamp-seal" aria-hidden="true">
+            <span>同行<br />相談</span>
+            <small>동행상담</small>
+          </div>
+
+          <div className="login-card-header">
+            <span className="login-sub-callout">同行金融 · 골목길 관리자 상담소</span>
+            <h1 id="login-title">상담사 출입명부</h1>
+            <p className="login-card__description">
+              사장님 인터뷰의 진행 상태와 확인 근거, 상담 준비자료를 검토하는
+              담당자 전용 공간입니다.
+            </p>
+          </div>
+
+          <form onSubmit={submit} className="login-form-body">
+            <div className="login-field-group">
+              <label htmlFor="login-email">담당 심사역 계정 (이메일)</label>
+              <input
+                id="login-email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="counselor@donghaeng.local"
+                required
+              />
+            </div>
+
+            <div className="login-field-group">
+              <label htmlFor="login-password">출입 비밀번호</label>
+              <input
+                id="login-password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </div>
+
+            {error && <p className="form-error" role="alert">{error}</p>}
+
+            <button className="login-enter-button" type="submit" disabled={submitting}>
+              {submitting ? "명부 확인 중..." : "상담소 문 열고 입장하기"}
+            </button>
+          </form>
+
+          <p className="login-account-help">계정이 필요한 경우 담당 기관 관리자에게 문의해 주세요.</p>
+
+          <div className="login-card-footer-note">
+            <p>
+              ※ 인터뷰 결과는 상담 보조정보이며 대출 승인·거절이나 신용등급을 자동으로 결정하지 않습니다.
+            </p>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

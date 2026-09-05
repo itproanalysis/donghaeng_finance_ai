@@ -3,13 +3,15 @@ import { AlertCircle, LoaderCircle, RefreshCw } from "lucide-react";
 interface LoadingStateProps {
   title: string;
   description: string;
+  headingLevel?: 1 | 2;
 }
 
-export function LoadingState({ title, description }: LoadingStateProps) {
+export function LoadingState({ title, description, headingLevel = 1 }: LoadingStateProps) {
+  const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <div className="request-state" role="status" aria-live="polite">
       <LoaderCircle className="spin request-state__icon" size={28} aria-hidden="true" />
-      <h1>{title}</h1>
+      <Heading>{title}</Heading>
       <p>{description}</p>
     </div>
   );
@@ -20,6 +22,7 @@ interface ErrorStateProps {
   description: string;
   onRetry: () => void;
   retrying?: boolean;
+  headingLevel?: 1 | 2;
 }
 
 export function ErrorState({
@@ -27,11 +30,13 @@ export function ErrorState({
   description,
   onRetry,
   retrying = false,
+  headingLevel = 1,
 }: ErrorStateProps) {
+  const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <div className="request-state request-state--error" role="alert">
       <AlertCircle className="request-state__icon" size={28} aria-hidden="true" />
-      <h1>{title}</h1>
+      <Heading>{title}</Heading>
       <p>{description}</p>
       <button
         className="button button--secondary"

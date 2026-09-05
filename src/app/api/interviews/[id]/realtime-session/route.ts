@@ -4,6 +4,8 @@ import { ConsentService } from "@/server/consent-service";
 import { getDatabase } from "@/server/database";
 import { getOpenAIRealtimeSessionIssuer } from "@/server/openai-realtime-session";
 import { getAuthService, getInterviewService } from "@/server/service-instance";
+import { isPublicReviewMode, REVIEW_CALL_SECONDS } from "@/server/public-review";
+import { OPENAI_REALTIME_MODEL, OPENAI_REALTIME_VOICE } from "@/realtime/openai-realtime-voice";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +29,9 @@ export async function POST(request: Request, { params }: RouteContext) {
     consent.assertEffectiveConsent(id, "MICROPHONE_INTERVIEW", principal);
     consent.assertEffectiveConsent(id, "CLOUD_AI_PROCESSING", principal);
 
+    if (isPublicReviewMode()) {
+      return apiSuccess({ transport: "server", model: OPENAI_REALTIME_MODEL, voice: OPENAI_REALTIME_VOICE, maxDurationSeconds: REVIEW_CALL_SECONDS }, 200, { requestId });
+    }
     const secret = await getOpenAIRealtimeSessionIssuer().issue({
       interviewId: id,
       userId: principal.userId,

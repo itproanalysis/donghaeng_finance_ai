@@ -13,12 +13,14 @@ function record(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-export function OperatorSessionStatus() {
+export function OperatorSessionStatus({ publicReview = false }: { publicReview?: boolean } = {}) {
   const pathname = usePathname();
   const [operator, setOperator] = useState<string | null>(null);
   const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
+    // The public evidence pages need neither a visitor cookie nor API quota.
+    if (pathname === "/modeling" && publicReview) return;
     let active = true;
     void authenticatedFetch("/api/auth/me", { cache: "no-store" })
       .then(readApiEnvelope)
@@ -43,9 +45,12 @@ export function OperatorSessionStatus() {
     return () => {
       active = false;
     };
-  }, [pathname]);
+  }, [pathname, publicReview]);
+
+  if (pathname === "/modeling" && publicReview) return <span className="operator-session"><ShieldCheck size={14} aria-hidden="true" /> 로그인 없이 분석 열람</span>;
 
   if (needsLogin) {
+    if (publicReview) return <span className="operator-session" role="status">연결 확인이 필요합니다 · 새로고침해 주세요</span>;
     return (
       <Link className="operator-session operator-session--login" href="/login">
         <LogIn size={14} /> 로그인

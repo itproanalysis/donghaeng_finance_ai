@@ -6,6 +6,7 @@ let sharedQuestionVoiceContext: AudioContext | null = null;
 export interface QuestionVoiceChunk {
   bytes: ArrayBuffer;
   contentType: string;
+  provider?: "qwen" | "openai" | "server";
 }
 
 const questionVoiceCache = new Map<string, Promise<QuestionVoiceChunk>>();
@@ -183,8 +184,9 @@ export function splitQuestionForSpeech(text: string, maximumLength = 84): string
 export function cachedQuestionVoiceChunk(
   text: string,
   loader: () => Promise<QuestionVoiceChunk>,
+  scope = "",
 ): Promise<QuestionVoiceChunk> {
-  const key = text.trim();
+  const key = `${scope}\u0000${text.trim()}`;
   const existing = questionVoiceCache.get(key);
   if (existing) {
     questionVoiceCache.delete(key);
@@ -280,12 +282,13 @@ export async function prefetchQuestionVoiceFirstChunks(
   texts: readonly string[],
   loader: (chunk: string) => Promise<QuestionVoiceChunk>,
   maximumCandidates = 1,
+  scope = "",
 ): Promise<void> {
   const firstChunks = [...new Set(
     texts.flatMap((text) => splitQuestionForSpeech(text).slice(0, 1)),
   )].slice(0, Math.max(0, maximumCandidates));
   await Promise.allSettled(
-    firstChunks.map((chunk) => cachedQuestionVoiceChunk(chunk, () => loader(chunk))),
+    firstChunks.map((chunk) => cachedQuestionVoiceChunk(chunk, () => loader(chunk), scope)),
   );
 }
 

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { InterviewWorkspace } from "@/components/interview-workspace";
 
 export const metadata: Metadata = {
-  title: "AI인터뷰",
+  title: "상담 기록 검토",
 };
 
 interface InterviewPageProps {
@@ -12,8 +12,7 @@ interface InterviewPageProps {
 }
 
 export default async function InterviewPage({ params, searchParams }: InterviewPageProps) {
-  const { id } = await params;
-  const { presentation } = await searchParams;
+  const [{ id }, { presentation }] = await Promise.all([params, searchParams]);
   return (
     <InterviewWorkspace
       interviewId={id}

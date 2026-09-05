@@ -23,19 +23,18 @@ export function StartInterviewButton() {
   const router = useRouter();
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [industryCode, setIndustryCode] = useState<SohoIndustryCode>("CAFE");
+  const [industryCode, setIndustryCode] = useState<SohoIndustryCode | "">("");
   const [borrowerName, setBorrowerName] = useState("");
   const [businessName, setBusinessName] = useState("");
 
   const industryProfile =
-    SOHO_INDUSTRY_CATALOG.find((profile) => profile.code === industryCode) ??
-    SOHO_INDUSTRY_CATALOG[1];
+    SOHO_INDUSTRY_CATALOG.find((profile) => profile.code === industryCode);
 
   async function startInterview() {
     const normalizedBorrowerName = borrowerName.trim();
     const normalizedBusinessName = businessName.trim();
-    if (!normalizedBorrowerName || !normalizedBusinessName) {
-      setError("대상 사장님과 사업체 이름을 먼저 입력해 주세요.");
+    if (!normalizedBorrowerName || !normalizedBusinessName || !industryCode) {
+      setError("대상 사장님과 사업체 이름을 입력하고 업종을 선택해 주세요.");
       return;
     }
     setIsStarting(true);
@@ -70,7 +69,7 @@ export function StartInterviewButton() {
         caught instanceof ApiRequestError &&
         ["AUTHENTICATION_REQUIRED", "SESSION_EXPIRED"].includes(caught.code ?? "")
       ) {
-        router.push("/login?next=%2F");
+        router.push("/login?next=%2Finterviews");
         return;
       }
       setError(
@@ -106,12 +105,13 @@ export function StartInterviewButton() {
         />
       </label>
       <label className="start-action__industry">
-        <span>업종 프로필</span>
+        <span>사장님이 확인한 업종</span>
         <select
           value={industryCode}
           onChange={(event) => setIndustryCode(event.target.value as SohoIndustryCode)}
           disabled={isStarting}
         >
+          <option value="" disabled>업종을 선택해 주세요</option>
           {SOHO_INDUSTRY_CATALOG.map((profile) => (
             <option value={profile.code} key={profile.code}>
               {profile.label}
@@ -119,16 +119,15 @@ export function StartInterviewButton() {
           ))}
         </select>
       </label>
-      <div className="start-action__profile" aria-live="polite">
-        <strong>{industryProfile.label} 업종 context</strong>
+      {industryProfile && <details className="start-action__profile">
+        <summary>{industryProfile.label} 질문 준비 내용</summary>
         <span>후보 정보 {industryProfile.industryInformationItems.length}개</span>
         <span>목표 후보 {industryProfile.goalCandidates.length}개</span>
         <p>{industryProfile.goalCandidates.map((goal) => goal.title).join(" · ")}</p>
         <small>
-          업종 후보는 차주 확인 전 제안 상태이며, parser가 준비되지 않은 항목은
-          완료조건에 넣지 않습니다.
+          업종에 맞는 제안 후보입니다. 사장님이 확인하지 않은 내용은 실제 사업 정보로 확정하지 않습니다.
         </small>
-      </div>
+      </details>}
       <button
         className="button button--primary button--large"
         type="button"
@@ -144,8 +143,7 @@ export function StartInterviewButton() {
         {!isStarting && <ArrowRight size={18} aria-hidden="true" />}
       </button>
       <p className="start-action__hint">
-        사장님이 직접 확인한 답변만 저장합니다. 카페는 핵심 8개와 보조 신호
-        3개를, 다른 업종은 검증된 핵심 8개를 사용합니다.
+        실제 답변과 확인 상태를 함께 기록합니다. 정보가 없는 항목을 임의로 채우지 않습니다.
       </p>
       {error && (
         <p className="form-error" role="alert">

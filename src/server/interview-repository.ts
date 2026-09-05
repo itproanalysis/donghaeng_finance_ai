@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DatabaseSync, SQLOutputValue } from "node:sqlite";
+import type { InterviewOperationsQuery, InterviewOperationsResult, InterviewLifecycle } from "@/domain/interview-operations";
 
 import {
   assertInformationTransition,
@@ -277,6 +278,54 @@ export class InterviewRepository {
         input.session.createdAt,
       );
     });
+  }
+
+  listInterviewOperations(tenantId: string, query: InterviewOperationsQuery = {}): InterviewOperationsResult {
+    const limit = Math.max(1, Math.min(100, Math.floor(query.limit ?? 24)));
+    const offset = Math.max(0, Math.floor(query.offset ?? 0));
+    const status = query.status ?? "ALL";
+    const search = (query.q ?? "").trim();
+    const cases = `WITH cases AS (
+      SELECT i.id, i.lifecycle_status, i.current_question_code, i.updated_at,
+        b.name AS borrower_name, p.business_name, p.industry,
+        (SELECT label FROM required_items r WHERE r.interview_id = i.id AND r.info_code = i.current_question_code) AS current_question_label,
+        (SELECT COUNT(*) FROM information_items n JOIN required_items r
+          ON r.interview_id = n.interview_id AND r.info_code = n.info_code
+          WHERE n.interview_id = i.id AND r.required = 1
+          AND n.status NOT IN ('CONFIRMED', 'UNAVAILABLE', 'REFUSED', 'NOT_APPLICABLE')) AS unresolved_count,
+        (SELECT COUNT(*) FROM information_items n WHERE n.interview_id = i.id AND n.status = 'CONFLICT') AS conflict_count,
+        (SELECT COUNT(*) FROM transcript_segments t WHERE t.interview_id = i.id AND t.speaker = 'BORROWER') AS answer_count,
+        COALESCE((SELECT s.status = 'FAILED' FROM message_command_stages s WHERE s.interview_id = i.id AND s.tenant_id = i.tenant_id ORDER BY s.created_at DESC, s.rowid DESC LIMIT 1), 0) AS processing_failed,
+        (SELECT e.id FROM evaluations e WHERE e.interview_id = i.id LIMIT 1) AS evaluation_id
+      FROM interviews i
+      JOIN borrowers b ON b.id = i.borrower_id AND b.tenant_id = i.tenant_id
+      JOIN business_profiles p ON p.id = i.business_profile_id AND p.tenant_id = i.tenant_id
+      WHERE i.tenant_id = ?
+    )`;
+    const attention = "(lifecycle_status = 'ACTIVE' AND (conflict_count > 0 OR processing_failed = 1))";
+    const where = `WHERE (? = 'ALL' OR lifecycle_status = ? OR (? = 'ATTENTION' AND ${attention}))
+      AND (? = '' OR instr(lower(business_name || ' ' || borrower_name || ' ' || industry || ' ' || id), lower(?)) > 0)`;
+    const bindings = [tenantId, status, status, status, search, search];
+    const total = numberValue(this.database.prepare(`${cases} SELECT COUNT(*) AS count FROM cases ${where}`).get(...bindings)?.count);
+    const summary = this.database.prepare(`${cases} SELECT COUNT(*) AS total,
+      SUM(lifecycle_status = 'ACTIVE') AS active, SUM(${attention}) AS attention,
+      SUM(lifecycle_status = 'COMPLETE') AS complete, SUM(lifecycle_status = 'INCOMPLETE') AS incomplete FROM cases`).get(tenantId);
+    const rows = this.database.prepare(`${cases} SELECT * FROM cases ${where} ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?`).all(...bindings, limit, offset);
+    return {
+      items: rows.map((row) => ({
+        id: textValue(row.id), borrowerName: textValue(row.borrower_name), businessName: textValue(row.business_name),
+        industry: textValue(row.industry), lifecycleStatus: textValue(row.lifecycle_status) as InterviewLifecycle,
+        currentQuestionCode: nullableText(row.current_question_code), currentQuestionLabel: nullableText(row.current_question_label),
+        updatedAt: textValue(row.updated_at), unresolvedRequiredCount: numberValue(row.unresolved_count),
+        conflictCount: numberValue(row.conflict_count), borrowerAnswerCount: numberValue(row.answer_count),
+        processingFailed: numberValue(row.processing_failed) === 1, evaluationId: nullableText(row.evaluation_id),
+      })),
+      total, limit, offset, hasMore: offset + rows.length < total,
+      summary: {
+        total: numberValue(summary?.total), active: numberValue(summary?.active), attention: numberValue(summary?.attention),
+        complete: numberValue(summary?.complete), incomplete: numberValue(summary?.incomplete),
+      },
+    };
   }
 
   getInterview(interviewId: string): StoredInterview {

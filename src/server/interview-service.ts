@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { InterviewOperationsQuery } from "@/domain/interview-operations";
 
 import {
   assessInterviewCompletion,
@@ -64,6 +65,8 @@ import {
 
 import { ApplicationError } from "./errors";
 import { InterviewActivityRegistry } from "./interview-activity-registry";
+import { computeModelingScorecard } from "./modeling-scorecard";
+import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
 import {
   LOCAL_WORKSPACE_EMAIL,
   LOCAL_WORKSPACE_TENANT_ID,
@@ -287,6 +290,8 @@ export interface EvaluationListItem {
 export interface EvaluationListResult {
   items: EvaluationListItem[];
   total: number;
+  limit: number;
+  offset: number;
   facets: {
     industries: string[];
     levels: EvaluationListItem["overallLevel"][];
@@ -2414,20 +2419,36 @@ export class InterviewService {
     };
   }
 
+  listInterviewOperations(principal: Principal, query: InterviewOperationsQuery = {}) {
+    if (!principal.roles.some((role) => ["ADMIN", "INTERVIEWER"].includes(role))) {
+      throw new ApplicationError(403, "OPERATOR_REQUIRED", "담당자 계정으로 확인할 수 있습니다.");
+    }
+    return this.repository.listInterviewOperations(principal.tenantId, query);
+  }
+
   listEvaluationSummaries(
     principal: Principal,
     query: EvaluationListQuery = {},
   ): EvaluationListResult {
-    const allTenantRecords = this.platformRepository.listEvaluationRecords(principal.tenantId, { limit: 500 });
-    const records = this.platformRepository.listEvaluationRecords(principal.tenantId, {
+    if (!principal.roles.some(role => ["ADMIN", "INTERVIEWER"].includes(role))) {
+      throw new ApplicationError(403, "OPERATOR_REQUIRED", "담당자 계정으로 확인할 수 있습니다.");
+    }
+    const limit = query.limit ?? 24;
+    const offset = query.offset ?? 0;
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100 || !Number.isSafeInteger(offset) || offset < 0 || offset > 100_000) {
+      throw new ApplicationError(400, "INVALID_EVALUATION_FILTER", "목록 범위가 올바르지 않습니다.");
+    }
+    const options = {
       search: query.q,
       industry: query.industry,
       level: query.level,
       from: query.from,
       to: query.to,
-      limit: query.limit,
-      offset: query.offset,
-    });
+      limit,
+      offset,
+    };
+    const metadata = this.platformRepository.evaluationListMetadata(principal.tenantId, options);
+    const records = this.platformRepository.listEvaluationRecords(principal.tenantId, options);
 
     const items = records.map((record): EvaluationListItem => {
       const overall = objectValue(record.evaluation.overall);
@@ -2458,17 +2479,18 @@ export class InterviewService {
       };
     });
 
-    const allItemsForFacets = allTenantRecords.map((record) => {
-      const overall = objectValue(record.evaluation.overall);
+    const allItemsForFacets = metadata.facets.map((record) => {
       return {
         industry: record.industry,
-        overallLevel: dataQualityGrade(overall?.grade ?? overall?.level),
+        overallLevel: dataQualityGrade(record.level),
       };
     });
 
     return {
       items,
-      total: items.length,
+      total: metadata.total,
+      limit,
+      offset,
       facets: {
         industries: [...new Set(allItemsForFacets.map((item) => item.industry))].sort((a, b) =>
           a.localeCompare(b, "ko-KR"),
@@ -2520,6 +2542,42 @@ export class InterviewService {
           : snapshot && "goalSnapshot" in snapshot
             ? [snapshot.goalSnapshot]
             : [],
+    };
+  }
+
+  /**
+   * FINAL 인터뷰 결과를 modeling 파이프라인에 넘겨 받은 2축 점수. 계산은 이
+   * 서비스가 하지 않고 modeling/scorecard.py가 그대로 맡는다.
+   */
+  async getEvaluationScorecardForPrincipal(idOrInterviewId: string, principal: Principal) {
+    this.platformRepository.assertEvaluationAccess(principal.tenantId, idOrInterviewId);
+    const evaluationRecord = this.repository.getEvaluationRecord(idOrInterviewId);
+    const snapshot = this.repository.getFinalSnapshot<StoredFinalSnapshot>(
+      evaluationRecord.interviewId,
+    );
+    if (!snapshot || !("goalSnapshot" in snapshot)) {
+      throw new ApplicationError(
+        409,
+        "FINAL_SNAPSHOT_MISSING",
+        "2축 점수는 FINAL snapshot이 있어야 계산할 수 있습니다.",
+      );
+    }
+    const result = await computeModelingScorecard({
+      evaluationId: evaluationRecord.id,
+      scenarioId: snapshot.borrower.name === OPERATING_DAY_DEMO_SCENARIO.persona.borrowerName
+        && snapshot.business.businessName === OPERATING_DAY_DEMO_SCENARIO.persona.businessName
+        && snapshot.informationItems.some((item) => item.infoCode === "operating_day_drop_reason")
+        ? OPERATING_DAY_DEMO_SCENARIO.id : null,
+      industryCode: findSohoIndustryProfile(snapshot.business.industry)?.code ?? snapshot.business.industry,
+      informationItems: snapshot.informationItems,
+      goalSnapshot: snapshot.goalSnapshot,
+    });
+    return {
+      evaluationId: evaluationRecord.id,
+      interviewId: evaluationRecord.interviewId,
+      snapshotType: "FINAL" as const,
+      snapshotVersion: evaluationRecord.snapshotVersion,
+      ...result,
     };
   }
 

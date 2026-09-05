@@ -1,10 +1,11 @@
 "use client";
 
-import { CheckCircle2, ChevronDown, ChevronRight, Headphones, LoaderCircle, MessageCircle, Mic, RefreshCw, Send, Sparkles, Volume2 } from "lucide-react";
+import { ChevronDown, ChevronRight, LoaderCircle, MessageCircle, Mic, RefreshCw, Send, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { AudioInterviewControls } from "@/components/audio-interview-controls";
 import { BorrowerCompletionReview } from "@/components/borrower-completion-review";
+import { BorrowerResult } from "@/components/borrower-result";
 import { canOfferBorrowerCompletion } from "@/components/borrower-completion";
 import { buildBorrowerConversationGuide } from "@/components/borrower-conversation-guide";
 import { buildBorrowerExperience } from "@/components/borrower-experience";
@@ -14,6 +15,8 @@ import {
   reconstructQuestionAnswerHistory,
 } from "@/components/borrower-immersive-prompts";
 import { borrowerMessageCommandPayload } from "@/components/borrower-message-command";
+import { useDemoAutoplay } from "@/components/demo-autoplay";
+import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
 import { RealtimeLatencyStatus } from "@/components/realtime-latency-status";
 import { RealtimeVoiceInterview } from "@/components/realtime-voice-interview";
 import {
@@ -31,17 +34,18 @@ import {
   adaptInterviewSnapshot,
   authenticatedFetch,
   createClientCommandId,
+  diffLiveFeatureSnapshots,
   extractMessageProcessingTelemetry,
-  formatPercent,
   readApiEnvelope,
   type InterviewSnapshotView,
+  type LiveFeaturePreviewChangeView,
   type LiveInterviewView,
   type PendingMessageCommandView,
 } from "@/components/api-adapter";
 import { realtimeLatencyTelemetry } from "@/realtime/latency-telemetry";
 
 type InterviewMethod = "chat" | "voice";
-type VoiceProvider = "qwen" | "device";
+type VoiceProvider = "qwen" | "openai" | "server" | "device";
 
 const QUESTION_SPEECH_ENDPOINT = "/api/voice/speech";
 const INTERVIEW_WELCOME = "안녕하세요, 사장님. 정답을 찾는 자리가 아니라 사장님 사업 이야기를 듣는 시간이에요. 편하게 말씀해 주세요.";
@@ -105,34 +109,7 @@ interface BorrowerInterviewRoomProps {
   interviewId: string;
   initialMode: InterviewMethod;
   autoStartQuestionVoice?: boolean;
-}
-
-function historyKey(interviewId: string) {
-  return `donghaeng.borrower.question-answer.${interviewId}`;
-}
-
-function readHistory(interviewId: string): QuestionAnswer[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const value: unknown = JSON.parse(window.localStorage.getItem(historyKey(interviewId)) ?? "[]");
-    if (!Array.isArray(value)) return [];
-    return value.flatMap((entry) => {
-      if (!entry || typeof entry !== "object") return [];
-      const record = entry as Record<string, unknown>;
-      if (typeof record.id !== "string" || typeof record.question !== "string" || typeof record.answer !== "string" || typeof record.createdAt !== "string") return [];
-      return [{ id: record.id, question: record.question, answer: record.answer, createdAt: record.createdAt }];
-    });
-  } catch {
-    return [];
-  }
-}
-
-function persistHistory(interviewId: string, history: QuestionAnswer[]) {
-  try {
-    window.localStorage.setItem(historyKey(interviewId), JSON.stringify(history.slice(-30)));
-  } catch {
-    // This is only a borrower-side review aid. The source of truth is the server transcript.
-  }
+  demoAvailable?: boolean;
 }
 
 function mergeQuestionAnswerHistory(
@@ -151,19 +128,32 @@ function mergeQuestionAnswerHistory(
   ].slice(-30);
 }
 
-export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuestionVoice = false }: BorrowerInterviewRoomProps) {
+export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuestionVoice = false, demoAvailable = false }: BorrowerInterviewRoomProps) {
   const [snapshot, setSnapshot] = useState<InterviewSnapshotView | null>(null);
   const [method, setMethod] = useState<InterviewMethod>(initialMode);
+  const [demoRunning, setDemoRunning] = useState(false);
+  const isScenario = snapshot?.businessName === OPERATING_DAY_DEMO_SCENARIO.persona.businessName
+    && snapshot?.borrowerName === OPERATING_DAY_DEMO_SCENARIO.persona.borrowerName;
+  function changeMethod(nextMethod: InterviewMethod) {
+    const url = new URL(window.location.href);
+    url.searchParams.set("mode", nextMethod);
+    url.searchParams.delete("autoplay");
+    window.history.replaceState(window.history.state, "", url);
+    setMethod(nextMethod);
+  }
   const [answer, setAnswer] = useState("");
   const [history, setHistory] = useState<QuestionAnswer[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [reviewDetailsOpen, setReviewDetailsOpen] = useState(true);
+  const [reviewTab, setReviewTab] = useState<"answers" | "business">("answers");
+  const [recentFeatureChanges, setRecentFeatureChanges] = useState<LiveFeaturePreviewChangeView[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [speechPreparing, setSpeechPreparing] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [voiceProvider, setVoiceProvider] = useState<VoiceProvider>("qwen");
+  const [voiceProvider, setVoiceProvider] = useState<VoiceProvider>("server");
   const [voiceListenSignal, setVoiceListenSignal] = useState(0);
   const [optimisticAnswer, setOptimisticAnswer] = useState<string | null>(null);
   const [audioUxState, setAudioUxState] = useState<string>("IDLE");
@@ -194,16 +184,17 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
 
   const refresh = useCallback(async () => {
     const nextSnapshot = await fetchSnapshot();
+    const previousFeatures = snapshot?.snapshotType === "PREVIEW" ? snapshot.features : [];
+    const nextFeatures = nextSnapshot.snapshotType === "PREVIEW" ? nextSnapshot.features : [];
+    const featureChanges = diffLiveFeatureSnapshots(previousFeatures, nextFeatures);
+    if (featureChanges.length > 0) setRecentFeatureChanges(featureChanges.slice(-3));
     setSnapshot(nextSnapshot);
     realtimeLatencyTelemetry.markNextQuestionReady();
     setError(null);
-  }, [fetchSnapshot]);
+  }, [fetchSnapshot, snapshot]);
 
   useEffect(() => {
     let active = true;
-    void Promise.resolve().then(() => {
-      if (active) setHistory(readHistory(interviewId));
-    });
     fetchSnapshot()
       .then((nextSnapshot) => { if (active) setSnapshot(nextSnapshot); })
       .catch((caught: unknown) => { if (active) setError(caught instanceof Error ? caught.message : "인터뷰를 불러오지 못했습니다."); })
@@ -212,6 +203,13 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
   }, [fetchSnapshot, interviewId]);
 
   useEffect(() => {
+    // Realtime owns the first greeting and every following question. The old
+    // Qwen autoplay recovery must stay dormant unless WebRTC explicitly falls
+    // back, otherwise two independent interview voices start on the same page.
+    if (initialMode === "voice" && !realtimeVoiceFallback) {
+      initialAutoplayRecoveryAttemptedRef.current = true;
+      return;
+    }
     if (
       initialAutoplayRecoveryAttemptedRef.current ||
       initialMode !== "voice" ||
@@ -237,7 +235,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
       });
     }
     return () => { active = false; };
-  }, [autoStartQuestionVoice, initialMode]);
+  }, [autoStartQuestionVoice, initialMode, realtimeVoiceFallback]);
 
   const live: LiveInterviewView | null = snapshot?.snapshotType === "PREVIEW" ? snapshot : null;
   const rawQuestion = live?.currentQuestion ?? null;
@@ -362,26 +360,29 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
       const chunks = splitQuestionForSpeech(questionToSpeak);
       if (chunks.length === 0) return;
       let prefetchPromise: Promise<void> | null = null;
-      const telemetryToken = realtimeLatencyTelemetry.beginTtsRequest("qwen");
+      const telemetryToken = realtimeLatencyTelemetry.beginTtsRequest("server");
       const requestVoiceChunk = async (chunk: string, signal?: AbortSignal) => {
         const response = await authenticatedFetch(QUESTION_SPEECH_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: chunk }),
+          body: JSON.stringify({ text: chunk, interviewId }),
           signal,
         });
         if (!response.ok) throw new Error("QUESTION_TTS_UNAVAILABLE");
+        const providerHeader = response.headers.get("x-speech-provider");
+        const provider = providerHeader === "openai" || providerHeader === "qwen" ? providerHeader : "server";
         const bytes = await readSpeechResponse(response, () => {
           if (chunk === chunks[0]) {
-            realtimeLatencyTelemetry.markTtsFirstByte(telemetryToken, "qwen");
+            realtimeLatencyTelemetry.markTtsFirstByte(telemetryToken, provider);
           }
         });
         if (!bytes.byteLength) throw new Error("QUESTION_TTS_EMPTY");
-        return { bytes, contentType: response.headers.get("content-type") ?? "audio/wav" };
+        return { bytes, contentType: response.headers.get("content-type") ?? "audio/wav", provider: provider as "qwen" | "openai" | "server" };
       };
       const loadChunk = (chunk: string) => cachedQuestionVoiceChunk(
         chunk,
         () => requestVoiceChunk(chunk, controller.signal),
+        interviewId,
       );
       let pending = loadChunk(chunks[0]);
       for (let index = 0; index < chunks.length; index += 1) {
@@ -389,7 +390,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
         if (index === 0) {
           // A memory/disk cache hit never opens a response stream, so the
           // resolved cached bytes are its first-byte boundary.
-          realtimeLatencyTelemetry.markTtsFirstByte(telemetryToken, "qwen");
+          realtimeLatencyTelemetry.markTtsFirstByte(telemetryToken, voice.provider ?? "server");
         }
         if (controller.signal.aborted || runId !== speechRunIdRef.current) return;
         const nextPending = index + 1 < chunks.length ? loadChunk(chunks[index + 1]) : null;
@@ -402,14 +403,14 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
           // only the likely next question's first chunk while the borrower is
           // answering. Predictions never reach the transcript or playback.
           prefetchPromise = (async () => {
-            await prefetchQuestionVoiceFirstChunks([turnBackchannel], requestVoiceChunk);
+            await prefetchQuestionVoiceFirstChunks([turnBackchannel], requestVoiceChunk, 1, interviewId);
             if (!controller.signal.aborted) {
-              await prefetchQuestionVoiceFirstChunks(predictedNextQuestions, requestVoiceChunk);
+              await prefetchQuestionVoiceFirstChunks(predictedNextQuestions, requestVoiceChunk, 1, interviewId);
             }
           })();
           void prefetchPromise.catch(() => undefined);
         }
-        setVoiceProvider("qwen");
+        setVoiceProvider(voice.provider ?? "server");
         setSpeechPreparing(false);
         setSpeaking(true);
         if (context?.state === "running") {
@@ -427,7 +428,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
             source.start();
             if (index === 0) {
               realtimeLatencyTelemetry.markTtsPlaybackStarted(telemetryToken, {
-                provider: "qwen",
+                provider: voice.provider ?? "server",
                 fallback: false,
               });
             }
@@ -445,7 +446,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
             void audio.play().then(() => {
               if (index === 0) {
                 realtimeLatencyTelemetry.markTtsPlaybackStarted(telemetryToken, {
-                  provider: "qwen",
+                  provider: voice.provider ?? "server",
                   fallback: false,
                 });
               }
@@ -478,7 +479,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
       // the borrower flow audible without ever fabricating an interview answer.
       speakWithDeviceVoice(questionToSpeak, options.continueConversation, fallbackRunId);
     }
-  }, [predictedNextQuestions, promptToSpeak, speakWithDeviceVoice, stopSpeaking, turnBackchannel]);
+  }, [interviewId, predictedNextQuestions, promptToSpeak, speakWithDeviceVoice, stopSpeaking, turnBackchannel]);
 
   const startVoiceConversation = useCallback(() => {
     if (!promptToSpeak) return;
@@ -494,6 +495,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
   }, [stopSpeaking]);
 
   useEffect(() => {
+    if (method === "voice" && !realtimeVoiceFallback) return;
     if (!shouldAutoPlayQuestionVoice({
       method,
       voiceAutoplayEnabled,
@@ -505,7 +507,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
     })) return;
     lastSpokenQuestionRef.current = promptToSpeak;
     void speakQuestion(promptToSpeak, { continueConversation: true });
-  }, [method, promptToSpeak, speakQuestion, speaking, speechPreparing, voiceAutoplayEnabled, voiceBusy]);
+  }, [method, promptToSpeak, realtimeVoiceFallback, speakQuestion, speaking, speechPreparing, voiceAutoplayEnabled, voiceBusy]);
 
   useEffect(() => () => {
     stopSpeaking();
@@ -515,13 +517,9 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
 
   const addQuestionAnswer = useCallback((questionText: string, answerText: string) => {
     const row: QuestionAnswer = { id: createClientCommandId("qa"), question: questionText, answer: answerText, createdAt: new Date().toISOString() };
-    setHistory((previous) => {
-      const next = [...previous, row];
-      persistHistory(interviewId, next);
-      return next;
-    });
+    setHistory((previous) => [...previous, row].slice(-30));
     setSelectedHistoryId(row.id);
-  }, [interviewId]);
+  }, []);
 
   async function submitAnswer(
     text: string,
@@ -602,6 +600,14 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
   const currentInformationItem = live?.informationItems.find(
     (item) => item.infoCode === live.currentQuestionInfoCode,
   ) ?? null;
+
+  // 주소에 ?demo=... 가 있을 때만 대본을 자동으로 넣는다. 없으면 기존 동작 그대로다.
+  useDemoAutoplay({
+    enabled: isScenario && demoAvailable && method === "chat" && demoRunning,
+    currentQuestionInfoCode: live?.currentQuestionInfoCode ?? null,
+    ready: !responseDisabled,
+    submitAnswer: (text) => void submitAnswer(text),
+  });
   const borrowerExperience = useMemo(
     () => buildBorrowerExperience({
       informationItems: live?.informationItems ?? [],
@@ -673,14 +679,18 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
                 : "사장님 답변을 기다리고 있어요";
 
   useEffect(() => {
-    timelineEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const timeline = timelineEndRef.current?.parentElement;
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+    timeline?.scrollTo({ top: timeline.scrollHeight, behavior });
   }, [optimisticAnswer, question, sending, transcriptMessages.length]);
 
   useEffect(() => {
     const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
       : "smooth";
-    currentPhaseRef.current?.scrollIntoView({ behavior, block: "nearest", inline: "center" });
+    const phase = currentPhaseRef.current;
+    const track = phase?.parentElement;
+    if (phase && track) track.scrollTo({ left: phase.offsetLeft - track.offsetLeft - (track.clientWidth - phase.clientWidth) / 2, behavior });
   }, [conversationGuide.currentPhaseKey]);
 
   useEffect(() => {
@@ -696,14 +706,23 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
 
   if (loading) return <main id="main-content" className="borrower-room borrower-room--loading"><LoaderCircle className="spin" size={30} /> 인터뷰를 준비하고 있어요.</main>;
   if (!snapshot || error && !live) return <main id="main-content" className="borrower-room borrower-room--loading"><p>{error ?? "인터뷰를 불러오지 못했습니다."}</p><button type="button" className="borrower-secondary-button" onClick={() => void refresh()}>다시 불러오기</button></main>;
-  if (snapshot.snapshotType === "FINAL") return <main id="main-content" className="borrower-room borrower-room--complete"><CheckCircle2 size={42} /><span>인터뷰 기록을 정리했어요</span><h1>사장님이 확인한 답변을 안전하게 보관했습니다.</h1><p>필요한 경우 담당자가 다음 절차를 안내해 드립니다.</p></main>;
+  if (snapshot.snapshotType === "FINAL") return <BorrowerResult snapshot={snapshot} />;
 
   return (
     <main id="main-content" className={`borrower-room borrower-room--${method}`}>
       <header className="borrower-room__header">
-        <div><span className="borrower-room__step">사장님 인터뷰 · {currentInformationItem?.categoryLabel ?? "사업 이야기"}</span><h1>{snapshot.businessName} 이야기를 함께 정리하고 있어요</h1><p>한 번에 한 가지만 여쭤볼게요. 모르는 내용이나 답하기 어려운 내용은 편하게 넘어가도 됩니다.</p></div>
-        <div className="borrower-room__progress" aria-label={`인터뷰 진행 ${formatPercent(snapshot.requiredInformationRate)}`}><strong>{formatPercent(snapshot.requiredInformationRate)}</strong><span><i style={{ width: `${snapshot.requiredInformationRate ?? 0}%` }} /></span></div>
+        <div>
+          <span className="borrower-room__step">{isScenario ? "합성 시연 · 답변에서 평가까지" : "동행금융 · 사업 현황 입력"}</span>
+          <h1>{snapshot.businessName} 이야기</h1>
+          <p>모르거나 답하기 어려운 내용은 넘어가셔도 됩니다.</p>
+        </div>
+        <div className="borrower-room__progress" aria-label={conversationGuide.ariaLabel}>
+          <strong>{conversationGuide.currentStep}/{conversationGuide.totalSteps}</strong>
+          <small>현재 단계</small>
+          <span><i style={{ width: `${(conversationGuide.currentStep / conversationGuide.totalSteps) * 100}%` }} /></span>
+        </div>
       </header>
+      {isScenario && demoAvailable && <section className="demo-scenario-controls" aria-label="합성 시연 대본 입력"><div><strong>등록된 대본으로 변수와 점수 연결 확인</strong><p>자동 입력을 누르면 가상 답변이 기록됩니다. 직접 입력하거나 중간에 멈출 수 있습니다.</p></div><button type="button" className="borrower-secondary-button" disabled={!demoRunning && (responseDisabled || method !== "chat")} onClick={() => setDemoRunning((running) => !running)}>{demoRunning ? "자동 입력 일시정지" : "대본 자동 입력"}</button></section>}
       <nav className="borrower-phase-guide" aria-label={conversationGuide.ariaLabel}>
         <ol>
           {conversationGuide.phases.map((phase, index) => (
@@ -725,28 +744,27 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
       <div className="borrower-room__layout">
         <section className="borrower-conversation" aria-label="AI와 사장님의 대화">
           <div className="borrower-conversation__mode">
-            <button type="button" aria-pressed={method === "chat"} data-active={method === "chat"} onClick={() => { stopSpeaking(); setVoiceAutoplayEnabled(false); setMethod("chat"); }}><MessageCircle size={16} /> 채팅 답변</button>
-            <button type="button" aria-pressed={method === "voice"} data-active={method === "voice"} onClick={() => { setVoiceAutoplayEnabled(false); setMethod("voice"); }}><Mic size={16} /> 음성 답변</button>
-            <small className="borrower-neural-voice-status" data-provider={voiceProvider}>
+            <button type="button" aria-pressed={method === "chat"} data-active={method === "chat"} onClick={() => { stopSpeaking(); setVoiceAutoplayEnabled(false); setVoiceBusy(false); setAudioUxState("IDLE"); changeMethod("chat"); }}><MessageCircle size={16} /> 채팅 답변</button>
+            <button type="button" aria-pressed={method === "voice"} data-active={method === "voice"} onClick={() => { stopSpeaking(); setVoiceAutoplayEnabled(false); setRealtimeVoiceFallback(false); changeMethod("voice"); }}><Mic size={16} /> 음성 답변</button>
+            {(method === "chat" || realtimeVoiceFallback) && <small className="borrower-neural-voice-status" data-provider={voiceProvider}>
               {speechPreparing
                 ? "AI 음성을 준비하고 있어요"
                 : speaking
-                  ? "AI 질문을 음성으로 안내 중"
+                  ? voiceProvider === "device" ? "기기 음성으로 질문을 안내 중" : "AI 질문을 음성으로 안내 중"
                   : voiceAutoplayEnabled
                     ? "다음 AI 질문도 음성으로 안내합니다"
-                    : "AI 질문 음성 준비됨"}
-            </small>
+                    : "질문 듣기를 눌러 음성을 재생하세요"}
+            </small>}
           </div>
+          {method === "chat" && <>
           <section className="borrower-live-presence" data-state={audioUxState.toLowerCase()} role="status" aria-live="polite">
-            <div className="borrower-live-presence__orb" aria-hidden="true"><span /><Sparkles size={22} /></div>
-            <div><span>{currentInformationItem?.categoryLabel ?? "지금 이야기"}</span><strong>{conversationStatus}</strong><p>{completionReviewAvailable ? "정리된 답변이 맞는지 확인한 뒤 인터뷰를 마칠 수 있어요." : currentInformationItem?.label ? `${currentInformationItem.label}에 대해 자연스럽게 이야기하고 있어요.` : "답변에 맞춰 다음 질문을 이어갈게요."}</p></div>
-            {method === "voice" && <Headphones size={21} aria-hidden="true" />}
+            <div><span>{currentInformationItem?.categoryLabel ?? "지금 이야기"}</span><strong>{conversationStatus}</strong></div>
           </section>
           <div className="borrower-conversation__timeline" role="log" aria-label="인터뷰 대화 기록" aria-live="polite">
             {!hasBorrowerResponse && (
               <div className="borrower-welcome" role="note">
                 <strong>안녕하세요, 사장님.</strong>
-                <p>정답을 찾는 자리가 아니라 사장님 사업 이야기를 듣는 시간이에요. 답하기 어려운 내용은 모른다고 말씀하셔도 괜찮습니다.</p>
+                <p>편하게 말씀해 주세요. 한 번에 하나씩 여쭤볼게요.</p>
               </div>
             )}
             {transcriptMessages.map((message) => message.speaker === "ASSISTANT" ? (
@@ -761,8 +779,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
                 </div>
                 {message.id === latestAssistantMessage?.id && questionPresentation.context && (
                   <p className="borrower-message__reaction">
-                    <Sparkles size={14} aria-hidden="true" />
-                    <span><strong>방금 이해한 내용</strong>{questionPresentation.context}</span>
+                    <span>{questionPresentation.context}</span>
                   </p>
                 )}
                 <p>{message.id === latestAssistantMessage?.id && question ? question : message.text}</p>
@@ -788,6 +805,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
             )}
             <div ref={timelineEndRef} className="borrower-timeline-end" aria-hidden="true" />
           </div>
+          </>}
           {pendingCommand && (
             <section className="borrower-pending-retry" role="alert" aria-live="assertive">
               <div>
@@ -809,7 +827,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
                   disabled={sending || pendingCommand.processingState !== "READY"}
                   onClick={() => void submitAnswer(pendingCommand.text, pendingCommand)}
                 >
-                  {sending ? <LoaderCircle className="spin" size={16} /> : <Sparkles size={16} />}
+                  {sending ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
                   {pendingCommand.processingState === "PROCESSING" ? "정리 진행 중" : "같은 답변 다시 정리"}
                 </button>
               </div>
@@ -827,9 +845,9 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
             </div>
           ) : question ? (
             <>
+          {method === "chat" && <>
           {curiosityCard && (
             <section className="borrower-curiosity-card" role="note" aria-labelledby="borrower-curiosity-card-title">
-              <div className="borrower-curiosity-card__icon" aria-hidden="true"><Sparkles size={19} /></div>
               <div>
                 <strong id="borrower-curiosity-card-title">{curiosityCard.label}</strong>
                 <p>{curiosityCard.context}</p>
@@ -838,9 +856,10 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
             </section>
           )}
           {scenarioPrompt && (
-            <section className="borrower-scenario-prompt" role="note" aria-labelledby="borrower-scenario-title">
+            <details className="borrower-scenario-prompt" aria-labelledby="borrower-scenario-title">
+              <summary id="borrower-scenario-title">생각을 돕는 예시 보기</summary>
               <div>
-                <span id="borrower-scenario-title">{scenarioPrompt.label}</span>
+                <span>{scenarioPrompt.label}</span>
                 <strong>{scenarioPrompt.question}</strong>
                 <small>{scenarioPrompt.notice}</small>
               </div>
@@ -857,20 +876,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
               >
                 {method === "chat" ? "이 질문을 참고해 답하기" : "말로 답해 볼게요"}
               </button>
-            </section>
-          )}
-          {borrowerExperience.questionPresentation.label && (
-            <section
-              className="borrower-question-context"
-              data-tone={borrowerExperience.questionPresentation.tone.toLowerCase()}
-              role="note"
-            >
-              <Sparkles size={18} aria-hidden="true" />
-              <div>
-                <strong>{borrowerExperience.questionPresentation.label}</strong>
-                <p>{borrowerExperience.questionPresentation.helper}</p>
-              </div>
-            </section>
+            </details>
           )}
           {borrowerExperience.quickChoices.length > 0 && (
             <section className="borrower-quick-choices" aria-labelledby="borrower-quick-choice-title">
@@ -904,27 +910,28 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
               </div>
             </section>
           )}
+          </>}
           {method === "chat" ? (
             <form className="borrower-answer-box" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void submitAnswer(answer); }}>
               <label htmlFor="borrower-answer">사장님의 답변</label>
-              <textarea id="borrower-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitAnswer(answer); } }} rows={3} maxLength={3000} disabled={responseDisabled} placeholder="정해진 답은 없어요. 사장님이 겪은 그대로 말씀해 주세요." />
+              <textarea id="borrower-answer" value={answer} onChange={(event) => setAnswer(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void submitAnswer(answer); } }} rows={2} maxLength={3000} disabled={responseDisabled} placeholder="정해진 답은 없어요. 사장님이 겪은 그대로 말씀해 주세요." />
               <div><small>Enter 전송 · Shift+Enter 줄바꿈</small><button className="borrower-primary-button" type="submit" disabled={responseDisabled || !answer.trim()}>{sending ? <LoaderCircle className="spin" size={17} /> : <Send size={17} />} 답변 보내기</button></div>
             </form>
           ) : (
-            <div className="borrower-voice-box">
-              <div>
-                <strong>한 번 시작하면 대화처럼 이어집니다</strong>
-                <p>실시간 통화처럼 AI가 바로 듣고 말합니다. 질문 중에 말씀을 시작하면 AI가 멈추고 사장님 이야기를 먼저 들어요.</p>
-              </div>
+            <div className={`borrower-voice-box ${realtimeVoiceFallback ? "borrower-voice-box--fallback" : "borrower-voice-box--realtime"}`}>
               {realtimeVoiceFallback ? (
                 <>
+                  <div>
+                    <strong>한 문장씩 듣고 답합니다</strong>
+                    <p>질문을 들은 뒤 마이크로 답해 주세요. 말을 마치면 전사한 답변을 저장합니다.</p>
+                  </div>
                   <div className="borrower-voice-fallback-note" role="status">
-                    실시간 통화 연결을 사용할 수 없어 이 컴퓨터의 로컬 한국어 음성으로 안전하게 이어갑니다.
+                    문장 단위 음성 방식입니다. 실시간 통화로 돌아가려면 위의 음성 답변을 눌러 주세요.
                   </div>
                   <RealtimeLatencyStatus />
                   {!voiceAutoplayEnabled && (
                     <button type="button" className="borrower-voice-start" onClick={startVoiceConversation} disabled={!question || responseDisabled}>
-                      <Volume2 size={17} /> 로컬 음성 대화 시작
+                      <Volume2 size={17} /> 질문 듣고 답하기
                     </button>
                   )}
                   <AudioInterviewControls
@@ -961,11 +968,11 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
                   onFinalTranscript={async (text) => {
                     await submitAnswer(text);
                   }}
-                  onUnavailable={(message) => {
+                  onUnavailable={() => {
                     setVoiceBusy(false);
                     setRealtimeVoiceFallback(true);
-                    setError(`${message} 로컬 한국어 음성으로 계속 진행합니다.`);
-                    window.queueMicrotask(startVoiceConversation);
+                    setError(null);
+                    setVoiceAutoplayEnabled(false);
                   }}
                 />
               )}
@@ -985,66 +992,78 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
           {error && <div className="borrower-room__error" role="alert">{error}<button type="button" onClick={() => void refresh()}><RefreshCw size={14} /> 상태 새로고침</button></div>}
         </section>
         <aside className="borrower-review" aria-label="내 질문과 답변 확인">
+          <div className="borrower-review-tabs" role="group" aria-label="내 이야기 살펴보기">
+            <button type="button" aria-pressed={reviewTab === "answers"} onClick={() => setReviewTab("answers")}>질문·답변 <span>{reviewHistory.length}</span></button>
+            <button type="button" aria-pressed={reviewTab === "business"} onClick={() => setReviewTab("business")}>사업 지도</button>
+          </div>
+          {reviewTab === "business" && <>
           <section className="borrower-business-map" aria-labelledby="borrower-business-map-title">
             <div className="borrower-business-map__heading">
               <div>
-                <span>대화로 채워지는 사업 지도</span>
-                <h2 id="borrower-business-map-title">내 사업이 한눈에 보여요</h2>
+                <h2 id="borrower-business-map-title">사업 지도</h2>
               </div>
-              <Sparkles size={19} aria-hidden="true" />
             </div>
-            <p className="borrower-business-map__notice">이 지도는 사업의 좋고 나쁨을 매긴 점수가 아니라, 함께 이야기한 내용의 정리 정도예요.</p>
-            <div className="borrower-business-map__visual">
-              <svg viewBox="0 0 100 100" role="img" aria-label="여섯 영역의 대화 정리 현황">
-                <polygon points="50,7 88,28 88,72 50,93 12,72 12,28" className="borrower-business-map__grid" />
-                <polygon points="50,21 76,35 76,65 50,79 24,65 24,35" className="borrower-business-map__grid" />
-                <line x1="50" y1="50" x2="50" y2="7" />
-                <line x1="50" y1="50" x2="88" y2="28" />
-                <line x1="50" y1="50" x2="88" y2="72" />
-                <line x1="50" y1="50" x2="50" y2="93" />
-                <line x1="50" y1="50" x2="12" y2="72" />
-                <line x1="50" y1="50" x2="12" y2="28" />
-                <polygon points={borrowerExperience.radarPoints} className="borrower-business-map__shape" />
-              </svg>
-              <div className="borrower-business-map__axes">
-                {borrowerExperience.axes.map((axis) => (
-                  <div key={axis.key} data-state={axis.stateLabel}>
+            <p className="borrower-business-map__notice">어떤 이야기를 나눴는지 보여줍니다. 사업 평가 점수가 아닙니다.</p>
+            <div className="borrower-business-route" role="list" aria-label="여섯 이야기 정류장의 정리 현황">
+              {borrowerExperience.axes.map((axis, index) => (
+                <div key={axis.key} data-state={axis.stateLabel} role="listitem">
+                  <span className="borrower-business-route__marker" aria-hidden="true">{index + 1}</span>
+                  <span className="borrower-business-route__line" aria-hidden="true" />
+                  <div>
                     <strong>{axis.label}</strong>
-                    <span>{axis.stateLabel}</span>
+                    <small>{axis.stateLabel}</small>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
             </div>
           </section>
           <section className="borrower-grounded-insight" aria-live="polite">
-            <span>방금 정리된 한 줄</span>
+            <span>답변에서 확인한 내용</span>
             {borrowerExperience.insight ? (
               <>
                 <strong>{borrowerExperience.insight.text}</strong>
-                <p>사장님이 확인한 답변과 그 근거로 서버에서 계산한 값만 사용했어요.</p>
+                <p>확인된 답변과 그 답변으로 계산한 값입니다.</p>
               </>
             ) : (
-              <p>답변이 확인되면 사장님의 말 그대로 한 줄씩 정리해 드려요.</p>
+              <p>아직 확인된 답변이 없습니다.</p>
             )}
           </section>
+          {recentFeatureChanges.length > 0 && (
+            <section className="borrower-feature-feedback" aria-live="polite" aria-labelledby="borrower-feature-feedback-title">
+              <span>방금 반영된 분석 변수</span>
+              <h2 id="borrower-feature-feedback-title">말씀하신 내용이 이렇게 정리됐어요.</h2>
+              <ul>
+                {recentFeatureChanges.map((change) => (
+                  <li key={change.name}>
+                    <b aria-hidden="true">+</b>
+                    <code>{change.name}</code>
+                    <strong>{change.currentRaw ?? (change.currentNormalized !== null ? String(change.currentNormalized) : change.currentState)}</strong>
+                  </li>
+                ))}
+              </ul>
+              <p>이름과 값은 서버가 확정한 결과만 보여드립니다. 전체 모델링 Feature는 인터뷰 분석 화면에서 별도로 확인합니다.</p>
+            </section>
+          )}
           <section className="borrower-improvement-board" aria-labelledby="borrower-improvement-board-title">
             <div>
-              <span>인터뷰 중 함께 만드는 판</span>
-              <h2 id="borrower-improvement-board-title">나의 사업 개선 판</h2>
+              <h2 id="borrower-improvement-board-title">가게 현황</h2>
             </div>
             <ol>
               {borrowerExperience.improvementBoard.map((lane) => (
                 <li key={lane.key} data-filled={Boolean(lane.value)}>
                   <span>{lane.label}</span>
-                  <strong>{lane.value ?? "대화가 더 이어지면 채워져요"}</strong>
+                  <strong>{lane.value ?? "아직 확인하지 않았습니다"}</strong>
                   {lane.sourceLabel && <small>{lane.sourceLabel}</small>}
                 </li>
               ))}
             </ol>
           </section>
-          <div className="borrower-review__heading"><div><span>서버 기록으로 이어지는 이야기 지도</span><h2>지나온 질문·답변</h2></div><strong>{reviewHistory.length}개</strong></div>
-          {reviewHistory.length === 0 ? <div className="borrower-review__empty">첫 답변을 보내면 이곳에서 질문과 답변을 다시 확인할 수 있어요.</div> : <div className="borrower-review__list">{reviewHistory.map((row, index) => <button type="button" key={row.id} aria-pressed={selectedHistory?.id === row.id} data-active={selectedHistory?.id === row.id} onClick={() => setSelectedHistoryId(row.id)}><span>질문 {index + 1}</span><strong>{row.question}</strong><ChevronRight size={16} /></button>)}</div>}
-          {selectedHistory && <section className="borrower-review__detail"><button type="button" className="borrower-review__detail-title" onClick={() => setSelectedHistoryId(null)}><span>선택한 질문과 답변</span><ChevronDown size={16} /></button><dl><div><dt>AI 질문</dt><dd>{selectedHistory.question}</dd></div><div><dt>사장님 답변</dt><dd>{selectedHistory.answer}</dd></div></dl><p>말씀하신 내용이 다르면 채팅으로 알려 주세요. 다음 질문에 반영됩니다.</p></section>}
+          </>}
+          {reviewTab === "answers" && <>
+          <div className="borrower-review__heading"><div><h2>지나온 질문·답변</h2></div><strong>{reviewHistory.length}개</strong></div>
+          {reviewHistory.length === 0 ? <div className="borrower-review__empty">첫 답변을 보내면 이곳에서 질문과 답변을 다시 확인할 수 있어요.</div> : <div className="borrower-review__list">{reviewHistory.map((row, index) => <button type="button" key={row.id} aria-pressed={selectedHistory?.id === row.id} data-active={selectedHistory?.id === row.id} onClick={() => { setSelectedHistoryId(row.id); setReviewDetailsOpen(true); }}><span>질문 {index + 1}</span><strong>{row.question}</strong><ChevronRight size={16} /></button>)}</div>}
+          {selectedHistory && <section className="borrower-review__detail"><button type="button" className="borrower-review__detail-title" aria-expanded={reviewDetailsOpen} aria-controls="borrower-selected-answer" onClick={() => setReviewDetailsOpen((open) => !open)}><span>선택한 질문과 답변</span><ChevronDown size={16} /></button><div id="borrower-selected-answer" hidden={!reviewDetailsOpen}><dl><div><dt>AI 질문</dt><dd>{selectedHistory.question}</dd></div><div><dt>사장님 답변</dt><dd>{selectedHistory.answer}</dd></div></dl><p>말씀하신 내용이 다르면 채팅으로 알려 주세요. 다음 질문에 반영됩니다.</p></div></section>}
+          </>}
         </aside>
       </div>
     </main>

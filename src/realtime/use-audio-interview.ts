@@ -111,6 +111,7 @@ interface RuntimeResources {
   animationFrame: number | null;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   reconnectAttempts: number;
+  resumeCaptureAfterReconnect: boolean;
   pendingChunkSends: Set<Promise<void>>;
   controlAckWaiters: Map<
     string,
@@ -138,6 +139,7 @@ function newRuntime(): RuntimeResources {
     animationFrame: null,
     reconnectTimer: null,
     reconnectAttempts: 0,
+    resumeCaptureAfterReconnect: false,
     pendingChunkSends: new Set(),
     controlAckWaiters: new Map(),
     backpressureTimer: null,
@@ -246,6 +248,7 @@ export function useAudioInterview({
     }
     resources.socket = null;
     resources.reconnectAttempts = 0;
+    resources.resumeCaptureAfterReconnect = false;
     for (const waiter of resources.controlAckWaiters.values()) {
       clearTimeout(waiter.timer);
       waiter.reject(new Error("AUDIO_SOCKET_CLOSED"));
@@ -503,6 +506,9 @@ export function useAudioInterview({
         setUxState("ERROR");
         return;
       }
+      if (resources.reconnectAttempts === 0) {
+        resources.resumeCaptureAfterReconnect = resources.recorder?.state === "recording";
+      }
       resources.reconnectAttempts += 1;
       if (resources.recorder?.state === "recording") resources.recorder.pause();
       cleanupMeter();
@@ -533,14 +539,15 @@ export function useAudioInterview({
             return sendControlAndWait(socket, resumeMessage).then(() => ({ socket, current }));
           })
           .then(({ socket, current }) => {
+            if (current.intentionalClose || current.audioSessionId !== audioSessionId || socket.readyState !== WebSocket.OPEN) return;
             for (const chunk of replay.current.after(current.lastAckedAudioSeq)) {
               socket.send(chunk.frame);
             }
             current.reconnectAttempts = 0;
-            if (current.recorder?.state === "paused") current.recorder.resume();
+            if (current.resumeCaptureAfterReconnect && current.recorder?.state === "paused") current.recorder.resume();
             setError(null);
-            setUxState("LISTENING");
-            startMeter();
+            setUxState(current.resumeCaptureAfterReconnect ? "LISTENING" : "PAUSED");
+            if (current.resumeCaptureAfterReconnect) startMeter();
           })
           .catch(() => reconnectCallback.current(audioSessionId));
       }, Math.min(4_000, 500 * 2 ** resources.reconnectAttempts));

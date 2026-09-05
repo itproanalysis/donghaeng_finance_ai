@@ -36,9 +36,9 @@ describe("dev-v1 required information contract", () => {
     expect(validateRequiredInformationCatalog(acceptance, { requireDevV1Codes: true })).toEqual([]);
     expect(DEV_V1_REQUIRED_INFORMATION_JSON_SCHEMA).toMatchObject({
       minItems: 8,
-      maxItems: 11,
+      maxItems: 12,
     });
-    expect(DEV_V1_REQUIRED_INFORMATION_JSON_SCHEMA.allOf).toHaveLength(11);
+    expect(DEV_V1_REQUIRED_INFORMATION_JSON_SCHEMA.allOf).toHaveLength(12);
     expect(
       DEV_V1_REQUIRED_INFORMATION_JSON_SCHEMA.allOf.slice(8).every(
         (rule) => rule.minContains === 0 && rule.maxContains === 1,

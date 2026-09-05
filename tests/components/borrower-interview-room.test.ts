@@ -16,6 +16,15 @@ const source = readFileSync(
 );
 
 describe("borrower realtime conversation", () => {
+  it("keeps Realtime as the only primary voice interview surface", () => {
+    expect(source).toContain('if (method === "voice" && !realtimeVoiceFallback) return;');
+    expect(source).toContain('{method === "chat" && <>');
+    expect(source).toContain('borrower-voice-box--realtime');
+    expect(source).toContain('realtimeVoiceFallback ? "borrower-voice-box--fallback"');
+    expect(source).toContain('initialMode === "voice" && !realtimeVoiceFallback');
+    expect(source).not.toContain("한 번 시작하면 대화처럼 이어집니다");
+  });
+
   it("uses sentence-first cached TTS and continues into automatic listening", () => {
     expect(source).toContain('const QUESTION_SPEECH_ENDPOINT = "/api/voice/speech"');
     expect(source).toContain("authenticatedFetch(QUESTION_SPEECH_ENDPOINT");

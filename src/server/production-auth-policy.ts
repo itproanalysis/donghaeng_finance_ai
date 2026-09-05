@@ -1,4 +1,6 @@
 import { ApplicationError } from "./errors";
+import { isGoogleIapMode, readIapConfiguration } from "./iap-auth";
+import { assertPublicReviewConfiguration, isPublicReviewMode } from "./public-review";
 
 export type AuthenticationRuntimeEnvironment = Record<string, string | undefined>;
 
@@ -70,6 +72,7 @@ function exactGateFingerprint(
 export function isExactProductionE2ELocalAuthGate(
   environment: AuthenticationRuntimeEnvironment = process.env,
 ): boolean {
+  if (environment.DONGHAENG_AUTH_MODE?.trim()) return false;
   if (environment.NODE_ENV?.trim().toLowerCase() !== "production") return false;
   if (environment.DONGHAENG_E2E_AUTH_ALLOW_LOCAL !== "1") return false;
   const bindAddress = normalizedLoopbackAddress(environment.DONGHAENG_HOST);
@@ -94,8 +97,16 @@ export function assertCustomServerAuthenticationConfigured(input: {
   // server after checking its actual bind arguments. Environment variables by
   // themselves must not turn a direct Next deployment into an E2E server.
   delete authenticationRuntime.__donghaengProductionE2EAuthAttestation;
-  if (input.development) return;
   const environment = input.environment ?? process.env;
+  if (isPublicReviewMode(environment)) {
+    assertPublicReviewConfiguration(environment);
+    return;
+  }
+  if (isGoogleIapMode(environment)) {
+    readIapConfiguration(environment);
+    return;
+  }
+  if (input.development && !environment.DONGHAENG_AUTH_MODE?.trim()) return;
   const fingerprint = exactGateFingerprint(environment);
   if (
     fingerprint &&
@@ -115,6 +126,17 @@ export function assertCustomServerAuthenticationConfigured(input: {
 export function assertApplicationAuthenticationAvailable(
   environment: AuthenticationRuntimeEnvironment = process.env,
 ): void {
+  if (isPublicReviewMode(environment)) {
+    assertPublicReviewConfiguration(environment);
+    return;
+  }
+  if (isGoogleIapMode(environment)) {
+    readIapConfiguration(environment);
+    return;
+  }
+  if (environment.DONGHAENG_AUTH_MODE?.trim()) {
+    throw new ApplicationError(503, "AUTH_MODE_INVALID", "지원되지 않는 인증 방식입니다.");
+  }
   if (environment.NODE_ENV?.trim().toLowerCase() !== "production") return;
   const fingerprint = exactGateFingerprint(environment);
   if (

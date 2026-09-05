@@ -1,4 +1,15 @@
 import type { RequiredInformationItem } from "@/domain/interview";
+import { createDevV1AcceptanceRequiredInformationItems, createDevV1RequiredInformationItems, createDevV1ScenarioRequiredInformationItems } from "@/domain/information-catalog";
+import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
+
+/** The web entry and end-to-end verification use the same question selection. */
+export function createBorrowerRequiredInformationList(industryCode: string, focus: BorrowerConversationFocus = "FULL_REVIEW", scenarioId: string | null = null): RequiredInformationItem[] {
+  const items = scenarioId === OPERATING_DAY_DEMO_SCENARIO.id && industryCode === OPERATING_DAY_DEMO_SCENARIO.persona.industryCode
+    ? createDevV1ScenarioRequiredInformationItems(OPERATING_DAY_DEMO_SCENARIO.triggeredInfoCodes)
+    : industryCode === "CAFE" ? createDevV1AcceptanceRequiredInformationItems() : createDevV1RequiredInformationItems();
+  // Preserve the triggered question's P0. Optional background signals already have P2.
+  return applyBorrowerConversationFocus(items, focus);
+}
 
 export type BorrowerConversationFocus =
   | "FULL_REVIEW"

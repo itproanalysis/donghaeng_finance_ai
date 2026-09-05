@@ -30,6 +30,7 @@ const DEV_V1_INFO_CODES = [
   "platform_fee_pressure",
   "hall_customer_decline",
   "repeat_customer_share",
+  "operating_day_drop_reason",
 ] as const;
 
 const INFORMATION_STATUSES = [

@@ -54,6 +54,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/components/api-adapter", () => ({
+  isPublicReviewBrowser: () => false,
   authenticatedFetch: harness.authenticatedFetch,
   readApiEnvelope: (value: unknown) => value,
 }));

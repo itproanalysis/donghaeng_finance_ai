@@ -1,0 +1,52 @@
+FROM python:3.12-slim AS modeling
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+COPY modeling/requirements.txt ./modeling/requirements.txt
+RUN pip install --no-cache-dir -r modeling/requirements.txt
+COPY modeling ./modeling
+COPY external-data ./external-data
+COPY docs/FEATURE_LIST.md docs/SCORECARD.md docs/CASES.md ./docs/
+RUN python -m modeling.make_mock \
+  && mkdir -p /artifact \
+  && python -m modeling.web_payload --output /artifact/modeling-demo.json
+
+FROM node:24-bookworm-slim AS build
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY src ./src
+COPY --from=modeling /artifact/modeling-demo.json ./src/generated/modeling-demo.json
+COPY migrations ./migrations
+COPY contracts ./contracts
+COPY public ./public
+COPY next.config.ts tsconfig.json next-env.d.ts ./
+RUN npm run build
+RUN npm prune --omit=dev
+
+FROM node:24-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 DONGHAENG_HOST=0.0.0.0 DONGHAENG_PORT=3000 DONGHAENG_DB_PATH=/data/donghaeng-ai.db
+ENV DONGHAENG_MODELING_PYTHON=/opt/modeling/bin/python DONGHAENG_MODELING_BASE_CASE=/app/modeling-fixtures/case_operating_drop PYTHONDONTWRITEBYTECODE=1
+COPY modeling/requirements.txt /tmp/modeling-requirements.txt
+RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-venv \
+  && python3 -m venv /opt/modeling \
+  && /opt/modeling/bin/pip install --no-cache-dir -r /tmp/modeling-requirements.txt \
+  && rm -rf /var/lib/apt/lists/* /tmp/modeling-requirements.txt
+COPY --from=modeling --chown=node:node /app/modeling ./modeling
+COPY --from=modeling --chown=node:node /app/external-data ./external-data
+COPY --from=modeling --chown=node:node /app/docs ./docs
+COPY --from=modeling --chown=node:node /app/data/mock/case_operating_drop ./modeling-fixtures/case_operating_drop
+COPY --from=build --chown=node:node /app/.next ./.next
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/public ./public
+COPY --from=build --chown=node:node /app/src ./src
+COPY --from=build --chown=node:node /app/migrations ./migrations
+COPY --from=build --chown=node:node /app/contracts ./contracts
+COPY --from=build --chown=node:node /app/package.json /app/tsconfig.json /app/next.config.ts ./
+COPY --chown=node:node server.ts ./server.ts
+COPY --chown=node:node scripts/start-gcp-runtime.ts ./scripts/start-gcp-runtime.ts
+RUN mkdir -p /app/data && chown node:node /app/data
+USER node
+EXPOSE 3000
+CMD ["./node_modules/.bin/tsx", "scripts/start-gcp-runtime.ts"]

@@ -4,15 +4,19 @@
   "info": {
     "title": "Donghaeng Finance AI HTTP API",
     "version": "1.0.0",
-    "description": "Contract for the local text-first finance interview API. JSON responses always use the data/error/meta envelope. The event stream is described in more detail by asyncapi.json. An external production identity provider is not implemented; production startup and direct API authentication are fail-closed."
+    "description": "Same-origin financial consultation interview API. Explicit production modes: verified Google IAP, or isolated login-free public review with per-visitor tenant and durable usage limits. No lending decisions."
   },
   "x-production-authentication": {
-    "status": "EXTERNAL_IDP_NOT_IMPLEMENTED",
+    "status": "EXPLICIT_PRODUCTION_MODES",
     "failClosed": true,
     "errorStatus": 503,
     "errorCode": "PRODUCTION_IDP_NOT_CONFIGURED",
     "localException": "AUTOMATED_LOOPBACK_E2E_ONLY",
-    "description": "Local password and persisted local-workspace session authentication are forbidden in production. The automated custom-server smoke harness is the only exception and requires an explicit flag, matching literal-loopback bind host, port, and application origin, plus an in-process attestation of the actual bind. Environment variables alone never enable local authentication in a direct Next deployment."
+    "description": "Production requires verified Google IAP or explicit isolated public-review configuration. Local password/shared bootstrap remain blocked. The loopback E2E exception requires in-process attestation and cannot enable a direct Next deployment.",
+    "modes": [
+      "google-iap",
+      "public-review"
+    ]
   },
   "servers": [
     {
@@ -37,6 +41,9 @@
     },
     {
       "name": "Evaluations"
+    },
+    {
+      "name": "Modeling"
     }
   ],
   "paths": {
@@ -363,6 +370,92 @@
       }
     },
     "/interviews": {
+      "get": {
+        "operationId": "listInterviewOperations",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "List actual tenant-scoped interview cases",
+        "description": "Requires ADMIN or INTERVIEWER. Summary counts cover the whole tenant; total and items apply filters. ATTENTION includes active conflicts or the latest failed message stage. Not a creditworthiness score.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ALL",
+                "ACTIVE",
+                "ATTENTION",
+                "COMPLETE",
+                "INCOMPLETE"
+              ],
+              "default": "ALL"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Persisted same-tenant data",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InterviewOperationsSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
       "post": {
         "operationId": "createInterview",
         "tags": [
@@ -395,20 +488,120 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
           "422": {
             "$ref": "#/components/responses/UnprocessableEntity"
           },
           "429": {
             "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/consultation-draft": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/InterviewId"
+        }
+      ],
+      "get": {
+        "operationId": "getConsultationDraft",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Read an operator working draft",
+        "description": "Requires ADMIN or INTERVIEWER and access to the interview tenant. An absent draft returns revision 0 with empty choices. Does not modify FINAL evidence.",
+        "responses": {
+          "200": {
+            "description": "Persisted same-tenant data",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultationDraftSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveConsultationDraft",
+        "tags": [
+          "Interviews"
+        ],
+        "summary": "Save a version-checked consultation draft",
+        "description": "Same-origin operator request. expectedRevision prevents overwrites; identical retry at the immediately preceding revision is idempotent. Writes an audit event, never changes FINAL artifacts and never submits to an institution.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsultationDraftSaveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Persisted same-tenant data",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultationDraftSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -538,7 +731,7 @@
           "Realtime"
         ],
         "summary": "Mint a short-lived browser credential for an OpenAI Realtime voice call",
-        "description": "Requires the authenticated tenant-scoped interview plus effective MICROPHONE_INTERVIEW and CLOUD_AI_PROCESSING consents. The server-only OpenAI API key is never returned. The response contains only a short-lived client secret used by the browser to establish a direct WebRTC connection. Issuance is rate limited per user and interview.",
+        "description": "Requires the authenticated tenant-scoped interview plus effective MICROPHONE_INTERVIEW and CLOUD_AI_PROCESSING consents. The server-only OpenAI API key is never returned. The response contains only a short-lived client secret used by the browser to establish a direct WebRTC connection. Issuance is rate limited per user and interview. In public-review mode this returns only {transport:'server',model,voice,maxDurationSeconds}; clients use realtime-call instead of receiving ephemeral credentials.",
         "responses": {
           "201": {
             "description": "Short-lived Realtime WebRTC credential",
@@ -787,6 +980,26 @@
         "summary": "List tenant-scoped completed interview evaluations",
         "description": "Returns searchable interview data-quality summaries. A-E values are data-quality grades only and never official or inferred credit grades.",
         "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 24
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100000,
+              "default": 0
+            }
+          },
           {
             "name": "q",
             "in": "query",
@@ -1142,6 +1355,53 @@
         }
       }
     },
+    "/interview-evaluations/{id}/scorecard": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/EvaluationLookupId"
+        }
+      ],
+      "get": {
+        "operationId": "getInterviewEvaluationScorecard",
+        "tags": [
+          "Evaluations"
+        ],
+        "summary": "Get the modeling two-axis scorecard for a FINAL interview",
+        "description": "Runs the modeling pipeline on the FINAL interview result. Returns an explicit UNAVAILABLE status instead of an estimated score when the pipeline is not configured.",
+        "responses": {
+          "200": {
+            "description": "Modeling scorecard or an explicit unavailable status",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationScorecardSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/interview-evaluations/{id}/goals": {
       "parameters": [
         {
@@ -1224,6 +1484,240 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/auth/visitor-session": {
+      "post": {
+        "operationId": "startReviewVisitorSession",
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Start or reuse an isolated login-free judging session",
+        "security": [],
+        "description": "public-review only. Same-origin POST; host-only Secure HttpOnly cookie. One visitor tenant, INTERVIEWER only. Admission quota enforced.",
+        "responses": {
+          "200": {
+            "description": "Session principal, expiry and authMode in data/error/meta envelope. Set-Cookie only on creation."
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not a public-review deployment"
+          },
+          "410": {
+            "description": "Judging window closed"
+          },
+          "429": {
+            "description": "Durable admission limit"
+          }
+        }
+      }
+    },
+    "/interviews/{id}/realtime-call": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "post": {
+        "operationId": "connectReviewRealtimeCall",
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Server-authorized WebRTC offer/answer for public review",
+        "description": "Requires both processing and microphone consent. Returns call id, SDP answer and deadline; never a provider credential. At most one active call per tenant, 10 minute deadline, daily service and visitor quotas.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sdp"
+                ],
+                "properties": {
+                  "sdp": {
+                    "type": "string",
+                    "maxLength": 65536
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "data: {id, sdp, deadline} envelope"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not found in visitor tenant or unsupported deployment"
+          },
+          "429": {
+            "description": "Durable quota/concurrent call limit"
+          },
+          "502": {
+            "description": "Provider connection failure"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "endReviewRealtimeCall",
+        "tags": [
+          "Realtime"
+        ],
+        "summary": "Terminate a visitor-owned provider call",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "callId"
+                ],
+                "properties": {
+                  "callId": {
+                    "type": "string",
+                    "maxLength": 128
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "data: {ended: true} envelope"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "Not found in visitor tenant or unsupported deployment"
+          },
+          "429": {
+            "description": "Durable quota/concurrent call limit"
+          },
+          "502": {
+            "description": "Provider connection failure"
+          }
+        }
+      }
+    },
+    "/demo/modeling": {
+      "get": {
+        "operationId": "listDemoModelingCases",
+        "tags": [
+          "Modeling"
+        ],
+        "summary": "List the deterministic modeling review cases",
+        "description": "Public, synthetic-only review artifact generated by the authoritative Python modeling pipeline. It is not a lending decision or prediction.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Modeling case index, comparisons, reevaluation, and validation disclosure",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelingIndexSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/demo/modeling/{caseId}": {
+      "parameters": [
+        {
+          "name": "caseId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "case_customer_drop",
+              "case_ticket_drop",
+              "case_operating_drop",
+              "case_operating_drop_after",
+              "case_no_answer",
+              "case_cost_pressure",
+              "case_demand_shift",
+              "case_interior",
+              "case_volatile",
+              "case_new_low"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getDemoModelingCase",
+        "tags": [
+          "Modeling"
+        ],
+        "summary": "Return one server-authored modeling review case",
+        "description": "Returns exactly 94 features, two separate score axes, score lineage, CB contrast, and context-only external benchmark fields. Unknown case identifiers return 404 and never resolve a filesystem path.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "One generated modeling_web_v1 case",
+            "headers": {
+              "X-Request-ID": {
+                "$ref": "#/components/headers/RequestId"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelingCaseSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown allowlisted mock case",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -1480,6 +1974,444 @@
       }
     },
     "schemas": {
+      "ModelingFeatureStatus": {
+        "type": "string",
+        "enum": [
+          "VALUE",
+          "MISSING",
+          "REFUSED",
+          "NOT_APPLICABLE",
+          "UNDECIDED"
+        ]
+      },
+      "ModelingScoreAxis": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "axis",
+          "score",
+          "itemsUsed",
+          "itemsTotal",
+          "basis",
+          "items"
+        ],
+        "properties": {
+          "axis": {
+            "type": "string",
+            "enum": [
+              "CURRENT_SITUATION",
+              "IMPROVEMENT_POTENTIAL"
+            ]
+          },
+          "score": {
+            "oneOf": [
+              { "type": "number", "minimum": 0, "maximum": 100 },
+              { "$ref": "#/components/schemas/ModelingFeatureStatus" }
+            ]
+          },
+          "itemsUsed": { "type": "integer", "minimum": 0, "maximum": 5 },
+          "itemsTotal": { "const": 5 },
+          "basis": { "type": "string" },
+          "items": {
+            "type": "array",
+            "minItems": 5,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "required": ["name", "points", "maxPoints", "excluded", "band", "lineage"],
+              "properties": {
+                "name": { "type": "string" },
+                "points": { "type": ["number", "null"] },
+                "maxPoints": { "const": 20 },
+                "excluded": { "type": "boolean" },
+                "band": { "type": "string" },
+                "lineage": { "type": "array", "minItems": 1 }
+              }
+            }
+          }
+        }
+      },
+      "ModelingDemoCase": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "caseId",
+          "mock",
+          "sourceSummary",
+          "featureSummary",
+          "features",
+          "triggers",
+          "interviewConversion",
+          "scorecard",
+          "cbContrast",
+          "externalContext"
+        ],
+        "properties": {
+          "caseId": { "type": "string", "pattern": "^case_[a-z_]+$" },
+          "mock": { "const": true },
+          "features": {
+            "type": "array",
+            "minItems": 94,
+            "maxItems": 94
+          },
+          "scorecard": {
+            "type": "object",
+            "required": ["currentSituation", "improvement", "disclaimer"],
+            "properties": {
+              "currentSituation": { "$ref": "#/components/schemas/ModelingScoreAxis" },
+              "improvement": { "$ref": "#/components/schemas/ModelingScoreAxis" },
+              "disclaimer": { "type": "string" }
+            }
+          },
+          "externalContext": {
+            "type": "object",
+            "required": ["role", "includedInFeatureVector", "includedInScore"],
+            "properties": {
+              "role": { "const": "CONTEXT_ONLY" },
+              "includedInFeatureVector": { "const": false },
+              "includedInScore": { "const": false }
+            }
+          }
+        }
+      },
+      "ModelingDemoIndex": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "schemaVersion",
+          "model",
+          "defaultCaseId",
+          "cases",
+          "comparisons",
+          "reevaluation",
+          "validation"
+        ],
+        "properties": {
+          "schemaVersion": { "const": "modeling_web_v1" },
+          "defaultCaseId": { "const": "case_operating_drop" },
+          "cases": { "type": "array", "minItems": 10, "maxItems": 10 }
+        }
+      },
+      "ModelingIndexSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "error", "meta"],
+        "properties": {
+          "data": { "$ref": "#/components/schemas/ModelingDemoIndex" },
+          "error": { "type": "null" },
+          "meta": { "$ref": "#/components/schemas/ApiMeta" }
+        }
+      },
+      "ModelingCaseSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["data", "error", "meta"],
+        "properties": {
+          "data": { "$ref": "#/components/schemas/ModelingDemoCase" },
+          "error": { "type": "null" },
+          "meta": { "$ref": "#/components/schemas/ApiMeta" }
+        }
+      },
+      "InterviewOperationsItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "borrowerName",
+          "businessName",
+          "industry",
+          "lifecycleStatus",
+          "currentQuestionCode",
+          "currentQuestionLabel",
+          "updatedAt",
+          "unresolvedRequiredCount",
+          "conflictCount",
+          "borrowerAnswerCount",
+          "processingFailed",
+          "evaluationId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "borrowerName": {
+            "type": "string"
+          },
+          "businessName": {
+            "type": "string"
+          },
+          "industry": {
+            "type": "string"
+          },
+          "lifecycleStatus": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "COMPLETE",
+              "INCOMPLETE"
+            ]
+          },
+          "currentQuestionCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "currentQuestionLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unresolvedRequiredCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "conflictCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "borrowerAnswerCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "processingFailed": {
+            "type": "boolean"
+          },
+          "evaluationId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "InterviewOperationsResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "hasMore",
+          "summary"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InterviewOperationsItem"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "total",
+              "active",
+              "attention",
+              "complete",
+              "incomplete"
+            ],
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "active": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attention": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "incomplete": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "InterviewOperationsSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InterviewOperationsResult"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "ConsultationDraftData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "proposalId",
+          "owner",
+          "period",
+          "documents",
+          "reviewed",
+          "institutionId"
+        ],
+        "properties": {
+          "proposalId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "owner": {
+            "type": "string",
+            "enum": [
+              "사장님 + 담당 상담사",
+              "사장님 + 경영지원 담당자"
+            ]
+          },
+          "period": {
+            "type": "string",
+            "enum": [
+              "2주 후 점검",
+              "4주 후 점검",
+              "상담 시 일정 협의"
+            ]
+          },
+          "documents": {
+            "type": "array",
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "사업자등록 정보 확인",
+                "매출·비용 증빙 확인",
+                "기존 채무·상환 내역 확인",
+                "자금 목적·필요 금액 정리"
+              ]
+            }
+          },
+          "reviewed": {
+            "type": "boolean"
+          },
+          "institutionId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "semas",
+              "koreg",
+              "kodit",
+              null
+            ]
+          }
+        }
+      },
+      "ConsultationDraftRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interviewId",
+          "revision",
+          "updatedAt",
+          "data"
+        ],
+        "properties": {
+          "interviewId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConsultationDraftData"
+          }
+        }
+      },
+      "ConsultationDraftSaveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expectedRevision",
+          "data"
+        ],
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConsultationDraftData"
+          }
+        }
+      },
+      "ConsultationDraftSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConsultationDraftRecord"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
       "Identifier": {
         "type": "string",
         "minLength": 1,
@@ -1594,8 +2526,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "platform_fee_pressure"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "platform_fee_pressure"
+                }
+              }
             },
             "minContains": 0,
             "maxContains": 1
@@ -1603,8 +2541,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "hall_customer_decline"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "hall_customer_decline"
+                }
+              }
             },
             "minContains": 0,
             "maxContains": 1
@@ -1612,8 +2556,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "repeat_customer_share"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "repeat_customer_share"
+                }
+              }
             },
             "minContains": 0,
             "maxContains": 1
@@ -1633,6 +2583,12 @@
           "text"
         ],
         "properties": {
+          "interviewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Required for personalized cloud TTS. Current CLOUD_AI_PROCESSING consent and tenant ownership are verified before synthesis. Without an interview, only fixed application-owned phrases are allowed."
+          },
           "text": {
             "type": "string",
             "minLength": 1,
@@ -1884,8 +2840,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "monthly_average_sales"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "monthly_average_sales"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1893,8 +2855,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "fixed_operating_costs"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "fixed_operating_costs"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1902,8 +2870,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "improvement_plan"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "improvement_plan"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1911,8 +2885,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "execution_readiness"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "execution_readiness"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1920,8 +2900,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "confirmed_reservations"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "confirmed_reservations"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1929,8 +2915,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "seasonality_outlook"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "seasonality_outlook"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1938,8 +2930,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "essential_household_expenses"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "essential_household_expenses"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1947,8 +2945,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "emergency_buffer_months"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "emergency_buffer_months"
+                }
+              }
             },
             "minContains": 1,
             "maxContains": 1
@@ -1956,8 +2960,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "platform_fee_pressure"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "platform_fee_pressure"
+                }
+              }
             },
             "minContains": 0,
             "maxContains": 1
@@ -1965,8 +2975,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "hall_customer_decline"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "hall_customer_decline"
+                }
+              }
             },
             "minContains": 0,
             "maxContains": 1
@@ -1974,8 +2990,14 @@
           {
             "contains": {
               "type": "object",
-              "required": ["infoCode"],
-              "properties": {"infoCode": {"const": "repeat_customer_share"}}
+              "required": [
+                "infoCode"
+              ],
+              "properties": {
+                "infoCode": {
+                  "const": "repeat_customer_share"
+                }
+              }
             },
             "minContains": 0,
             "maxContains": 1
@@ -2627,8 +3649,7 @@
           "version",
           "createdAt",
           "updatedAt",
-          "completedAt"
-          ,
+          "completedAt",
           "lastEventSeq"
         ],
         "properties": {
@@ -3309,9 +4330,21 @@
         "required": [
           "items",
           "total",
+          "limit",
+          "offset",
           "facets"
         ],
         "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
           "items": {
             "type": "array",
             "items": {
@@ -4030,28 +5063,86 @@
           "modelCandidate"
         ],
         "properties": {
-          "name": { "type": "string" },
-          "group": { "enum": ["business", "financial", "credit", "operation", "owner", "external", "improvement"] },
-          "dtype": { "enum": ["float", "integer", "boolean", "category"] },
-          "state": { "enum": ["COMPUTED", "MISSING", "NOT_CALCULABLE"] },
-          "value": { "type": ["number", "boolean", "string", "null"] },
-          "sourceFeatures": { "type": "array", "items": { "type": "string" } },
-          "calculation": { "type": ["string", "null"] },
-          "reason": { "type": "string" },
-          "version": { "const": "feature_schema_v2" },
-          "modelCandidate": { "const": false }
+          "name": {
+            "type": "string"
+          },
+          "group": {
+            "enum": [
+              "business",
+              "financial",
+              "credit",
+              "operation",
+              "owner",
+              "external",
+              "improvement"
+            ]
+          },
+          "dtype": {
+            "enum": [
+              "float",
+              "integer",
+              "boolean",
+              "category"
+            ]
+          },
+          "state": {
+            "enum": [
+              "COMPUTED",
+              "MISSING",
+              "NOT_CALCULABLE"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "boolean",
+              "string",
+              "null"
+            ]
+          },
+          "sourceFeatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calculation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "version": {
+            "const": "feature_schema_v2"
+          },
+          "modelCandidate": {
+            "const": false
+          }
         }
       },
       "ImprovementFeatureV2Set": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["schemaVersion", "enabled", "features"],
+        "required": [
+          "schemaVersion",
+          "enabled",
+          "features"
+        ],
         "properties": {
-          "schemaVersion": { "const": "feature_schema_v2" },
-          "enabled": { "type": "boolean" },
+          "schemaVersion": {
+            "const": "feature_schema_v2"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
           "features": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/ImprovementFeatureV2Value" }
+            "items": {
+              "$ref": "#/components/schemas/ImprovementFeatureV2Value"
+            }
           }
         }
       },
@@ -4089,8 +5180,12 @@
           },
           "improvementFeatures": {
             "anyOf": [
-              { "$ref": "#/components/schemas/ImprovementFeatureV2Set" },
-              { "type": "null" }
+              {
+                "$ref": "#/components/schemas/ImprovementFeatureV2Set"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "summary": {
@@ -4125,6 +5220,63 @@
             "minimum": 1
           }
         }
+      },
+      "EvaluationScorecardProjection": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EvaluationArtifactBase"
+          },
+          {
+            "type": "object",
+            "required": [
+              "status",
+              "unavailableReason",
+              "unavailableMessage",
+              "scorecard",
+              "reproduceCommand",
+              "transactionDataSource"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "READY",
+                  "UNAVAILABLE"
+                ]
+              },
+              "unavailableReason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "unavailableMessage": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "scorecard": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "reproduceCommand": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "transactionDataSource": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        ]
       },
       "EvaluationPillarsProjection": {
         "allOf": [
@@ -5112,6 +6264,26 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/LiveFeaturesProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "EvaluationScorecardSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EvaluationScorecardProjection"
           },
           "error": {
             "type": "null"

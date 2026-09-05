@@ -1,0 +1,837 @@
+{
+  "dataset_id": "peer_benchmark",
+  "version": "0.2.0",
+  "status": "partial",
+  "purpose": "donghaeng_finance_ai가 FeatureV2Input.external로 주입할 업종별 peer benchmark. KOSIS 서비스업생산지수 기반 5필드가 9업종에서 채워져 있고, 나머지는 null이다.",
+  "consumer": {
+    "app": "donghaeng_finance_ai",
+    "interface": "FeatureV2Input.external → ExternalContextFeatureInput",
+    "interface_source": "src/domain/improvement-feature-pipeline.ts",
+    "industry_enum_source": "src/domain/soho-industry-catalog.ts → SohoIndustryCode",
+    "usage": "benchmarks[industryCode]를 그대로 external로 넘긴다. 래핑·키 변환 없이 12필드가 인터페이스와 1:1이다."
+  },
+  "conventions": {
+    "ratio_unit": "0–1 소수. 앱이 costAmount/saleAmount(:584), percentage/100(:589)으로 계산하므로 31.5%는 0.315로 넣는다.",
+    "rate_unit": "0–1 소수 변화율. ext_sales_growth_gap_peer가 boundedPositive(value, 0.2)(:432)로 정규화되는 것과 정합한다.",
+    "missing": "null. 0으로 대체하지 않는다. 결측 자체가 'CB가 못 보는 영역'의 근거다.",
+    "scope": "이 12필드는 전부 direction=context_only, modelCandidate=false다. 점수·등급 산출 입력으로 쓰지 않는다."
+  },
+  "coverage": {
+    "industries": 11,
+    "fields": 12,
+    "total_slots": 132,
+    "filled": 45,
+    "null": 87,
+    "filled_pct": 34.1
+  },
+  "industry_labels": {
+    "RESTAURANT": "음식점",
+    "CAFE": "카페",
+    "OFFLINE_RETAIL": "오프라인 소매",
+    "ONLINE_SHOPPING": "온라인 쇼핑",
+    "BEAUTY": "미용",
+    "ACADEMY": "학원",
+    "LODGING": "숙박",
+    "AUTO_REPAIR": "자동차 정비",
+    "INTERIOR": "인테리어",
+    "TRANSPORT": "운송",
+    "WHOLESALE_SMALL_MANUFACTURING": "도매/소규모 제조"
+  },
+  "benchmarks": {
+    "RESTAURANT": {
+      "ext_peer_sales_growth_3m": 0.0259,
+      "ext_peer_sales_volatility_6m": 0.03,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": 0.0219,
+      "ext_industry_volatility_12m": 0.0273,
+      "ext_industry_seasonality": 0.1358
+    },
+    "CAFE": {
+      "ext_peer_sales_growth_3m": -0.0001,
+      "ext_peer_sales_volatility_6m": 0.0424,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": -0.0252,
+      "ext_industry_volatility_12m": 0.0344,
+      "ext_industry_seasonality": 0.2107
+    },
+    "OFFLINE_RETAIL": {
+      "ext_peer_sales_growth_3m": null,
+      "ext_peer_sales_volatility_6m": null,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": null,
+      "ext_industry_volatility_12m": null,
+      "ext_industry_seasonality": null
+    },
+    "ONLINE_SHOPPING": {
+      "ext_peer_sales_growth_3m": 0.0145,
+      "ext_peer_sales_volatility_6m": 0.0345,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": 0.0695,
+      "ext_industry_volatility_12m": 0.0568,
+      "ext_industry_seasonality": 0.113
+    },
+    "BEAUTY": {
+      "ext_peer_sales_growth_3m": -0.0101,
+      "ext_peer_sales_volatility_6m": 0.0359,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": -0.0524,
+      "ext_industry_volatility_12m": 0.0401,
+      "ext_industry_seasonality": 0.1179
+    },
+    "ACADEMY": {
+      "ext_peer_sales_growth_3m": 0.0045,
+      "ext_peer_sales_volatility_6m": 0.029,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": -0.0557,
+      "ext_industry_volatility_12m": 0.021,
+      "ext_industry_seasonality": 0.1253
+    },
+    "LODGING": {
+      "ext_peer_sales_growth_3m": -0.0523,
+      "ext_peer_sales_volatility_6m": 0.0476,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": -0.0674,
+      "ext_industry_volatility_12m": 0.0451,
+      "ext_industry_seasonality": 0.2297
+    },
+    "AUTO_REPAIR": {
+      "ext_peer_sales_growth_3m": -0.0304,
+      "ext_peer_sales_volatility_6m": 0.0831,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": -0.0222,
+      "ext_industry_volatility_12m": 0.0812,
+      "ext_industry_seasonality": 0.2056
+    },
+    "INTERIOR": {
+      "ext_peer_sales_growth_3m": null,
+      "ext_peer_sales_volatility_6m": null,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": null,
+      "ext_industry_volatility_12m": null,
+      "ext_industry_seasonality": null
+    },
+    "TRANSPORT": {
+      "ext_peer_sales_growth_3m": 0.035,
+      "ext_peer_sales_volatility_6m": 0.0366,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": 0.0144,
+      "ext_industry_volatility_12m": 0.0429,
+      "ext_industry_seasonality": 0.1128
+    },
+    "WHOLESALE_SMALL_MANUFACTURING": {
+      "ext_peer_sales_growth_3m": -0.0019,
+      "ext_peer_sales_volatility_6m": 0.0238,
+      "ext_peer_marketing_cost_ratio": null,
+      "ext_peer_fixed_cost_ratio": null,
+      "ext_peer_repeat_customer_ratio": null,
+      "ext_sales_growth_gap_peer": null,
+      "ext_cost_ratio_gap_peer": null,
+      "ext_foot_traffic_change_3m": null,
+      "ext_competitor_count_change_6m": null,
+      "ext_industry_growth_6m": -0.014,
+      "ext_industry_volatility_12m": 0.0623,
+      "ext_industry_seasonality": 0.1069
+    }
+  },
+  "method": {
+    "seasonal_adjustment": "고전적 승법 분해. 12개월 중심이동평균으로 추세 제거 후 달별 비율의 중앙값을 계절요인으로 삼고 평균 1로 정규화",
+    "why": "원계열로 계산하면 계절 효과가 성장률의 부호를 뒤집는다. LODGING 3개월 성장률이 원계열 +0.105, 계절조정 -0.052로 갈린다.",
+    "seasonality_cap": 0.3,
+    "seasonality_cap_basis": "268개 서비스업 분류 전수의 계절진폭 분포 p95=0.273",
+    "uniform_method": "9업종 전부 같은 산식을 쓴다. T3가 있는 4업종만 KOSIS 계열로 바꾸면 업종 간 비교가 방법 차이에 오염된다."
+  },
+  "validation": {
+    "cohort": [
+      "LODGING",
+      "RESTAURANT",
+      "TRANSPORT",
+      "WHOLESALE_SMALL_MANUFACTURING"
+    ],
+    "note": "T3(계절조정지수)가 제공되는 4개 업종에서 같은 산식을 자체조정 계열과 T3에 각각 적용해 대조했다. 산식의 타당성 확인이지 나머지 5개 업종의 계절성을 관측한 것이 아니다.",
+    "volatility_level_bias": {
+      "median_ratio": 2.17,
+      "meaning": "자체조정 변동성이 KOSIS 대비 이 배수만큼 높게 나온다. KOSIS는 X-13으로 불규칙·영업일 효과까지 걷어내는데 이 산식은 월간 잡음을 남기기 때문이다. 변동성의 절대 수준을 다른 통계와 비교하면 안 되고, 9업종 사이의 상대 비교로만 읽어야 한다."
+    },
+    "by_industry": {
+      "LODGING": {
+        "factor_correlation": 0.9722,
+        "factor_mean_abs_error": 0.0141,
+        "amplitude_estimated": 0.0689,
+        "amplitude_kosis": 0.0706,
+        "growth_3m_estimated": -0.0523,
+        "growth_3m_kosis": -0.0415,
+        "volatility_12m_estimated": 0.0451,
+        "volatility_12m_kosis": 0.0231
+      },
+      "RESTAURANT": {
+        "factor_correlation": 0.9851,
+        "factor_mean_abs_error": 0.0062,
+        "amplitude_estimated": 0.0407,
+        "amplitude_kosis": 0.0419,
+        "growth_3m_estimated": 0.0259,
+        "growth_3m_kosis": 0.0264,
+        "volatility_12m_estimated": 0.0273,
+        "volatility_12m_kosis": 0.0133
+      },
+      "TRANSPORT": {
+        "factor_correlation": 0.949,
+        "factor_mean_abs_error": 0.0093,
+        "amplitude_estimated": 0.0339,
+        "amplitude_kosis": 0.0308,
+        "growth_3m_estimated": 0.035,
+        "growth_3m_kosis": 0.029,
+        "volatility_12m_estimated": 0.0429,
+        "volatility_12m_kosis": 0.0152
+      },
+      "WHOLESALE_SMALL_MANUFACTURING": {
+        "factor_correlation": 0.9651,
+        "factor_mean_abs_error": 0.0074,
+        "amplitude_estimated": 0.0321,
+        "amplitude_kosis": 0.0356,
+        "growth_3m_estimated": -0.0019,
+        "growth_3m_kosis": -0.0179,
+        "volatility_12m_estimated": 0.0623,
+        "volatility_12m_kosis": 0.0272
+      }
+    }
+  },
+  "lineage": {
+    "source": {
+      "org": "통계청(국가데이터처)",
+      "survey": "서비스업동향조사",
+      "table_id": "DT_1KC2020",
+      "table_name": "산업별 서비스업생산지수(2020=100.0)",
+      "item": "T2 불변지수(월)",
+      "reference_month": "202606",
+      "window_months": 60,
+      "window": "202107~202606"
+    },
+    "fields": {
+      "ext_peer_sales_growth_3m": {
+        "정의": "동종업종 최근 3개월 매출 성장률",
+        "산식": "계절조정 지수 idx[t] / idx[t-3] - 1",
+        "원자료": "통계청 서비스업동향조사 DT_1KC2020 · T2 불변지수(월)",
+        "상태": "산출완료",
+        "note": "원계열이 아니라 계절조정 계열에서 계산한다. 원계열로 하면 계절 효과가 부호를 뒤집는다(LODGING 원계열 +0.105 vs 계절조정 -0.052)."
+      },
+      "ext_peer_sales_volatility_6m": {
+        "정의": "동종업종 최근 6개월 매출 변동성",
+        "산식": "계절조정 지수의 최근 6개월 전월대비 증감률 표준편차",
+        "원자료": "통계청 서비스업동향조사 DT_1KC2020 · T2 불변지수(월)",
+        "상태": "산출완료",
+        "note": "절대 수준은 계절조정 방법에 의존한다. 업종 간 상대 비교로만 읽는다. kosis_benchmark.json의 validation.volatility_level_bias 참조."
+      },
+      "ext_peer_marketing_cost_ratio": {
+        "정의": "동종업종 마케팅비/매출 비중 중위값",
+        "산식": null,
+        "계획_원자료": "미확보. 공개 원시자료에서 마케팅비가 단독 분리되지 않는다",
+        "상태": "미확보"
+      },
+      "ext_peer_fixed_cost_ratio": {
+        "정의": "동종업종 고정비/매출 비중 중위값",
+        "산식": null,
+        "계획_원자료": "미정. 국세통계 업종별 손익계산서가 후보다",
+        "상태": "원천제외",
+        "note": "KREI 원시자료로 외식 2업종을 채웠으나 이번 전달에서 제외했다. 사유는 lineage.excluded_sources 참조."
+      },
+      "ext_peer_repeat_customer_ratio": {
+        "정의": "동종업종 반복고객 비중",
+        "산식": null,
+        "계획_원자료": "공개 데이터 없음",
+        "상태": "미확보"
+      },
+      "ext_sales_growth_gap_peer": {
+        "정의": "사장님 매출 성장률 - 동종업종 성장률",
+        "산식": "런타임 파생. 사장님 본인 값이 있어야 계산된다",
+        "계획_원자료": null,
+        "상태": "런타임파생_주입금지",
+        "note": "벤치마크 레이어는 항상 null을 낸다. 주입 시점에 소비처가 ext_peer_sales_growth_3m과 사장님 값으로 계산할 몫이다."
+      },
+      "ext_cost_ratio_gap_peer": {
+        "정의": "사장님 비용 비중 - 동종업종 비용 비중",
+        "산식": "런타임 파생. 사장님 본인 값이 있어야 계산된다",
+        "계획_원자료": null,
+        "상태": "런타임파생_주입금지",
+        "note": "벤치마크 레이어는 항상 null을 낸다."
+      },
+      "ext_foot_traffic_change_3m": {
+        "정의": "상권 유동인구 3개월 변화율",
+        "산식": null,
+        "계획_원자료": "통신사 유동인구는 유료. 서울 열린데이터광장 일부 자치구만 무료",
+        "상태": "미확보"
+      },
+      "ext_competitor_count_change_6m": {
+        "정의": "동일 업종·행정동 점포 수 6개월 변화율",
+        "산식": "(t 시점 점포수 / t-6개월 점포수) - 1",
+        "계획_원자료": "소상공인시장진흥공단 상가(상권)정보 2개 시점",
+        "상태": "PHASE_4",
+        "note": "현재 2026-06-30 1개 시점만 보유. 직전 분기 파일을 추가로 받아야 한다."
+      },
+      "ext_industry_growth_6m": {
+        "정의": "업종 6개월 성장률",
+        "산식": "계절조정 지수 idx[t] / idx[t-6] - 1",
+        "원자료": "통계청 서비스업동향조사 DT_1KC2020 · T2 불변지수(월)",
+        "상태": "산출완료"
+      },
+      "ext_industry_volatility_12m": {
+        "정의": "업종 12개월 변동성",
+        "산식": "계절조정 지수의 최근 12개월 전월대비 증감률 표준편차",
+        "원자료": "통계청 서비스업동향조사 DT_1KC2020 · T2 불변지수(월)",
+        "상태": "산출완료",
+        "note": "ext_peer_sales_volatility_6m과 같은 단서가 붙는다."
+      },
+      "ext_industry_seasonality": {
+        "정의": "업종 계절성 강도. 0~1",
+        "산식": "12개 계절요인의 표준편차(진폭)를 0.30으로 나누고 1에서 절단",
+        "원자료": "통계청 서비스업동향조사 DT_1KC2020 · T2 불변지수(월)",
+        "상태": "산출완료",
+        "정규화_근거": "268개 서비스업 분류 전수의 계절진폭 분포 p95=0.273. 상한 0.30을 고정 상수로 쓴다. 최댓값을 상한으로 쓰면 재생성마다 기준이 흔들린다.",
+        "검증": "T3(KOSIS 계절조정지수)가 있는 4개 업종에서 계절요인 상관 0.949~0.985, 평균오차 0.006~0.014. 산식의 타당성 확인이지 나머지 5개 업종의 계절성을 직접 관측한 것은 아니다."
+      }
+    },
+    "excluded_sources": [
+      {
+        "source": "KREI 외식업체경영실태조사 2025 원시자료",
+        "excluded_fields": [
+          "ext_peer_fixed_cost_ratio"
+        ],
+        "would_have_filled": {
+          "RESTAURANT": {
+            "value": 0.308,
+            "cohort": "ALL_FOODSERVICE",
+            "n": 3138
+          },
+          "CAFE": {
+            "value": 0.315,
+            "cohort": "CAFE_BAKERY",
+            "n": 427
+          }
+        },
+        "decision": "이번 전달에서 제외한다 (2026-08-26).",
+        "known_issue": "RESTAURANT에 연결한 ALL_FOODSERVICE 코호트에 카페·제과점이 포함돼 CAFE와 배타적이지 않았다. KSIC 매핑(CAFE = I5622 + I56191, RESTAURANT = I561·I562 − 그 둘)에 맞춰 코호트를 다시 자르지 않는 한 두 값이 같은 응답자를 공유한다.",
+        "scope_note": "KREI는 외식업 전용 조사라 11업종 중 2개만 닿는다. 나머지 9업종은 이 원천으로 채울 수 없다.",
+        "still_available": "data/interim/industry_cost_quantiles.csv와 data/processed/industry_cost_benchmark.json은 이 저장소에 그대로 있다. 앱 전달물에서만 뺀 것이고 다른 트랙에서는 계속 쓴다."
+      }
+    ],
+    "filled_values": [
+      {
+        "industry": "ACADEMY",
+        "field": "ext_peer_sales_growth_3m",
+        "value": 0.0045,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "P8550 일반 교습학원",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ACADEMY",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.029,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "P8550 일반 교습학원",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ACADEMY",
+        "field": "ext_industry_growth_6m",
+        "value": -0.0557,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "P8550 일반 교습학원",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ACADEMY",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.021,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "P8550 일반 교습학원",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ACADEMY",
+        "field": "ext_industry_seasonality",
+        "value": 0.1253,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "P8550 일반 교습학원",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "AUTO_REPAIR",
+        "field": "ext_peer_sales_growth_3m",
+        "value": -0.0304,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9521 자동차 수리업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "AUTO_REPAIR",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0831,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9521 자동차 수리업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "AUTO_REPAIR",
+        "field": "ext_industry_growth_6m",
+        "value": -0.0222,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9521 자동차 수리업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "AUTO_REPAIR",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0812,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9521 자동차 수리업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "AUTO_REPAIR",
+        "field": "ext_industry_seasonality",
+        "value": 0.2056,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9521 자동차 수리업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "BEAUTY",
+        "field": "ext_peer_sales_growth_3m",
+        "value": -0.0101,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9611 미용 관련 서비스업 및 마사지업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "BEAUTY",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0359,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9611 미용 관련 서비스업 및 마사지업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "BEAUTY",
+        "field": "ext_industry_growth_6m",
+        "value": -0.0524,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9611 미용 관련 서비스업 및 마사지업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "BEAUTY",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0401,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9611 미용 관련 서비스업 및 마사지업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "BEAUTY",
+        "field": "ext_industry_seasonality",
+        "value": 0.1179,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "S9611 미용 관련 서비스업 및 마사지업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "CAFE",
+        "field": "ext_peer_sales_growth_3m",
+        "value": -0.0001,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I5622 커피 등 비알코올 음료점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "CAFE",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0424,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I5622 커피 등 비알코올 음료점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "CAFE",
+        "field": "ext_industry_growth_6m",
+        "value": -0.0252,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I5622 커피 등 비알코올 음료점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "CAFE",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0344,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I5622 커피 등 비알코올 음료점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "CAFE",
+        "field": "ext_industry_seasonality",
+        "value": 0.2107,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I5622 커피 등 비알코올 음료점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "LODGING",
+        "field": "ext_peer_sales_growth_3m",
+        "value": -0.0523,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I551 일반 및 생활 숙박시설 운영업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "LODGING",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0476,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I551 일반 및 생활 숙박시설 운영업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "LODGING",
+        "field": "ext_industry_growth_6m",
+        "value": -0.0674,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I551 일반 및 생활 숙박시설 운영업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "LODGING",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0451,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I551 일반 및 생활 숙박시설 운영업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "LODGING",
+        "field": "ext_industry_seasonality",
+        "value": 0.2297,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I551 일반 및 생활 숙박시설 운영업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "ONLINE_SHOPPING",
+        "field": "ext_peer_sales_growth_3m",
+        "value": 0.0145,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G4791 통신 판매업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ONLINE_SHOPPING",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0345,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G4791 통신 판매업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ONLINE_SHOPPING",
+        "field": "ext_industry_growth_6m",
+        "value": 0.0695,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G4791 통신 판매업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ONLINE_SHOPPING",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0568,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G4791 통신 판매업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "ONLINE_SHOPPING",
+        "field": "ext_industry_seasonality",
+        "value": 0.113,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G4791 통신 판매업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": false
+      },
+      {
+        "industry": "RESTAURANT",
+        "field": "ext_peer_sales_growth_3m",
+        "value": 0.0259,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I561 음식점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "RESTAURANT",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.03,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I561 음식점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "RESTAURANT",
+        "field": "ext_industry_growth_6m",
+        "value": 0.0219,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I561 음식점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "RESTAURANT",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0273,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I561 음식점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "RESTAURANT",
+        "field": "ext_industry_seasonality",
+        "value": 0.1358,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "I561 음식점업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "TRANSPORT",
+        "field": "ext_peer_sales_growth_3m",
+        "value": 0.035,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "H493 도로 화물 운송업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "TRANSPORT",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0366,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "H493 도로 화물 운송업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "TRANSPORT",
+        "field": "ext_industry_growth_6m",
+        "value": 0.0144,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "H493 도로 화물 운송업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "TRANSPORT",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0429,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "H493 도로 화물 운송업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "TRANSPORT",
+        "field": "ext_industry_seasonality",
+        "value": 0.1128,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "H493 도로 화물 운송업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "WHOLESALE_SMALL_MANUFACTURING",
+        "field": "ext_peer_sales_growth_3m",
+        "value": -0.0019,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G46 도매 및 상품 중개업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "WHOLESALE_SMALL_MANUFACTURING",
+        "field": "ext_peer_sales_volatility_6m",
+        "value": 0.0238,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G46 도매 및 상품 중개업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "WHOLESALE_SMALL_MANUFACTURING",
+        "field": "ext_industry_growth_6m",
+        "value": -0.014,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G46 도매 및 상품 중개업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "WHOLESALE_SMALL_MANUFACTURING",
+        "field": "ext_industry_volatility_12m",
+        "value": 0.0623,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G46 도매 및 상품 중개업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      },
+      {
+        "industry": "WHOLESALE_SMALL_MANUFACTURING",
+        "field": "ext_industry_seasonality",
+        "value": 0.1069,
+        "source_type": "derived_from_KOSIS",
+        "kosis_classification": "G46 도매 및 상품 중개업",
+        "reference_month": "202606",
+        "seasonal_adjustment": "self_estimated",
+        "validated_against_kosis": true
+      }
+    ]
+  },
+  "caveat": [
+    "KOSIS 서비스업생산지수 기반 5필드가 9업종에서 채워졌다. OFFLINE_RETAIL과 INTERIOR는 축 대응이 안 돼 비어 있다. 사유는 coverage_matrix.json의 source_axis.unmapped 참조.",
+    "성장률·변동성·계절성은 전부 '자체 계절조정' 계열에서 나온 값이다. 지수 원계열은 KOSIS가 준 것이지만 계절조정은 이쪽에서 했다. source_type=derived_from_KOSIS인 이유이며, 9업종에 같은 산식을 써서 업종 간 비교가 방법 차이에 오염되지 않게 했다.",
+    "변동성의 절대 수준은 계절조정 방법에 의존한다. KOSIS X-13 대비 약 2배 높게 나오므로 다른 통계와 절대 비교하지 말고 9업종 사이의 상대 비교로만 읽는다.",
+    "KREI 외식업체경영실태조사를 이번 전달에서 제외했다. 사유는 lineage.excluded_sources 참조.",
+    "ext_sales_growth_gap_peer·ext_cost_ratio_gap_peer는 런타임 파생값이므로 이 레이어가 값을 채우면 안 된다. 이 2필드 22칸은 영구 null이다.",
+    "채울 수 있는 칸의 상한은 132가 아니라 108이다. coverage_matrix.json 참조."
+  ]
+}

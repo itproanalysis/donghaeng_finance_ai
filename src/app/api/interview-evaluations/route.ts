@@ -51,6 +51,15 @@ function optionalDate(parameters: URLSearchParams, key: "from" | "to"): string |
 
 function evaluationListQuery(request: Request): EvaluationListQuery {
   const parameters = new URL(request.url).searchParams;
+  const integer = (key: string, fallback: number, min: number, max: number) => {
+    const raw = parameters.get(key);
+    if (raw === null) return fallback;
+    const value = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < min || value > max) {
+      throw new ApplicationError(400, "INVALID_EVALUATION_FILTER", `${key} 목록 범위가 올바르지 않습니다.`);
+    }
+    return value;
+  };
   const level = optionalText(parameters, "level", 16);
   if (level && !LEVELS.has(level)) {
     throw new ApplicationError(
@@ -76,6 +85,8 @@ function evaluationListQuery(request: Request): EvaluationListQuery {
     level: level as EvaluationListQuery["level"],
     from,
     to,
+    limit: integer("limit", 24, 1, 100),
+    offset: integer("offset", 0, 0, 100_000),
   };
 }
 

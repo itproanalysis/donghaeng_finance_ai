@@ -1,5 +1,6 @@
 # dependencies
 /node_modules/
+/.venv/
 
 # Next.js
 /.next/
@@ -27,3 +28,8 @@ __pycache__/
 
 # TypeScript
 *.tsbuildinfo
+
+# local-only working notes and reference material
+/references/
+/tasks/
+docs/plan.md

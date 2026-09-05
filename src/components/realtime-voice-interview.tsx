@@ -12,7 +12,6 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  ApiRequestError,
   authenticatedFetch,
   readApiEnvelope,
 } from "@/components/api-adapter";
@@ -22,6 +21,7 @@ import {
   parseRealtimeVoiceEvent,
 } from "@/realtime/openai-realtime-voice";
 import type { AudioUxState, LiveConnectionState } from "@/realtime/live-store";
+import { checkMicrophoneConsent, checkVoiceProcessingConsent, isMicrophoneConsentRequired, voiceConnectionFailure } from "./voice-connection-preflight";
 
 interface RealtimeVoiceInterviewProps {
   interviewId: string;
@@ -78,11 +78,29 @@ export function RealtimeVoiceInterview({
   const [assistantTranscript, setAssistantTranscript] = useState("");
   const [providerLabel, setProviderLabel] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [consentState, setConsentState] = useState<"checking" | "required" | "ready">("checking");
+  const [microphoneConsent, setMicrophoneConsent] = useState(false);
+  const [canUseAlternative, setCanUseAlternative] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void checkMicrophoneConsent(interviewId).then(() => {
+      if (active) setConsentState("ready");
+    }).catch((caught: unknown) => {
+      if (!active) return;
+      if (isMicrophoneConsentRequired(caught)) setConsentState("required");
+      else { setConsentState("ready"); setError(voiceConnectionFailure(caught).message); }
+    });
+    return () => { active = false; };
+  }, [interviewId]);
 
   const peerRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const reviewCallRef = useRef<{ id: string; interviewId: string } | null>(null);
+  const reviewDeadlineRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const channelDeadlineRef = useRef<number | null>(null);
   const mountedRef = useRef(false);
   const startRunRef = useRef(0);
   const responseActiveRef = useRef(false);
@@ -117,6 +135,20 @@ export function RealtimeVoiceInterview({
   }, [connection, onBusyChange, onStatusChange, providerLabel, uxState]);
 
   const closeRealtime = useCallback((updateState = true) => {
+    if (channelDeadlineRef.current) clearTimeout(channelDeadlineRef.current);
+    channelDeadlineRef.current = null;
+    if (reviewDeadlineRef.current) clearTimeout(reviewDeadlineRef.current);
+    reviewDeadlineRef.current = null;
+    const reviewCall = reviewCallRef.current;
+    reviewCallRef.current = null;
+    if (reviewCall) {
+      // Best effort on navigation; the server's persistent deadline is the
+      // authoritative limit even when a browser disappears without this call.
+      void fetch(`/api/interviews/${encodeURIComponent(reviewCall.interviewId)}/realtime-call`, {
+        method: "DELETE", credentials: "include", keepalive: true,
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ callId: reviewCall.id }),
+      }).catch(() => undefined);
+    }
     startRunRef.current += 1;
     pendingQuestionRef.current = null;
     responseActiveRef.current = false;
@@ -264,19 +296,25 @@ export function RealtimeVoiceInterview({
   }, [sendQuestionNow]);
 
   const startRealtime = useCallback(async () => {
-    if (started || connection === "CONNECTING" || disabled) return;
+    if (started || connection === "CONNECTING" || disabled || consentState === "checking" || (consentState === "required" && !microphoneConsent)) return;
     closeRealtime(false);
     const runId = startRunRef.current + 1;
     startRunRef.current = runId;
     setConnection("CONNECTING");
     setUxState("AI_THINKING");
     setError(null);
+    setCanUseAlternative(false);
     setInterimTranscript("");
     setFinalTranscript("");
     setAssistantTranscript("");
     lastQuestionKeyRef.current = null;
     includeWelcomeRef.current = true;
     try {
+      await checkVoiceProcessingConsent(interviewId);
+      if (runId !== startRunRef.current) return;
+      await checkMicrophoneConsent(interviewId, consentState === "required" && microphoneConsent);
+      if (runId !== startRunRef.current) return;
+      setConsentState("ready");
       if (!navigator.mediaDevices?.getUserMedia || typeof RTCPeerConnection === "undefined") {
         throw new Error("이 브라우저는 실시간 음성 통화를 지원하지 않습니다.");
       }
@@ -303,9 +341,12 @@ export function RealtimeVoiceInterview({
         },
       );
       const tokenPayload = await readApiEnvelope(tokenResponse);
+      if (runId !== startRunRef.current) return;
+      const serverTransport = typeof tokenPayload === "object" && tokenPayload !== null &&
+        "transport" in tokenPayload && tokenPayload.transport === "server";
       const token = parseRealtimeClientSecret(tokenPayload);
-      if (!token) throw new Error("실시간 음성 연결 정보를 확인하지 못했습니다.");
-      setProviderLabel(`OpenAI · ${token.model} · ${token.voice}`);
+      if (!token && !serverTransport) throw new Error("실시간 음성 연결 정보를 확인하지 못했습니다.");
+      setProviderLabel(serverTransport ? "실시간 음성 · 최대 10분 · 하루 2회" : `OpenAI · ${token!.model} · ${token!.voice}`);
 
       const peer = new RTCPeerConnection();
       peerRef.current = peer;
@@ -339,8 +380,9 @@ export function RealtimeVoiceInterview({
       const channelOpen = new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(
           () => reject(new Error("실시간 통화 연결 시간이 초과되었습니다.")),
-          CONNECTION_TIMEOUT_MS,
+          CONNECTION_TIMEOUT_MS + 20_000,
         );
+        channelDeadlineRef.current = timeout;
         dataChannel.addEventListener("open", () => {
           window.clearTimeout(timeout);
           resolve();
@@ -351,12 +393,35 @@ export function RealtimeVoiceInterview({
         }, { once: true });
       });
 
+      // SDP rejection can exit before awaiting channelOpen. Mark rejection as
+      // handled now; the awaited original still reports connection failures.
+      void channelOpen.catch(() => undefined);
+
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
-      const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
+      let answerSdp: string;
+      if (serverTransport) {
+        const callResponse = await authenticatedFetch(`/api/interviews/${encodeURIComponent(interviewId)}/realtime-call`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sdp: offer.sdp ?? "" }), signal: AbortSignal.timeout(20_000),
+        });
+        const call = await readApiEnvelope(callResponse) as { id: string; sdp: string; deadline: string };
+        if (typeof call.id !== "string" || typeof call.sdp !== "string" || !Number.isFinite(Date.parse(call.deadline))) {
+          throw new Error("실시간 통화 응답을 확인하지 못했습니다.");
+        }
+        reviewCallRef.current = { id: call.id, interviewId };
+        if (runId !== startRunRef.current) { closeRealtime(false); return; }
+        answerSdp = call.sdp;
+        reviewDeadlineRef.current = setTimeout(() => {
+          closeRealtime();
+          setError("10분 통화가 끝났습니다. 답변은 저장되어 있으며 채팅으로 계속하거나 다시 연결할 수 있습니다.");
+          setCanUseAlternative(true);
+        }, Math.max(0, Date.parse(call.deadline) - Date.now()));
+      } else {
+        const sdpResponse = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token.value}`,
+          Authorization: `Bearer ${token!.value}`,
           "Content-Type": "application/sdp",
         },
         body: offer.sdp ?? "",
@@ -365,7 +430,8 @@ export function RealtimeVoiceInterview({
       if (!sdpResponse.ok) {
         throw new Error("실시간 통화 연결을 승인받지 못했습니다.");
       }
-      const answerSdp = await sdpResponse.text();
+        answerSdp = await sdpResponse.text();
+      }
       if (!answerSdp.trim()) throw new Error("실시간 통화 응답이 비어 있습니다.");
       await peer.setRemoteDescription({ type: "answer", sdp: answerSdp });
       await channelOpen;
@@ -380,17 +446,15 @@ export function RealtimeVoiceInterview({
         includeWelcome: includeWelcomeRef.current,
       });
     } catch (caught) {
+      if (runId !== startRunRef.current) return;
       closeRealtime(false);
       if (!mountedRef.current) return;
-      const message = caught instanceof ApiRequestError
-        ? caught.message
-        : caught instanceof Error
-          ? caught.message
-          : "실시간 음성 연결을 시작하지 못했습니다.";
+      const failure = voiceConnectionFailure(caught);
+      if (isMicrophoneConsentRequired(caught)) { setConsentState("required"); setMicrophoneConsent(false); }
       setConnection("ERROR");
       setUxState("ERROR");
-      setError(message);
-      onUnavailable(message);
+      setError(failure.message);
+      setCanUseAlternative(failure.canUseAlternative);
     }
   }, [
     closeRealtime,
@@ -399,7 +463,8 @@ export function RealtimeVoiceInterview({
     disabled,
     handleRealtimeMessage,
     interviewId,
-    onUnavailable,
+    consentState,
+    microphoneConsent,
     questionKey,
     requestQuestionSpeech,
     started,
@@ -457,8 +522,8 @@ export function RealtimeVoiceInterview({
         <div className="realtime-voice-call__identity">
           <span className="realtime-voice-call__pulse" aria-hidden="true"><Waves size={18} /></span>
           <div>
-            <strong>동행 AI 실시간 음성</strong>
-            <small>{providerLabel ?? "WebRTC · GPT-Realtime-2.1 연결 준비"}</small>
+            <strong>음성 인터뷰</strong>
+            <small>AI와 실시간으로 대화합니다</small>
           </div>
         </div>
         <span className="realtime-voice-call__status" role="status" aria-live="polite">
@@ -467,17 +532,18 @@ export function RealtimeVoiceInterview({
         </span>
       </div>
 
+      {consentState === "required" && !started && <label className="borrower-consent realtime-voice-call__consent"><input type="checkbox" checked={microphoneConsent} disabled={connection === "CONNECTING"} onChange={(event) => setMicrophoneConsent(event.target.checked)} /><span>마이크로 말한 내용을 전사하고 인터뷰 답변으로 저장하는 데 동의합니다.<small>음성 대화는 OpenAI에서 처리합니다. 음성 원본은 이 서비스에 저장하지 않으며, 언제든 음소거하거나 채팅으로 바꿀 수 있습니다.</small></span></label>}
       {!started ? (
         <button
           type="button"
           className="borrower-voice-start realtime-voice-call__start"
           onClick={() => void startRealtime()}
-          disabled={disabled || connection === "CONNECTING"}
+          disabled={disabled || connection === "CONNECTING" || consentState === "checking" || (consentState === "required" && !microphoneConsent)}
         >
           {connection === "CONNECTING"
             ? <LoaderCircle className="spin" size={18} />
             : <Headphones size={18} />}
-          {connection === "CONNECTING" ? "실시간 통화 연결 중" : "실시간 음성 대화 시작"}
+          {consentState === "checking" ? "음성 이용 안내 확인 중" : connection === "CONNECTING" ? "실시간 통화 연결 중" : connection === "ERROR" ? "음성 연결 다시 시도" : "실시간 음성 대화 시작"}
         </button>
       ) : (
         <>
@@ -506,6 +572,11 @@ export function RealtimeVoiceInterview({
         </>
       )}
       {error && <p className="realtime-voice-call__error" role="alert">{error}</p>}
+      {!started && error && canUseAlternative && <button type="button" className="borrower-text-button" onClick={() => onUnavailable(error)}>문장 단위 음성으로 전환</button>}
+      <details className="realtime-voice-call__connection-info">
+        <summary>음성 연결 정보</summary>
+        <p>{providerLabel ?? "WebRTC · GPT-Realtime-2.1 연결 준비"}</p>
+      </details>
     </section>
   );
 }

@@ -1,0 +1,67 @@
+.workflow { color: #293e34; font-size: .9rem; line-height: 1.7; }
+.heading { margin-bottom: 24px; }
+.heading h2 { font-size: 1.45rem; margin: 0 0 8px; letter-spacing: -.035em; }
+.heading p, .heading > span { color: #647369; margin: 0; }
+.heading > span { display: block; font-size: .8rem; margin-bottom: 10px; }
+.paper { padding: 22px 0; border-top: 1px solid #d5ded7; }
+.paper h3, .report h3, .opinionForm h3 { font-size: 1.05rem; margin: 0 0 15px; }
+.paper > p { color: #647369; }
+.sectionTitle { display: flex; justify-content: space-between; align-items: baseline; gap: 15px; }
+.sectionTitle > span { color: #68786c; font-size: .8rem; }
+.goalValues { display: grid; grid-template-columns: repeat(3, 1fr); gap: 25px; padding: 15px 0; margin: 0; }
+.goalValues dt { color: #6a786e; font-size: .85rem; }
+.goalValues dd { margin: 6px 0; font-size: 1.7rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.rule { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; border-block: 1px solid #e0e6df; padding: 14px 0; }
+.rule > span { color: #607265; }
+.rule button, .empty button { padding: 6px 0; background: none; border: 0; text-decoration: underline; text-underline-offset: 4px; color: #24513c; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font: inherit; }
+.facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin: 20px 0; }
+.facts dt { color: #758077; font-size: .8rem; }
+.facts dd { margin: 4px 0; }
+.note { color: #647369; font-size: .8rem; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 22px; }
+.button, .primary { min-height: 42px; padding: 9px 15px; border: 1px solid #b9c7bd; border-radius: 3px; background: white; color: #294d3a; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; gap: 8px; font: inherit; font-size: .85rem; }
+.primary { background: #24513c; color: white; border-color: #24513c; }
+.button:disabled { opacity: .5; cursor: default; }
+.tableWrap { overflow-x: auto; max-width: 100%; }
+.tableWrap table { width: 100%; text-align: left; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .85rem; }
+.tableWrap th, .tableWrap td { padding: 12px 15px; border-bottom: 1px solid #dfe5df; }
+.tableWrap th { font-weight: 500; }
+.tableWrap thead { color: #6d7a70; background: #f5f7f3; }
+.tableWrap td { color: #4b6153; }
+.tableWrap th small { display: block; color: #718175; font-size: .7rem; }
+.tableWrap caption { text-align: left; font-size: .8rem; color: #6b7970; padding-bottom: 12px; }
+.empty { padding: 25px; background: #f5f7f3; border: 1px solid #dbe2da; }
+.empty h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.empty p { color: #627468; }
+.goalResult { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 23px 25px; background: #f0f5ed; border-left: 3px solid #456744; }
+.goalResult span { display: block; font-size: .8rem; color: #627367; }
+.goalResult strong { display: block; margin-top: 7px; font-size: 1.65rem; font-variant-numeric: tabular-nums; }
+.goalResult b { margin-left: 10px; color: #24513c; }
+.comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; margin: 28px 0 20px; }
+.comparison > section { border: 1px solid #dbe3d9; padding: 22px; }
+.comparison h3 { margin: 0 0 10px; font-size: 1rem; }
+.axis { padding: 12px 0; }
+.axis > span { font-size: .85rem; color: #68786c; }
+.axis > strong { display: block; font-size: 1.9rem; font-variant-numeric: tabular-nums; line-height: 1.5; }
+.axis small { font-weight: 400; font-size: .85rem; color: #6f7b71; }
+.axis p { margin: 2px 0 0; font-size: .8rem; color: #69786e; }
+.boundary { border-left: 2px solid #9dab99; padding: 5px 0 5px 16px; color: #657363; font-size: .85rem; }
+.paper > summary { cursor: pointer; font-weight: 500; }
+.paper[open] > summary { margin-bottom: 16px; }
+.report { border: 1px solid #cfdacf; padding: 30px 35px; background: white; }
+.report section { padding: 20px 0; border-top: 1px solid #dce3da; }
+.report section p { margin: 8px 0; }
+.reportAxes { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+.report footer { font-size: .75rem; color: #71816f; border-top: 1px solid #dce3da; padding-top: 16px; }
+.pending { display: flex; flex-wrap: wrap; list-style: none; gap: 4px 20px; padding: 0; font-size: .8rem; color: #687969; }
+.savedNote { white-space: pre-wrap; overflow-wrap: anywhere; }
+.opinionForm { padding-top: 30px; display: grid; gap: 8px; }
+.opinionForm label { margin-top: 8px; font-size: .85rem; }
+.opinionForm select, .opinionForm textarea { background: white; color: #294535; padding: 11px; border: 1px solid #bac9ba; border-radius: 3px; font: inherit; max-width: 100%; }
+.opinionForm select { width: 250px; }
+.opinionForm textarea { width: 100%; resize: vertical; }
+.opinionForm > button { justify-self: start; }
+.feedback { min-height: 24px; color: #416842; font-size: .8rem; margin: 18px 0 0; }
+.workflow :is(button, select, textarea, summary):focus-visible { outline: 2px solid #24513c; outline-offset: 3px; }
+@media (max-width: 700px) { .facts { grid-template-columns: 1fr; gap: 10px; } .goalValues { gap: 12px; } .goalValues dd { font-size: 1.2rem; } .goalResult { flex-direction: column; align-items: flex-start; gap: 0; padding: 18px; } .comparison { gap: 12px; } .comparison > section { padding: 15px; } .tableWrap table { min-width: 560px; } .sectionTitle { flex-direction: column; gap: 0; margin-bottom: 15px; } .sectionTitle h3 { margin-bottom: 4px; } .report { padding: 22px 18px; } .reportAxes { gap: 16px; } }
+@media print { .report { border: 0; padding: 0; color: black; font-size: 10pt; } .report section { break-inside: avoid; } .report .axis strong { font-size: 20pt; } }

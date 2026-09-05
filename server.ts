@@ -48,6 +48,10 @@ import {
 import { AuthService } from "./src/server/auth";
 import { applyCustomServerRuntimeMode } from "./src/server/runtime-mode";
 import { assertCustomServerAuthenticationConfigured } from "./src/server/production-auth-policy";
+import { initializeIapVerifier, isGoogleIapMode, verifyIapRequest } from "./src/server/iap-auth";
+import { iapAudioRenewalDelay } from "./src/realtime/server/iap-audio-renewal";
+import { isPublicReviewMode, reserveReviewUsage } from "./src/server/public-review";
+import { PublicReviewRealtime } from "./src/server/public-review-realtime";
 
 const development = process.argv.includes("--dev");
 applyCustomServerRuntimeMode(development);
@@ -97,6 +101,7 @@ interface ConnectionState {
   interviewId: string;
   tenantId: string | null;
   cookie: string;
+  iapAssertion: string;
   principalKey: string;
   activeSocket: WebSocket;
   audioSessionId: string | null;
@@ -159,10 +164,11 @@ function authenticateAudioRequest(
   interviewId: string,
   cookie: string,
   origin: string,
+  iapAssertion = "",
 ) {
   const principal = getCustomServerAuthService().authenticate(
     new Request(`${origin}/ws/interviews/${encodeURIComponent(interviewId)}/audio`, {
-      headers: { cookie },
+      headers: { cookie, "x-goog-iap-jwt-assertion": iapAssertion },
     }),
   );
   new ConsentService(getDatabase()).assertEffectiveConsent(
@@ -170,6 +176,10 @@ function authenticateAudioRequest(
     "MICROPHONE_INTERVIEW",
     principal,
   );
+  const sttEndpoint = new URL((process.env.DONGHAENG_STT_ENDPOINT || "https://api.openai.com/v1/audio/transcriptions").trim());
+  if (isPublicReviewMode() || !["127.0.0.1", "localhost", "[::1]"].includes(sttEndpoint.hostname)) {
+    new ConsentService(getDatabase()).assertEffectiveConsent(interviewId, "CLOUD_AI_PROCESSING", principal);
+  }
   return principal;
 }
 
@@ -178,11 +188,13 @@ function newConnectionState(
   cookie: string,
   principalKey: string,
   socket: WebSocket,
+  iapAssertion = "",
 ): ConnectionState {
   return {
     interviewId,
     tenantId: null,
     cookie,
+    iapAssertion,
     principalKey,
     activeSocket: socket,
     audioSessionId: null,
@@ -304,7 +316,7 @@ async function fetchInterviewContext(
   const result = await fetchInternalApi(
     `http://127.0.0.1:${port}/api/interviews/${encodeURIComponent(state.interviewId)}`,
     {
-      headers: { cookie: state.cookie },
+      headers: { cookie: state.cookie, "x-goog-iap-jwt-assertion": state.iapAssertion },
     },
     signal,
   );
@@ -347,6 +359,7 @@ async function persistFinalTranscript(
       headers: {
         "content-type": "application/json",
         cookie: state.cookie,
+        "x-goog-iap-jwt-assertion": state.iapAssertion,
         origin:
           process.env.DONGHAENG_APP_ORIGIN || `http://${hostname}:${port}`,
       },
@@ -488,7 +501,19 @@ function parseControl(raw: RawData): AudioControlMessage {
 }
 
 async function startServer(): Promise<void> {
+if (isGoogleIapMode()) await initializeIapVerifier();
 await application.prepare();
+if (isPublicReviewMode()) {
+  const calls = new PublicReviewRealtime(getDatabase());
+  let sweeping = false;
+  const sweep = async () => {
+    if (sweeping) return;
+    sweeping = true;
+    try { await calls.sweep(); } finally { sweeping = false; }
+  };
+  void sweep();
+  setInterval(() => { void sweep(); }, 5_000).unref();
+}
 
 // Fail before binding a public port when the production Claude provider or
 // its server-only credential is missing/invalid. This guard is deliberately
@@ -498,6 +523,19 @@ await application.prepare();
 assertConfiguredInterviewProvider();
 
 const server = createServer((request, response) => {
+  if (isGoogleIapMode()) {
+    try {
+      verifyIapRequest(new Request(process.env.DONGHAENG_APP_ORIGIN!, {
+        headers: { "x-goog-iap-jwt-assertion": typeof request.headers["x-goog-iap-jwt-assertion"] === "string" ? request.headers["x-goog-iap-jwt-assertion"] : "" },
+      }));
+    } catch (error) {
+      response.writeHead(error instanceof ApplicationError ? error.status : 401, {
+        "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store",
+      });
+      response.end(JSON.stringify({ data: null, error: { code: error instanceof ApplicationError ? error.code : "IAP_ASSERTION_INVALID", message: "Google 인증을 확인한 뒤 접속해 주세요." } }));
+      return;
+    }
+  }
   void handle(request, response);
 });
 
@@ -553,6 +591,7 @@ server.on("upgrade", (request, socket, head) => {
       decodedInterviewId,
       request.headers.cookie || "",
       expectedOrigin,
+      typeof request.headers["x-goog-iap-jwt-assertion"] === "string" ? request.headers["x-goog-iap-jwt-assertion"] : "",
     );
     principalKey = audioPrincipalOwnershipKey(principal);
   } catch (caught) {
@@ -596,8 +635,24 @@ websocketServer.on(
       request.headers.cookie || "",
       principalKey,
       socket,
+      typeof request.headers["x-goog-iap-jwt-assertion"] === "string" ? request.headers["x-goog-iap-jwt-assertion"] : "",
     );
     let messageChain = Promise.resolve();
+    let authenticationRenewalTimer: ReturnType<typeof setTimeout> | null = null;
+    if (isGoogleIapMode()) {
+      const identity = verifyIapRequest(new Request(process.env.DONGHAENG_APP_ORIGIN!, { headers: { "x-goog-iap-jwt-assertion": state.iapAssertion } }));
+      const renew = () => {
+        if (socket.readyState !== WebSocket.OPEN) return;
+        // Never interrupt the bounded final-transcript transaction. Normal
+        // finalization closes this socket; a long capture resumes by sequence.
+        if (state.endTurnRequested || state.finalized) {
+          authenticationRenewalTimer = setTimeout(renew, 1_000);
+          return;
+        }
+        socket.close(4001, "refresh Google authentication");
+      };
+      authenticationRenewalTimer = setTimeout(renew, iapAudioRenewalDelay(identity.expiresAt, Date.now()));
+    }
     let messageWindowStartedAt = Date.now();
     let messagesInWindow = 0;
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -700,6 +755,7 @@ websocketServer.on(
               interviewId,
               request.headers.cookie || "",
               process.env.DONGHAENG_APP_ORIGIN || `http://${hostname}:${port}`,
+              typeof request.headers["x-goog-iap-jwt-assertion"] === "string" ? request.headers["x-goog-iap-jwt-assertion"] : "",
             );
             const requestPrincipalKey = audioPrincipalOwnershipKey(principal);
             const existing = resumableAudioSessions.get(control.audioSessionId);
@@ -742,6 +798,8 @@ websocketServer.on(
               existing.cleanupTimer = null;
               existing.activeSocket = socket;
               state = existing;
+              state.cookie = request.headers.cookie || "";
+              state.iapAssertion = typeof request.headers["x-goog-iap-jwt-assertion"] === "string" ? request.headers["x-goog-iap-jwt-assertion"] : "";
               if (!state.finalized) {
                 beginAudioTurnLease(state);
               }
@@ -787,6 +845,7 @@ websocketServer.on(
                 request.headers.cookie || "",
                 requestPrincipalKey,
                 socket,
+                typeof request.headers["x-goog-iap-jwt-assertion"] === "string" ? request.headers["x-goog-iap-jwt-assertion"] : "",
               );
               await fetchInterviewContext(state);
               if (socket.readyState !== WebSocket.OPEN) {
@@ -803,6 +862,7 @@ websocketServer.on(
               state.operationController = new AbortController();
               beginAudioTurnLease(state);
               const sessionState = state;
+              reserveReviewUsage(getDatabase(), "stt", principal.tenantId, 4);
               state.session = sttAdapter.createSession({
                 locale: "ko-KR",
                 mimeType: control.mimeType,
@@ -977,6 +1037,7 @@ websocketServer.on(
     });
 
     socket.on("close", () => {
+      if (authenticationRenewalTimer) clearTimeout(authenticationRenewalTimer);
       if (idleTimer) clearTimeout(idleTimer);
       if (state.audioSessionId && state.activeSocket === socket) {
         const retainedState = state;
@@ -1030,9 +1091,12 @@ server.listen(port, hostname, () => {
 });
 
 let shuttingDown = false;
-const shutdown = () => {
+const shutdown = async () => {
   if (shuttingDown) return;
   shuttingDown = true;
+  const shutdownDeadline = setTimeout(() => process.exit(1), 15_000);
+  shutdownDeadline.unref();
+  if (isPublicReviewMode()) await new PublicReviewRealtime(getDatabase()).sweep(true);
   for (const client of websocketServer.clients) {
     client.close(1001, "server shutdown");
   }
@@ -1046,7 +1110,6 @@ const shutdown = () => {
       process.exit(0);
     }
   });
-  setTimeout(() => process.exit(1), 5_000).unref();
 };
 process.once("SIGINT", shutdown);
 process.once("SIGTERM", shutdown);

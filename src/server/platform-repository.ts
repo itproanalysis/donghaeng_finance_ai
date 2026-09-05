@@ -107,6 +107,28 @@ export interface ListEvaluationRecordsOptions {
   offset?: number;
 }
 
+const EVALUATION_LIST_JOINS = `FROM evaluations e
+  JOIN interviews i ON i.id = e.interview_id
+  JOIN borrowers b ON b.id = i.borrower_id AND b.tenant_id = i.tenant_id
+  JOIN business_profiles p ON p.id = i.business_profile_id AND p.tenant_id = i.tenant_id
+  JOIN final_snapshots f ON f.id = e.final_snapshot_id`;
+const EVALUATION_LEVEL = "COALESCE(json_extract(e.evaluation_json, '$.overall.grade'), json_extract(e.evaluation_json, '$.overall.level'), 'UNGRADED')";
+
+function evaluationFilters(tenantId: string, options: ListEvaluationRecordsOptions) {
+  const conditions = ["i.tenant_id = ?"];
+  const params: Array<string | number> = [tenantId];
+  if (options.industry?.trim()) { conditions.push("p.industry = ?"); params.push(options.industry.trim()); }
+  if (options.from?.trim()) { conditions.push("e.created_at >= ?"); params.push(options.from.trim()); }
+  if (options.to?.trim()) { conditions.push("e.created_at <= ?"); params.push(options.to.trim() + "T23:59:59.999Z"); }
+  if (options.search?.trim()) {
+    const term = `%${options.search.trim().replace(/[\\%_]/g, "\\$&")}%`;
+    conditions.push("(b.name LIKE ? ESCAPE '\\' OR p.business_name LIKE ? ESCAPE '\\' OR p.industry LIKE ? ESCAPE '\\' OR i.id LIKE ? ESCAPE '\\' OR e.id LIKE ? ESCAPE '\\')");
+    params.push(term, term, term, term, term);
+  }
+  if (options.level?.trim()) { conditions.push(`${EVALUATION_LEVEL} = ?`); params.push(options.level.trim()); }
+  return { where: conditions.join(" AND "), params };
+}
+
 interface AggregateRow {
   id: unknown;
   tenant_id: unknown;
@@ -214,35 +236,7 @@ export class PlatformRepository {
     const limit = Math.min(500, Math.max(1, Math.trunc(options.limit ?? 200)));
     const offset = Math.max(0, Math.trunc(options.offset ?? 0));
 
-    const conditions: string[] = ["i.tenant_id = ?"];
-    const params: Array<string | number> = [tenantId];
-
-    if (options.industry?.trim()) {
-      conditions.push("p.industry = ?");
-      params.push(options.industry.trim());
-    }
-    if (options.from?.trim()) {
-      conditions.push("e.created_at >= ?");
-      params.push(options.from.trim());
-    }
-    if (options.to?.trim()) {
-      conditions.push("e.created_at <= ?");
-      params.push(options.to.trim() + "T23:59:59.999Z");
-    }
-    if (options.search?.trim()) {
-      const term = `%${options.search.trim()}%`;
-      conditions.push(
-        "(b.name LIKE ? OR p.business_name LIKE ? OR p.industry LIKE ? OR i.id LIKE ? OR e.id LIKE ?)",
-      );
-      params.push(term, term, term, term, term);
-    }
-    if (options.level?.trim()) {
-      conditions.push(
-        "(COALESCE(json_extract(e.evaluation_json, '$.overall.grade'), json_extract(e.evaluation_json, '$.overall.level')) = ?)",
-      );
-      params.push(options.level.trim());
-    }
-
+    const { where, params } = evaluationFilters(tenantId, options);
     params.push(limit, offset);
 
     const querySql = `SELECT
@@ -263,13 +257,8 @@ export class PlatformRepository {
                AND g.evaluation_id = e.id
                AND g.status = 'BORROWER_CONFIRMED'
            ) AS confirmed_goal_count
-         FROM evaluations e
-         JOIN interviews i ON i.id = e.interview_id
-         JOIN borrowers b ON b.id = i.borrower_id AND b.tenant_id = i.tenant_id
-         JOIN business_profiles p
-           ON p.id = i.business_profile_id AND p.tenant_id = i.tenant_id
-         JOIN final_snapshots f ON f.id = e.final_snapshot_id
-         WHERE ${conditions.join(" AND ")}
+         ${EVALUATION_LIST_JOINS}
+         WHERE ${where}
          ORDER BY e.created_at DESC, e.id DESC
          LIMIT ? OFFSET ?`;
 
@@ -289,6 +278,14 @@ export class PlatformRepository {
         evaluation: parseStoredObject(row.evaluation_json, "evaluation"),
         finalSnapshot: parseStoredObject(row.snapshot_json, "final snapshot"),
       }));
+  }
+
+  evaluationListMetadata(tenantId: string, options: ListEvaluationRecordsOptions = {}) {
+    const { where, params } = evaluationFilters(tenantId, options);
+    const count = this.database.prepare(`SELECT COUNT(*) AS total ${EVALUATION_LIST_JOINS} WHERE ${where}`).get(...params);
+    // Facets inspect scalar fields across the tenant, never hundreds of full transcripts.
+    const facets = this.database.prepare(`SELECT DISTINCT p.industry, ${EVALUATION_LEVEL} AS level ${EVALUATION_LIST_JOINS} WHERE i.tenant_id = ?`).all(tenantId);
+    return { total: Number(count?.total ?? 0), facets: facets.map(row => ({ industry: String(row.industry), level: String(row.level) })) };
   }
 
   getCommandReceipt<T>(

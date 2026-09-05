@@ -158,6 +158,8 @@ describe("OpenAPI contract", () => {
       ["/auth/session", "post", "createSession"],
       ["/auth/session", "delete", "deleteSession"],
       ["/auth/me", "get", "getCurrentIdentity"],
+      ["/demo/modeling", "get", "listDemoModelingCases"],
+      ["/demo/modeling/{caseId}", "get", "getDemoModelingCase"],
       ["/voice/speech", "post", "synthesizeQuestionSpeech"],
       ["/interviews", "post", "createInterview"],
       ["/interviews/{id}", "get", "getInterview"],
@@ -194,7 +196,7 @@ describe("OpenAPI contract", () => {
   it("documents local bootstrap/session principal shapes and the session cookie", () => {
     const productionAuthentication = property(document, "x-production-authentication");
     expect(productionAuthentication).toMatchObject({
-      status: "EXTERNAL_IDP_NOT_IMPLEMENTED",
+      status: "EXPLICIT_PRODUCTION_MODES",
       failClosed: true,
       errorStatus: 503,
       errorCode: "PRODUCTION_IDP_NOT_CONFIGURED",
@@ -262,6 +264,8 @@ describe("OpenAPI contract", () => {
       "ConsentDecisionSuccessEnvelope",
       "TranscriptCorrectionSuccessEnvelope",
       "RetentionSuccessEnvelope",
+      "ModelingIndexSuccessEnvelope",
+      "ModelingCaseSuccessEnvelope",
     ];
 
     for (const name of envelopes) {
@@ -335,6 +339,29 @@ describe("OpenAPI contract", () => {
       "RequiredInformationItemDevV1.infoCode.enum",
     )).toHaveLength(11);
     expect(property(operation("/interviews", "post"), "responses")).toHaveProperty("422");
+  });
+
+  it("documents the public synthetic-only modeling artifact boundary", () => {
+    const indexOperation = operation("/demo/modeling", "get");
+    const caseOperation = operation("/demo/modeling/{caseId}", "get");
+    expect(indexOperation.security).toEqual([]);
+    expect(caseOperation.security).toEqual([]);
+    expect(property(property(indexOperation, "responses"), "200")).toBeDefined();
+    expect(property(property(caseOperation, "responses"), "404")).toBeDefined();
+
+    expect(schema("ModelingDemoCase")).toMatchObject({
+      type: "object",
+      required: expect.arrayContaining(["features", "scorecard", "externalContext"]),
+    });
+    expect(property(property(schema("ModelingDemoCase"), "properties"), "features"))
+      .toMatchObject({ type: "array", minItems: 94, maxItems: 94 });
+    const external = property(
+      property(property(schema("ModelingDemoCase"), "properties"), "externalContext"),
+      "properties",
+    );
+    expect(property(external, "role").const).toBe("CONTEXT_ONLY");
+    expect(property(external, "includedInFeatureVector").const).toBe(false);
+    expect(property(external, "includedInScore").const).toBe(false);
   });
 
   it("matches the canonical interview data-quality evaluation payload", () => {
@@ -412,6 +439,8 @@ describe("OpenAPI contract", () => {
     const listOperation = operation("/interview-evaluations", "get");
     const parameters = asObjectArray(listOperation.parameters, "evaluation list parameters");
     expect(parameters.map((parameter) => parameter.name)).toEqual([
+      "limit",
+      "offset",
       "q",
       "industry",
       "level",

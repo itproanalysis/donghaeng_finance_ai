@@ -12,6 +12,17 @@ import {
 } from "../../src/components/api-adapter";
 
 describe("API view adapters", () => {
+  it("links FINAL evidence to its persisted transcript and preserves the confirmed goal", () => {
+    const final = adaptFinalSnapshot({
+      snapshotType: "FINAL", completionStatus: "COMPLETE", informationItems: [],
+      transcript: [{id:"transcript-final-1",speaker:"BORROWER",text:"매월 임대료는 100만 원이에요."}],
+      evidenceManifest: [{id:"evidence-final-1",infoCode:"fixed_cost",transcriptSegmentId:"transcript-final-1",excerpt:null}],
+      goalSnapshot: {title:"재고 기록하기",status:"CONFIRMED",evidenceIds:["evidence-final-1"]},
+    });
+    expect(final.evidence[0]?.linkedTranscript?.text).toBe("매월 임대료는 100만 원이에요.");
+    expect(final.goal?.title).toBe("재고 기록하기");
+    expect(final.goal?.evidenceIds).toEqual(["evidence-final-1"]);
+  });
   it("marks stale, busy, and conflict responses for retry-state clear and resync", () => {
     for (const code of [
       "MESSAGE_STAGE_STALE",

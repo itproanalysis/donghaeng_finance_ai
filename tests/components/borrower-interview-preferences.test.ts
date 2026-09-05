@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyBorrowerConversationFocus,
+  createBorrowerRequiredInformationList,
   BORROWER_CONVERSATION_FOCUS_OPTIONS,
   initialInfoCodeForBorrowerFocus,
 } from "@/components/borrower-interview-preferences";
@@ -59,6 +60,17 @@ function resolvedQuestionSequence(
 }
 
 describe("borrower interview preferences", () => {
+  it("keeps the scenario trigger eligible while ordinary entry asks no unsolicited context questions", () => {
+    const scenario = createBorrowerRequiredInformationList("RESTAURANT", "FULL_REVIEW", "operating-day");
+    expect(scenario).toHaveLength(12);
+    expect(scenario.find((item) => item.infoCode === "operating_day_drop_reason")).toMatchObject({ priority: "P0", status: "NEEDED" });
+    const projected: InformationItem[] = scenario.map((item) => ({ ...item, status: item.required ? "CONFIRMED" : item.status, valueState: "MISSING", value: null, quality: null, extractionConfidence: null, verification: null, evidenceIds: [], prefill: null, updatedAt: "2026-09-05T00:00:00.000Z" }));
+    expect(selectNextQuestion(projected)?.infoCode).toBe("operating_day_drop_reason");
+    expect(createBorrowerRequiredInformationList("RESTAURANT")).toHaveLength(8);
+    expect(createBorrowerRequiredInformationList("CAFE")).toHaveLength(11);
+    expect(createBorrowerRequiredInformationList("CAFE", "FULL_REVIEW", "operating-day").some((item) => item.infoCode === "operating_day_drop_reason")).toBe(false);
+  });
+
   it("offers one recommended whole-review path and three user-led starting points", () => {
     expect(BORROWER_CONVERSATION_FOCUS_OPTIONS.map((option) => option.id)).toEqual([
       "FULL_REVIEW",

@@ -51,7 +51,7 @@ describe("versioned microphone consent", () => {
         "CLOUD_AI_PROCESSING",
         principal,
       ),
-    ).toThrow(/Claude API/);
+    ).toThrow(/외부 AI 서비스/);
     expect(() =>
       consent.assertEffectiveConsent(
         interview.session.id,

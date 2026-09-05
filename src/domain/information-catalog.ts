@@ -26,11 +26,23 @@ export const DEV_V1_OPTIONAL_INFO_CODES = [
 ] as const;
 
 export type DevV1OptionalInfoCode = (typeof DEV_V1_OPTIONAL_INFO_CODES)[number];
-export type DevV1AllInfoCode = DevV1InfoCode | DevV1OptionalInfoCode;
+
+/**
+ * 거래 데이터가 조건에 걸릴 때만 목록에 넣는 항목. 조건 판정은 앱이 하지 않고
+ * modeling/triggers.py 결과를 인터뷰 생성 시점에 받는다.
+ */
+export const DEV_V1_CONDITIONAL_INFO_CODES = ["operating_day_drop_reason"] as const;
+
+export type DevV1ConditionalInfoCode = (typeof DEV_V1_CONDITIONAL_INFO_CODES)[number];
+export type DevV1AllInfoCode =
+  | DevV1InfoCode
+  | DevV1OptionalInfoCode
+  | DevV1ConditionalInfoCode;
 
 export const DEV_V1_ALL_INFO_CODES = [
   ...DEV_V1_INFO_CODES,
   ...DEV_V1_OPTIONAL_INFO_CODES,
+  ...DEV_V1_CONDITIONAL_INFO_CODES,
 ] as const;
 
 export interface DevV1InformationDefinition extends RequiredInformationItem {
@@ -264,9 +276,38 @@ export const DEV_V1_OPTIONAL_INFORMATION_CATALOG: readonly DevV1InformationDefin
   },
 ] as const;
 
+/**
+ * 거래 데이터에서 영업일 감소가 확인된 인터뷰에만 들어가는 항목. 매출 방향
+ * 점수가 사유와 해소 여부에 따라 달라지므로 진술을 직접 받는다.
+ */
+export const DEV_V1_CONDITIONAL_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] = [
+  {
+    catalogVersion: DEV_V1_CATALOG_VERSION,
+    infoCode: "operating_day_drop_reason",
+    label: "영업일 감소 사유",
+    category: "CURRENT_STATE",
+    priority: "P0",
+    expectedType: "TEXT",
+    required: false,
+    minQuality: "LOW",
+    evidencePreference: ["SELF_REPORTED", "TRANSACTION_SUPPORTED"],
+    dependencies: [],
+    status: "NEEDED",
+    canonicalKind: "BUSINESS_SIGNAL",
+    zeroMeaning: "OBSERVED_ZERO",
+    semanticAnchors: ["문 연 날", "문 여는 날", "영업일"],
+    requiredFeatureCodes: [],
+    question:
+      "최근 3개월은 문을 연 날이 그 전보다 줄어든 것으로 확인됩니다. 어떤 사정이 있었는지, 그리고 지금은 그 사정이 해소됐는지 말씀해 주세요.",
+    followupQuestion:
+      "그 사정이 지금은 해소됐는지, 아니면 아직 이어지고 있는지 한 번만 더 알려주세요.",
+  },
+] as const;
+
 export const DEV_V1_ALL_INFORMATION_CATALOG: readonly DevV1InformationDefinition[] = [
   ...DEV_V1_INFORMATION_CATALOG,
   ...DEV_V1_OPTIONAL_INFORMATION_CATALOG,
+  ...DEV_V1_CONDITIONAL_INFORMATION_CATALOG,
 ] as const;
 
 export interface CatalogValidationIssue {
@@ -385,8 +426,10 @@ export function createDevV1RequiredInformationItems(): RequiredInformationItem[]
   }));
 }
 
-export function createDevV1AcceptanceRequiredInformationItems(): RequiredInformationItem[] {
-  return DEV_V1_ALL_INFORMATION_CATALOG.map((item) => ({
+function toRequiredInformationItem(
+  item: DevV1InformationDefinition,
+): RequiredInformationItem {
+  return {
     infoCode: item.infoCode,
     label: item.label,
     category: item.category,
@@ -407,14 +450,36 @@ export function createDevV1AcceptanceRequiredInformationItems(): RequiredInforma
           : item.status,
     question: item.question,
     followupQuestion: item.followupQuestion,
-  }));
+  };
+}
+
+export function createDevV1AcceptanceRequiredInformationItems(): RequiredInformationItem[] {
+  return [
+    ...DEV_V1_INFORMATION_CATALOG,
+    ...DEV_V1_OPTIONAL_INFORMATION_CATALOG,
+  ].map(toRequiredInformationItem);
+}
+
+/**
+ * 11항목에 더해, 거래 데이터에서 조건에 걸린 항목만 골라 넣은 목록. 조건 판정
+ * 결과를 받기만 하고 앱이 다시 판정하지 않으며, 등록되지 않은 코드는 무시한다.
+ */
+export function createDevV1ScenarioRequiredInformationItems(
+  triggeredInfoCodes: readonly string[] = [],
+): RequiredInformationItem[] {
+  const triggered = new Set(triggeredInfoCodes);
+  return [
+    ...DEV_V1_INFORMATION_CATALOG,
+    ...DEV_V1_OPTIONAL_INFORMATION_CATALOG,
+    ...DEV_V1_CONDITIONAL_INFORMATION_CATALOG.filter((item) => triggered.has(item.infoCode)),
+  ].map(toRequiredInformationItem);
 }
 
 export const DEV_V1_REQUIRED_INFORMATION_JSON_SCHEMA = {
   $id: "https://donghaeng.local/schemas/required-information.dev-v1.json",
   type: "array",
   minItems: 8,
-  maxItems: 11,
+  maxItems: 12,
   uniqueItems: true,
   items: {
     type: "object",
@@ -473,6 +538,15 @@ export const DEV_V1_REQUIRED_INFORMATION_JSON_SCHEMA = {
       maxContains: 1,
     })),
     ...DEV_V1_OPTIONAL_INFO_CODES.map((infoCode) => ({
+      contains: {
+        type: "object",
+        required: ["infoCode"],
+        properties: { infoCode: { const: infoCode } },
+      },
+      minContains: 0,
+      maxContains: 1,
+    })),
+    ...DEV_V1_CONDITIONAL_INFO_CODES.map((infoCode) => ({
       contains: {
         type: "object",
         required: ["infoCode"],

@@ -19,12 +19,12 @@ import {
   PencilLine,
   RefreshCw,
   Send,
-  Sparkles,
   Target,
   TrendingUp,
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -68,6 +68,7 @@ import {
   LiveRealtimeStatus,
   type LiveSaveState,
 } from "@/components/live-realtime-status";
+import { ADMIN_JOURNEY, JourneyNav } from "@/components/journey-nav";
 import { FinalInterviewRecord } from "@/components/final-interview-record";
 import {
   comparePillarCoverageSnapshots,
@@ -82,6 +83,7 @@ import {
   type LiveEventEnvelope,
 } from "@/realtime/live-store";
 import { useInterviewEvents } from "@/realtime/use-interview-events";
+import { goalStatusLabel, questionReasonLabel, readableInformationText } from "./operator-language";
 
 interface InterviewWorkspaceProps {
   interviewId: string;
@@ -333,7 +335,7 @@ function LiveFeaturePanel({
     <article className="live-feature-card">
       <div className="insight-heading">
         <div>
-          <p className="panel-kicker">LIVE FEATURE</p>
+          <p className="panel-kicker">계산 지표</p>
           <h2>서버 계산 PREVIEW 피쳐</h2>
         </div>
         <span className="badge badge--preview">PREVIEW</span>
@@ -398,7 +400,6 @@ function LiveFeaturePanel({
         </div>
       ) : (
         <div className="summary-empty">
-          <Sparkles size={18} aria-hidden="true" />
           <div>
             <strong>아직 계산 가능한 피쳐가 없습니다.</strong>
             <p>필요한 원천정보가 확인되면 같은 서버 snapshot에서 갱신됩니다.</p>
@@ -1041,7 +1042,7 @@ export function InterviewWorkspace({
   }
 
   function handleInputKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey) {
+    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
       event.preventDefault();
       if (message.trim()) void sendMessage(message);
     }
@@ -1052,6 +1053,8 @@ export function InterviewWorkspace({
       isCompleting ||
       isSending ||
       audioBusy ||
+      !borrowerConfirmationCurrent ||
+      (mode === "FORCE_INCOMPLETE" && forceReason.trim().length < 3) ||
       !snapshot ||
       snapshot.snapshotType !== "PREVIEW"
     ) return;
@@ -1206,16 +1209,18 @@ export function InterviewWorkspace({
       className="workspace-page"
       data-presentation={presentationMode ? "true" : undefined}
     >
+      <JourneyNav steps={ADMIN_JOURNEY} current={0} label="관리자 업무 전체 흐름" />
+      <Link className="service-back-link" href="/interviews">← 상담 대장</Link>
       <div className="workspace-heading">
         <div>
           <div className="workspace-heading__eyebrow">
-            <span className="badge badge--preview">PREVIEW</span>
-            <span>실시간 인터뷰 보조지표</span>
+            <span className="badge badge--preview">작성 중인 기록</span>
+            <span>담당자 인터뷰 작업공간</span>
             <span className="lifecycle-state" data-state={snapshot.lifecycleStatus.toLowerCase()}>
               {snapshot.lifecycleStatus === "ACTIVE" ? "진행 중" : snapshot.lifecycleStatus}
             </span>
             <span className="connection-state" data-state={liveState.sseConnection.toLowerCase()}>
-              SSE {liveState.sseConnection}
+              {liveState.sseConnection === "OPEN" ? "기록 연결됨" : liveState.sseConnection === "ERROR" || liveState.sseConnection === "CLOSED" ? "기록 연결 끊김 · 새로고침 필요" : "기록 다시 연결 중"}
             </span>
           </div>
           <h1>{snapshot.businessName}</h1>
@@ -1267,6 +1272,8 @@ export function InterviewWorkspace({
         </div>
       </div>
 
+      <details className="service-diagnostics">
+      <summary>연결·처리 상태 상세 <span>이벤트·버전·음성 진단</span></summary>
       <LiveRealtimeStatus
         overallRate={snapshot.overallRate}
         resolvedRequired={snapshot.resolvedRequired}
@@ -1300,10 +1307,11 @@ export function InterviewWorkspace({
         presentationMode={presentationMode}
         onTogglePresentation={() => setPresentationMode((current) => !current)}
       />
+      </details>
 
       <section className="workspace-context" aria-label="차주, 사업 및 기존정보 요약">
         <div className="workspace-context__identity">
-          <p className="panel-kicker">BORROWER & BUSINESS</p>
+          <p className="panel-kicker">사업자 정보</p>
           <dl>
             <div>
               <dt>차주</dt>
@@ -1333,7 +1341,7 @@ export function InterviewWorkspace({
         </div>
         <div className="workspace-context__reference">
           <div>
-            <p className="panel-kicker">INTERVIEW CONTEXT</p>
+            <p className="panel-kicker">인터뷰 정보</p>
             <span>사장님이 확인한 내용부터 기록합니다</span>
           </div>
           <p className="workspace-context__empty-reference">
@@ -1396,7 +1404,7 @@ export function InterviewWorkspace({
           >
             <div className="completion-dialog__heading">
               <div>
-                <p className="panel-kicker">CLOUD AI PROCESSING · v1</p>
+                <p className="panel-kicker">외부 AI 처리 동의 · v1</p>
                 <h2 id="cloud-ai-consent-title">Claude 인터뷰 처리 동의</h2>
               </div>
               <button
@@ -1437,7 +1445,7 @@ export function InterviewWorkspace({
                 >
                   {cloudConsentSubmitting
                     ? <LoaderCircle className="spin" size={17} />
-                    : <Sparkles size={17} />}
+                    : <Check size={17} />}
                   동의하고 답변 반영
                 </button>
               </div>
@@ -1457,7 +1465,7 @@ export function InterviewWorkspace({
           >
             <div className="completion-dialog__heading">
               <div>
-                <p className="panel-kicker">FINALIZATION POLICY · dev-v1</p>
+                <p className="panel-kicker">기록을 마치기 전에</p>
                 <h2 id="completion-dialog-title">인터뷰 종료 방식 확인</h2>
               </div>
               <button
@@ -1470,6 +1478,18 @@ export function InterviewWorkspace({
                 ×
               </button>
             </div>
+            <label className="confirmation-check completion-shared-confirmation">
+              <input
+                type="checkbox"
+                checked={borrowerConfirmationCurrent}
+                disabled={isCompleting}
+                onChange={(event) => {
+                  setBorrowerConfirmed(event.target.checked);
+                  setBorrowerConfirmationVersion(event.target.checked ? snapshot.version : null);
+                }}
+              />
+              사장님과 현재까지의 답변 및 기록 종료를 확인했습니다. 두 종료 방식 모두 확인이 필요합니다.
+            </label>
             <div className="completion-dialog__body">
               <article className="completion-option completion-option--complete">
                 <div>
@@ -1477,24 +1497,10 @@ export function InterviewWorkspace({
                   <div>
                     <h3>정상 완료</h3>
                     <p>
-                      서버가 모든 필수값·품질·근거·충돌·목표 조건을 다시 검증한 뒤에만
-                      COMPLETE와 인터뷰 데이터 품질 평가를 생성합니다.
+                      필요한 값과 근거, 상충 답변을 확인한 뒤 완료 기록과 인터뷰 데이터 품질 평가를 생성합니다.
                     </p>
                   </div>
                 </div>
-                <label className="confirmation-check">
-                  <input
-                    type="checkbox"
-                    checked={borrowerConfirmationCurrent}
-                    onChange={(event) => {
-                      setBorrowerConfirmed(event.target.checked);
-                      setBorrowerConfirmationVersion(
-                        event.target.checked ? snapshot.version : null,
-                      );
-                    }}
-                  />
-                  차주에게 최종 답변 요약을 확인했습니다.
-                </label>
                 <button
                   type="button"
                   className="button button--primary"
@@ -1512,8 +1518,7 @@ export function InterviewWorkspace({
                   <div>
                     <h3>불완전 상태로 중단</h3>
                     <p>
-                      수집 내용을 INCOMPLETE FINAL로 보존하지만 READY 평가나 데이터 품질
-                      등급은 만들지 않습니다. 중단 사유는 감사 기록에 남습니다.
+                      미확인 항목을 포함한 종료 기록을 저장합니다. 데이터 품질 등급은 만들지 않으며, 중단 사유를 함께 남깁니다.
                     </p>
                   </div>
                 </div>
@@ -1524,12 +1529,13 @@ export function InterviewWorkspace({
                   onChange={(event) => setForceReason(event.target.value)}
                   rows={3}
                   maxLength={500}
+                  disabled={isCompleting}
                   placeholder="예: 차주 요청으로 인터뷰를 조기 종료함"
                 />
                 <button
                   type="button"
                   className="button button--danger-outline"
-                  disabled={forceReason.trim().length < 3 || isCompleting}
+                  disabled={!borrowerConfirmationCurrent || forceReason.trim().length < 3 || isCompleting}
                   onClick={() => void completeInterview("FORCE_INCOMPLETE")}
                 >
                   <CircleHelp size={17} /> 불완전 종료본 저장
@@ -1558,7 +1564,7 @@ export function InterviewWorkspace({
           <section ref={correctionDialogRef} className="completion-dialog correction-dialog" role="dialog" aria-modal="true" aria-labelledby="correction-title">
             <div className="completion-dialog__heading">
               <div>
-                <p className="panel-kicker">TRANSCRIPT REVISION</p>
+                <p className="panel-kicker">전사 수정</p>
                 <h2 id="correction-title">확정 전사 수정</h2>
               </div>
               <button
@@ -1611,7 +1617,7 @@ export function InterviewWorkspace({
         <aside className="interview-pillar-panel" aria-labelledby="pillar-heading">
           <div className="panel-heading">
             <div>
-              <p className="panel-kicker">INFORMATION COVERAGE</p>
+              <p className="panel-kicker">정보 수집 현황</p>
               <h2 id="pillar-heading">4대 정보축</h2>
             </div>
             <span className="coverage-number">{formatPercent(snapshot.overallRate)}</span>
@@ -1672,10 +1678,9 @@ export function InterviewWorkspace({
         <section className="conversation-panel" aria-labelledby="conversation-heading">
           <div className="current-question">
             <div className="current-question__label">
-              <Sparkles size={15} aria-hidden="true" />
               현재 질문
               {snapshot.questionReason && (
-                <span>{snapshot.questionReason.replaceAll("_", " ")}</span>
+                <span>{questionReasonLabel(snapshot.questionReason)}</span>
               )}
             </div>
             <h2 id="conversation-heading">
@@ -1815,7 +1820,7 @@ export function InterviewWorkspace({
         <aside className="information-panel" aria-labelledby="information-heading">
           <div className="panel-heading information-panel__heading">
             <div>
-              <p className="panel-kicker">SERVER STATE</p>
+              <p className="panel-kicker">서버 상태</p>
               <h2 id="information-heading">정보 수집 상태</h2>
             </div>
             <span className="snapshot-version">v{snapshot.version}</span>
@@ -1842,29 +1847,29 @@ export function InterviewWorkspace({
       </div>
 
       <section className="live-insight-grid" aria-label="실시간 요약과 영역별 커버리지">
-        <LiveFeaturePanel
+        <details className="operator-technical-details"><summary>계산 지표와 산식 확인</summary><LiveFeaturePanel
           features={snapshot.features}
           changes={featureChanges}
           registryVersion={snapshot.featureRegistryVersion}
           stateVersion={snapshot.featureStateVersion}
-        />
+        /></details>
         <article className="live-summary-card">
           <div className="insight-heading">
             <div>
-              <p className="panel-kicker">LIVE SUMMARY</p>
+              <p className="panel-kicker">답변 요약</p>
               <h2>현재까지 확인된 핵심 내용</h2>
             </div>
-            <span className="badge badge--preview">PREVIEW</span>
+            <span className="badge badge--preview">작성 중</span>
           </div>
           {snapshot.liveSummary ? (
-            <p className="live-summary-card__text">{snapshot.liveSummary}</p>
+            <p className="live-summary-card__text">{readableInformationText(snapshot.liveSummary, snapshot.informationItems)}</p>
           ) : (
             <div className="summary-empty">
               <Info size={18} aria-hidden="true" />
               <div>
-                <strong>서버 요약이 아직 생성되지 않았습니다.</strong>
+                <strong>아직 요약할 답변이 없습니다.</strong>
                 <p>
-                  대화가 진행되면 API 응답의 live summary를 여기에 표시합니다.
+                  답변이 모이면 확인한 내용을 함께 정리합니다.
                 </p>
               </div>
             </div>
@@ -1878,10 +1883,10 @@ export function InterviewWorkspace({
         <article className="live-goal-card">
           <div className="insight-heading">
             <div>
-              <p className="panel-kicker">GOAL PREVIEW</p>
+              <p className="panel-kicker">목표 검토</p>
               <h2>차주 진술 개선 목표</h2>
             </div>
-            <span className="badge badge--preview">{snapshot.goal?.status ?? "UNRESOLVED"}</span>
+            <span className="badge badge--preview">{goalStatusLabel(snapshot.goal?.status)}</span>
           </div>
           {snapshot.goal && snapshot.goal.status !== "UNRESOLVED" ? (
             <>
@@ -1933,9 +1938,9 @@ export function InterviewWorkspace({
         />
       </section>
 
-      <section className="completion-sticky" aria-labelledby="completion-sticky-heading">
+      <section className="completion-sticky" data-ready={!snapshot.currentQuestion && !snapshot.pendingCommand && !sessionInteractionDisabled} aria-labelledby="completion-sticky-heading">
         <div className="completion-sticky__heading">
-          <p className="panel-kicker">FINALIZATION CHECK</p>
+          <p className="panel-kicker">종료 전 확인</p>
           <h2 id="completion-sticky-heading">인터뷰 종료 준비</h2>
         </div>
         <dl className="completion-sticky__metrics">
@@ -1979,7 +1984,7 @@ export function InterviewWorkspace({
             ) : (
               <Flag size={17} aria-hidden="true" />
             )}
-            {isCompleting ? "종료 처리 중" : "인터뷰 종료 및 평가 생성"}
+            {isCompleting ? "종료 처리 중" : "완료 조건 검토"}
           </button>
         </div>
       </section>

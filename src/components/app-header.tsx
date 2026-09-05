@@ -1,12 +1,10 @@
 "use client";
 
 import {
+  ChevronLeft,
   ClipboardCheck,
-  HandCoins,
+  GitBranch,
   LayoutDashboard,
-  ListChecks,
-  MessageSquareText,
-  RefreshCcw,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
@@ -23,76 +21,75 @@ interface NavigationItem {
 
 const navItems: NavigationItem[] = [
   {
-    href: "/",
-    label: "대시보드",
-    icon: LayoutDashboard,
-    isActive: (pathname) => pathname === "/",
+    href: "/modeling",
+    label: "사업·행동 평가",
+    icon: GitBranch,
+    isActive: (pathname) => pathname.startsWith("/modeling"),
   },
   {
     href: "/interviews",
-    label: "AI 인터뷰",
-    icon: MessageSquareText,
+    label: "상담 대장",
+    icon: LayoutDashboard,
     isActive: (pathname) => pathname.startsWith("/interviews"),
   },
   {
     href: "/interview-evaluations",
-    label: "인터뷰 평가",
+    label: "완료 기록",
     icon: ClipboardCheck,
     isActive: (pathname) => pathname.startsWith("/interview-evaluations"),
   },
-  {
-    href: null,
-    label: "목표 수행",
-    icon: ListChecks,
-    isActive: () => false,
-  },
-  {
-    href: null,
-    label: "재평가",
-    icon: RefreshCcw,
-    isActive: () => false,
-  },
-  {
-    href: null,
-    label: "대출 중개",
-    icon: HandCoins,
-    isActive: () => false,
-  },
 ];
 
-export function AppHeader() {
+export function AppHeader({ publicReview = false }: { publicReview?: boolean } = {}) {
   const pathname = usePathname();
-  const simplified = pathname === "/" || pathname.startsWith("/borrower");
+  const isBorrower = pathname.startsWith("/borrower");
+  const isIntroduction = pathname === "/about";
 
-  if (simplified) {
-    const borrower = pathname.startsWith("/borrower");
+  if (pathname === "/login" || pathname.startsWith("/demo")) {
+    return null;
+  }
+
+  if (pathname === "/" || isBorrower || isIntroduction) {
     return (
-      <header className="app-header app-header--simple">
+      <header className={`app-header app-header--simple ${isBorrower || isIntroduction ? "app-header--borrower" : "app-header--entrance"}`}>
         <div className="app-header__inner">
-          <Link className="brand" href="/" aria-label="동행금융AI 화면 선택">
-            <span className="brand__mark" aria-hidden="true"><span /><span /><span /></span>
-            <span className="brand__name">동행금융AI</span>
+          <Link className="brand" href="/" aria-label="동행금융 홈">
+            <span className="brand__mark" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="brand__name">동행금융</span>
           </Link>
-          <div className="app-header__simple-title">{borrower ? "사장님 인터뷰" : "화면 선택"}</div>
-          {borrower && <Link className="app-header__admin-link" href="/interviews">관리자 화면</Link>}
+          <nav className="dh-header-nav" aria-label="주요 화면 이동">
+            <Link href="/about" aria-current={isIntroduction ? "page" : undefined}>서비스 소개</Link>
+            <Link href="/modeling?case=case_operating_drop&tab=impact">사업·행동 평가</Link>
+            <Link href="/borrower?entry=sample" aria-current={isBorrower ? "page" : undefined}>현황 입력</Link>
+            <Link href="/interviews">상담 대장</Link>
+          </nav>
+          {(isBorrower || isIntroduction) && (
+            <Link className="app-header__admin-link" href="/">
+              <ChevronLeft size={16} aria-hidden="true" />
+              {publicReview ? "홈으로" : "골목 입구로"}
+            </Link>
+          )}
         </div>
       </header>
     );
   }
 
+
   return (
-    <header className="app-header">
+    <header className="app-header app-header--operator">
       <div className="app-header__inner">
-        <Link className="brand" href="/" aria-label="동행금융AI 홈">
+        <Link className="brand" href="/" aria-label="동행금융 홈">
           <span className="brand__mark" aria-hidden="true">
             <span />
             <span />
             <span />
           </span>
-          <span className="brand__name">동행금융AI</span>
-          <span className="brand__slogan" style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginLeft: "0.75rem", display: "none" }}>
-            사장님의 계획을 인터뷰로 정리하는 AI 자립지원 서비스
-          </span>
+          <span className="brand__name">동행금융</span>
+          <span className="app-header__path-label">골목 상담소</span>
         </Link>
 
         <nav className="primary-nav" aria-label="주요 메뉴">
@@ -108,25 +105,14 @@ export function AppHeader() {
                 key={item.href}
                 aria-current={active ? "page" : undefined}
               >
-                <Icon size={17} strokeWidth={2} aria-hidden="true" />
+                <Icon size={16} strokeWidth={2} aria-hidden="true" />
                 {item.label}
               </Link>
-            ) : (
-              <span
-                className="primary-nav__link primary-nav__link--disabled"
-                aria-disabled="true"
-                title="후속 서비스 영역 · 준비 중"
-                key={item.label}
-              >
-                <Icon size={17} strokeWidth={2} aria-hidden="true" />
-                {item.label}
-                <small>준비 중</small>
-              </span>
-            );
+            ) : null;
           })}
         </nav>
 
-        <OperatorSessionStatus />
+        <OperatorSessionStatus publicReview={publicReview} />
       </div>
     </header>
   );

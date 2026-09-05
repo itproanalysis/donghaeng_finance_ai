@@ -9,7 +9,7 @@ import {
   Target,
 } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   adaptEvaluationList,
@@ -45,23 +45,32 @@ export function EvaluationList() {
   const [industry, setIndustry] = useState("all");
   const [level, setLevel] = useState("all");
   const [period, setPeriod] = useState("all");
-  const [filterReferenceTime, setFilterReferenceTime] = useState(0);
-
-  const fetchList = useCallback(async () => {
-    const response = await authenticatedFetch("/api/interview-evaluations", {
-      cache: "no-store",
-    });
-    const payload = await readApiEnvelope(response);
-    return adaptEvaluationList(payload);
-  }, []);
+  const [offset, setOffset] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
+  const pageSize = 24;
 
   useEffect(() => {
     let active = true;
-    fetchList()
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setIsLoading(true);
+      setLoadError(null);
+      const parameters = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+      if (query.trim()) parameters.set("q", query.trim());
+      if (industry !== "all") parameters.set("industry", industry);
+      if (level !== "all") parameters.set("level", level);
+      const days = PERIOD_OPTIONS.find(option => option.value === period)?.days;
+      if (days) parameters.set("from", new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10));
+      void authenticatedFetch(`/api/interview-evaluations?${parameters}`, { cache: "no-store", signal: controller.signal })
+      .then(readApiEnvelope)
+      .then(adaptEvaluationList)
       .then((nextList) => {
         if (!active) return;
+        if (offset > 0 && offset >= nextList.total) {
+          setOffset(Math.max(0, Math.floor((nextList.total - 1) / pageSize) * pageSize));
+          return;
+        }
         setList(nextList);
-        setFilterReferenceTime(Date.now());
       })
       .catch((caught: unknown) => {
         if (!active) return;
@@ -74,88 +83,52 @@ export function EvaluationList() {
       .finally(() => {
         if (active) setIsLoading(false);
       });
+    }, 250);
     return () => {
       active = false;
+      clearTimeout(timer);
+      controller.abort();
     };
-  }, [fetchList]);
+  }, [query, industry, level, period, offset, reloadKey]);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setLoadError(null);
-    try {
-      setList(await fetchList());
-      setFilterReferenceTime(Date.now());
-    } catch (caught) {
-      setLoadError(
-        caught instanceof Error
-          ? caught.message
-          : "인터뷰 평가 목록을 불러오지 못했습니다.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }, [fetchList]);
-
-  const visibleItems = useMemo(() => {
-    if (!list) return [];
-    const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
-    const selectedPeriod = PERIOD_OPTIONS.find((option) => option.value === period);
-    const cutoff = selectedPeriod?.days && filterReferenceTime > 0
-      ? filterReferenceTime - selectedPeriod.days * 24 * 60 * 60 * 1000
-      : null;
-
-    return list.items.filter((item) => {
-      if (industry !== "all" && item.industry !== industry) return false;
-      if (level !== "all" && item.overallLevel !== level) return false;
-      if (cutoff !== null) {
-        const createdAt = new Date(item.completedAt ?? item.createdAt).getTime();
-        if (!Number.isFinite(createdAt) || createdAt < cutoff) return false;
-      }
-      if (!normalizedQuery) return true;
-      return [
-        item.borrowerName,
-        item.businessName,
-        item.industry,
-        item.id,
-        item.interviewId,
-      ].some((value) => value?.toLocaleLowerCase("ko-KR").includes(normalizedQuery));
-    });
-  }, [filterReferenceTime, industry, level, list, period, query]);
+  const load = () => setReloadKey(value => value + 1);
+  const visibleItems = list?.items ?? [];
 
   return (
     <main id="main-content" className="evaluation-list-page">
       <header className="evaluation-list-hero">
         <div>
-          <p className="panel-kicker">FINAL INTERVIEW RECORDS</p>
-          <h1>인터뷰 평가</h1>
-          <p>확정 스냅샷으로 생성된 평가를 검색하고 근거 상세로 이동합니다.</p>
+          <p className="panel-kicker">상담 기록</p>
+          <h1>완료 기록</h1>
+          <p>확정된 인터뷰의 답변과 근거를 검토합니다.</p>
         </div>
         <button
           type="button"
           className="icon-button"
           onClick={() => void load()}
           disabled={isLoading}
-          aria-label="평가 목록 새로고침"
-          title="평가 목록 새로고침"
+          aria-label="완료 기록 새로고침"
+          title="완료 기록 새로고침"
         >
           <RefreshCw className={isLoading ? "spin" : undefined} size={18} />
         </button>
       </header>
 
-      <section className="evaluation-list-toolbar" aria-label="평가 검색 및 필터">
+      <section className="evaluation-list-toolbar" aria-label="완료 기록 검색 및 필터">
         <label className="evaluation-list-search">
           <Search size={17} aria-hidden="true" />
-          <span className="sr-only">차주명, 사업체명 또는 평가 ID 검색</span>
+          <span className="sr-only">가게·사장님 이름 또는 기록 번호 검색</span>
           <input
             type="search"
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="차주명, 사업체명 또는 평가 ID 검색"
+            onChange={(event) => { setQuery(event.target.value); setOffset(0); }}
+            maxLength={100}
+            placeholder="가게·사장님 이름으로 찾기"
           />
         </label>
         <label>
           <span className="sr-only">업종 필터</span>
-          <select value={industry} onChange={(event) => setIndustry(event.target.value)}>
+          <select value={industry} onChange={(event) => { setIndustry(event.target.value); setOffset(0); }}>
             <option value="all">전체 업종</option>
             {list?.facets.industries.map((value) => (
               <option value={value} key={value}>{value}</option>
@@ -163,9 +136,9 @@ export function EvaluationList() {
           </select>
         </label>
         <label>
-          <span className="sr-only">평가등급 필터</span>
-          <select value={level} onChange={(event) => setLevel(event.target.value)}>
-            <option value="all">전체 평가등급</option>
+          <span className="sr-only">인터뷰 데이터 품질 필터</span>
+          <select value={level} onChange={(event) => { setLevel(event.target.value); setOffset(0); }}>
+            <option value="all">전체 데이터 품질</option>
             {list?.facets.levels.map((value) => (
               <option value={value} key={value}>{value}</option>
             ))}
@@ -173,7 +146,7 @@ export function EvaluationList() {
         </label>
         <label>
           <span className="sr-only">기간 필터</span>
-          <select value={period} onChange={(event) => setPeriod(event.target.value)}>
+          <select value={period} onChange={(event) => { setPeriod(event.target.value); setOffset(0); }}>
             {PERIOD_OPTIONS.map((option) => (
               <option value={option.value} key={option.value}>{option.label}</option>
             ))}
@@ -181,14 +154,16 @@ export function EvaluationList() {
         </label>
       </section>
 
-      {isLoading && !list ? (
+      {isLoading ? (
         <LoadingState
-          title="평가 목록을 불러오는 중입니다"
-          description="현재 사업자 계정에서 조회 가능한 확정 평가를 확인하고 있습니다."
+          headingLevel={2}
+          title="완료 기록을 불러오고 있어요"
+          description="담당 기관의 확정된 인터뷰 기록을 확인합니다."
         />
       ) : loadError ? (
         <ErrorState
-          title="인터뷰 평가 목록을 불러오지 못했습니다"
+          headingLevel={2}
+          title="완료 기록을 불러오지 못했습니다"
           description={loadError}
           onRetry={() => void load()}
           retrying={isLoading}
@@ -196,8 +171,8 @@ export function EvaluationList() {
       ) : (
         <section className="evaluation-list-results" aria-labelledby="evaluation-result-heading">
           <div className="evaluation-list-results__heading">
-            <h2 id="evaluation-result-heading">평가 결과</h2>
-            <span>{visibleItems.length}건</span>
+            <h2 id="evaluation-result-heading">완료된 인터뷰</h2>
+            <span role="status">검색 결과 {list?.total ?? 0}건</span>
           </div>
           {visibleItems.length > 0 ? (
             <div className="evaluation-list-table">
@@ -242,12 +217,20 @@ export function EvaluationList() {
           ) : (
             <div className="evaluation-list-empty">
               <ClipboardCheck size={24} aria-hidden="true" />
-              <strong>조건에 맞는 평가가 없습니다.</strong>
-              <p>검색어나 필터를 변경하거나 새 AI인터뷰를 완료해 주세요.</p>
+              <strong>{query || industry !== "all" || level !== "all" || period !== "all" ? "조건에 맞는 완료 기록이 없어요." : "아직 완료된 인터뷰가 없어요."}</strong>
+              <p>{query || industry !== "all" || level !== "all" || period !== "all" ? "검색 조건을 초기화해 전체 기록을 확인해 보세요." : "진행 중인 인터뷰를 마치면 답변과 근거를 이곳에서 검토할 수 있습니다."}</p>
+              {(query || industry !== "all" || level !== "all" || period !== "all") && <button type="button" className="button button--secondary" onClick={() => { setQuery(""); setIndustry("all"); setLevel("all"); setPeriod("all"); setOffset(0); setIsLoading(true); }}>검색 조건 초기화</button>}
               <Link className="button button--primary" href="/interviews">
-                AI인터뷰 시작
+                상담 대장으로 이동
               </Link>
             </div>
+          )}
+          {list && list.total > pageSize && (
+            <nav className="operations-pagination" aria-label="완료 기록 페이지">
+              <button className="button button--ghost" type="button" disabled={isLoading || offset === 0} onClick={() => setOffset(Math.max(0, offset - pageSize))}>이전</button>
+              <span>{Math.floor(offset / pageSize) + 1} / {Math.ceil(list.total / pageSize)} 페이지</span>
+              <button className="button button--ghost" type="button" disabled={isLoading || offset + pageSize >= list.total} onClick={() => setOffset(offset + pageSize)}>다음</button>
+            </nav>
           )}
         </section>
       )}

@@ -87,11 +87,13 @@ const CANDIDATE_BY_INFO_CODE: Partial<Record<DevV1AllInfoCode, {
   },
   confirmed_reservations: {
     title: "예약·주문 일정 확인하기",
-    description: (item) => `${item.label} ${item.displayValue}의 실제 진행 여부를 일정에 맞춰 확인해 봅니다.`,
+    description: (item) => item.displayValue === "0건"
+      ? "현재 확인된 예약은 0건입니다. 새 예약이 생기면 일정과 진행 결과를 기록합니다."
+      : `확인된 예약: ${item.displayValue}. 일정별 진행 결과를 기록합니다.`,
   },
   seasonality_outlook: {
     title: "계절 수요 변화 기록하기",
-    description: (item) => `${item.label} ${item.displayValue}과 실제 흐름을 비교해 봅니다.`,
+    description: (item) => `답변한 전망: ${item.displayValue}. 이후 매출과 예약 기록으로 실제 변화를 확인합니다.`,
   },
   platform_fee_pressure: {
     title: "플랫폼 비용 변화 기록하기",
@@ -111,7 +113,7 @@ const CATALOG_FALLBACK_CANDIDATES: readonly ImprovementCandidate[] = [
   {
     id: "catalog-improvement-action",
     title: "한 가지 개선 행동 정하기",
-    description: "사업 개선 계획 질문에서 이야기한 내용을 바탕으로, 가장 작은 행동 하나를 골라 봅니다.",
+    description: "아직 선택한 계획이 없다면 나중에 가장 작은 행동 하나부터 생각해 볼 수 있어요. 지금 정하지 않아도 됩니다.",
     sourceLabel: "인터뷰 질문 카탈로그",
     sourceInfoCodes: ["improvement_plan"],
     evidenceIds: [],

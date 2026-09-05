@@ -1,5 +1,8 @@
 import type { DatabaseSync } from "node:sqlite";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as modelingScorecard from "../../src/server/modeling-scorecard";
+import { OPERATING_DAY_DEMO_SCENARIO } from "../../src/domain/demo-scenario";
+import { createDevV1ScenarioRequiredInformationItems } from "../../src/domain/information-catalog";
 
 import {
   LOCAL_WORKSPACE_EMAIL,
@@ -33,6 +36,7 @@ const answers: Record<string, string> = {
 };
 
 afterEach(() => {
+  vi.restoreAllMocks();
   while (databases.length > 0) databases.pop()?.close();
 });
 
@@ -67,6 +71,37 @@ function completeInterviewForTest(service: InterviewService) {
 }
 
 describe("tenant evaluation list", () => {
+  it("leaves ordinary interviews without synthetic transactions and denies other tenants before calculation", async () => {
+    const database = createInMemoryDatabase();
+    databases.push(database);
+    const service = new InterviewService(new InterviewRepository(database));
+    const completed = completeInterviewForTest(service);
+    const id = completed.evaluation!.id;
+    const compute = vi.spyOn(modelingScorecard, "computeModelingScorecard");
+    await expect(service.getEvaluationScorecardForPrincipal(id, principal)).resolves.toMatchObject({ status: "UNAVAILABLE", unavailableReason: "SCENARIO_NOT_LINKED", scorecard: null });
+    expect(compute).toHaveBeenCalledWith(expect.objectContaining({ scenarioId: null, industryCode: "CAFE" }));
+    compute.mockClear();
+    await expect(service.getEvaluationScorecardForPrincipal(id, { ...principal, tenantId: "other-tenant" })).rejects.toThrow();
+    expect(compute).not.toHaveBeenCalled();
+  });
+
+  it("maps the persisted Korean industry label to the modeling code only for the registered FINAL scenario", async () => {
+    const database = createInMemoryDatabase();
+    databases.push(database);
+    const service = new InterviewService(new InterviewRepository(database));
+    const scenario = OPERATING_DAY_DEMO_SCENARIO;
+    const created = service.createInterview(principal, createDevV1ScenarioRequiredInformationItems(scenario.triggeredInfoCodes), "RESTAURANT", scenario.persona);
+    let snapshot = created;
+    for (let turn = 0; snapshot.nextQuestion && turn < 24; turn++) {
+      const code = snapshot.nextQuestion.infoCode;
+      snapshot = service.addMessageCommand(created.session.id, { text: scenario.primary.answers[code as keyof typeof scenario.primary.answers]!, clientMessageId: `scorecard-${turn}`, expectedVersion: snapshot.session.version, currentQuestionInfoCode: code }, principal).snapshot;
+    }
+    const completed = service.completeInterviewCommand(created.session.id, { clientCommandId: "scorecard-final", expectedVersion: snapshot.session.version, mode: "COMPLETE", borrowerConfirmed: true, reason: null }, principal);
+    const compute = vi.spyOn(modelingScorecard, "computeModelingScorecard").mockResolvedValue({ status: "UNAVAILABLE", unavailableReason: "PYTHON_NOT_CONFIGURED", unavailableMessage: "test", scorecard: null, reproduceCommand: null, transactionDataSource: null });
+    await service.getEvaluationScorecardForPrincipal(completed.evaluation!.id, principal);
+    expect(compute).toHaveBeenCalledWith(expect.objectContaining({ scenarioId: "operating-day", industryCode: "RESTAURANT", informationItems: expect.arrayContaining([expect.objectContaining({ infoCode: "operating_day_drop_reason" })]) }));
+  });
+
   it("returns searchable READY summaries without exposing a credit-grade scope", () => {
     const database = createInMemoryDatabase();
     databases.push(database);
@@ -123,6 +158,30 @@ describe("tenant evaluation list", () => {
         tenantId: "tenant-with-no-access",
         userId: "other-user",
       }),
-    ).toEqual({ items: [], total: 0, facets: { industries: [], levels: [] } });
+    ).toEqual({ items: [], total: 0, limit: 24, offset: 0, facets: { industries: [], levels: [] } });
+  });
+
+  it("counts all matches independently of a stable, bounded page and treats search metacharacters literally", () => {
+    const database = createInMemoryDatabase();
+    databases.push(database);
+    let id = 0;
+    const service = new InterviewService(new InterviewRepository(database), { idFactory: () => `paged-${++id}` });
+    completeInterviewForTest(service);
+    completeInterviewForTest(service);
+    completeInterviewForTest(service);
+    const first = service.listEvaluationSummaries(principal, { limit: 1 });
+    const second = service.listEvaluationSummaries(principal, { limit: 1, offset: 1 });
+    expect(first).toMatchObject({ total: 3, limit: 1, offset: 0 });
+    expect(second).toMatchObject({ total: 3, limit: 1, offset: 1 });
+    expect(first.items).toHaveLength(1);
+    expect(second.items[0].id).not.toBe(first.items[0].id);
+    expect(service.listEvaluationSummaries(principal, { offset: 3 })).toMatchObject({ total: 3, items: [] });
+    expect(service.listEvaluationSummaries(principal, { q: "%" }).total).toBe(0);
+    expect(service.listEvaluationSummaries(principal, { q: "_" }).total).toBe(0);
+    expect(service.listEvaluationSummaries(principal, { q: "\\" }).total).toBe(0);
+    expect(service.listEvaluationSummaries(principal, { q: second.items[0].id, limit: 1 })).toMatchObject({ total: 1 });
+    expect(() => service.listEvaluationSummaries(principal, { limit: 101 })).toThrow("목록 범위");
+    expect(() => service.listEvaluationSummaries(principal, { offset: -1 })).toThrow("목록 범위");
+    expect(() => service.listEvaluationSummaries({ ...principal, roles: ["BORROWER"] })).toThrow("담당자");
   });
 });
