@@ -1,0 +1,53 @@
+{
+  "applicationCommit": "92e74d2",
+  "verification": "Local browser with real application API and deterministic adapter",
+  "interviewId": "1efcee07-aca1-49c2-a615-9065472a3dbf",
+  "flow": [
+    "3 synthetic interview answers",
+    "FINAL confirmation",
+    "financial consultation link",
+    "institution selection",
+    "one preparation document saved",
+    "JSON download",
+    "return to result",
+    "reopen consultation and restore selection"
+  ],
+  "download": {
+    "fileName": "동행금융_상담준비서_v5.json",
+    "bytes": 139147,
+    "selectedInstitution": "koreg",
+    "preparedDocuments": 1,
+    "computedFeatures": 13,
+    "missingFeatures": 87,
+    "newEvidence": 0,
+    "originalEvidenceTraceVerified": true,
+    "deliveryStatus": "NOT_SENT"
+  },
+  "mobile": {
+    "viewportWidth": 390,
+    "viewportHeight": 844,
+    "documentWidth": 375,
+    "horizontalOverflow": false,
+    "navigationLinksVisible": 4,
+    "savedInstitutionRestored": true,
+    "savedDocumentRestored": true
+  },
+  "copy": {
+    "removedSignupLoginPromotion": true,
+    "technicalExplorerPreserved": true
+  },
+  "print": {
+    "browserPrintInvoked": true,
+    "pdfFileRenderVerified": false,
+    "note": "The in-app browser did not expose a native print dialog. JSON file contents were independently verified."
+  },
+  "tests": {
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "testFiles": 109,
+    "tests": 773,
+    "build": "PASS",
+    "e2e": "PASS",
+    "engineE2eChecks": 28
+  }
+}

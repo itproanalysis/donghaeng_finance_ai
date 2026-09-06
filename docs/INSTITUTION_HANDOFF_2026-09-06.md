@@ -33,4 +33,18 @@
 
 공개 서비스는 Competition Demo / Synthetic Data다. 준비서는 직접 내려받아 이용하며 기관 전송·상담 접수·대출 신청 API 연동은 없다. 실제 금융기관 고객 데이터, 학습된 신용모델, 대출 승인·거절, 자동 신용 재평가, 파일 증빙의 진위 확인을 제공하지 않는다. 인쇄/PDF는 브라우저 인쇄 기능을 사용한다.
 
-공개 배포·브라우저 검증 결과는 배포 후 아래에 기록한다.
+## 공개 배포·검증
+
+- 애플리케이션 커밋 `92e74d2`, `feature/service-review-completion` 원격 push 완료.
+- Cloud Build `b52333fe-eeb8-4961-bc2d-f1ed32f15614` SUCCESS, 2026-09-06 20:57:45 KST 완료.
+- 이미지 `asia-northeast3-docker.pkg.dev/abis-web-platform/donghaeng/app:b52333fe-eeb8-4961-bc2d-f1ed32f15614`, digest `sha256:b3b3d33fa3453fc0a6503576bbe7661253da13c2f1039d30e5476691801fab4a`.
+- 공개 심사 VM `donghaeng-review-app` 시작 스크립트 exit 0, `donghaeng-review.service` active, 실제 실행 이미지 일치. 기존 전용 디스크와 DB를 유지했다. 소유자 전용 서비스는 변경하지 않았다.
+- 공개 `/`, `/about`, `/judge-demo`, `/review`, `/borrower?entry=sample`, `/api/demo/modeling` HTTP 200 및 새 화면 문구 확인. 전용 health 경로 대신 실제 화면과 API 흐름으로 정상 동작을 확인했다.
+- 공개 API 31개 검사 통과. 합성 답변 3개 모두 실제 Anthropic `APPLIED/tool_use` 처리. 기관 선택, 일부 준비자료 저장, 100개 변수·원문 추적·실행 기록 결합, FINAL/hash 불변, 방문자별 상담 준비서 격리를 확인했다.
+- 배포 전에 있던 브라우저 기록의 분석값(13개 생성·87개 정보 부족), 실행 근거 3개 ID, 검토 완료 상태가 그대로 유지됐다. 이 기록에서 기관과 자료를 선택·저장하고 실제 JSON 파일(142,506 bytes)을 내려받아 내용을 검증했다.
+- 모바일 390×844에서 메뉴 4개 표시, 가로 넘침 없음, 기관 선택과 준비자료 복원, 불필요한 가입·로그인 홍보 문구 제거를 확인했다. 데스크톱 화면 크기는 검증 후 복원했다.
+- 인쇄 버튼 호출과 인쇄용 문서 DOM은 확인했다. 인앱 브라우저가 네이티브 인쇄 창을 제공하지 않아 실제 PDF 파일의 렌더링은 검증하지 못했다. JSON 다운로드는 파일까지 검증했다.
+
+공개 주소: [동행금융](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/), [결과·상담 준비](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/review).
+
+실행 증적: [로컬 브라우저](verification/institution-consultation-local-2026-09-06.json), [공개 API 31개 검사](verification/institution-consultation-public-2026-09-06.json), [배포·공개 화면·기록 보존](verification/institution-consultation-deployment-2026-09-06.json). 방문자 쿠키나 외부 서비스 키를 포함하지 않는다. 이후 증적 커밋은 문서만 변경한다.

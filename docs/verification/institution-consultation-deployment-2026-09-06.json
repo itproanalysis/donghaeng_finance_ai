@@ -1,0 +1,62 @@
+{
+  "origin": "https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app",
+  "verifiedAt": "2026-09-06T11:59:55.407258+00:00",
+  "applicationCommit": "92e74d2",
+  "buildId": "b52333fe-eeb8-4961-bc2d-f1ed32f15614",
+  "imageDigest": "sha256:b3b3d33fa3453fc0a6503576bbe7661253da13c2f1039d30e5476691801fab4a",
+  "startupScriptExit": 0,
+  "checks": [
+    {
+      "path": "/",
+      "status": 200,
+      "markerVerified": true
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "markerVerified": true
+    },
+    {
+      "path": "/judge-demo",
+      "status": 200,
+      "markerVerified": true
+    },
+    {
+      "path": "/review",
+      "status": 200,
+      "markerVerified": true
+    },
+    {
+      "path": "/borrower?entry=sample",
+      "status": 200,
+      "markerVerified": true
+    },
+    {
+      "path": "/api/demo/modeling",
+      "status": 200,
+      "markerVerified": true
+    }
+  ],
+  "browser": {
+    "existingInterviewId": "d547767b-9718-4ea7-a390-7ef5f2510425",
+    "finalHash": "sha256:8698ba996b582eb2f083116a277b89a4872fd4918b38ac69bfafb221fe1b2e89",
+    "previousEvidenceIdsPreserved": true,
+    "executionRecords": 3,
+    "previousReviewStatusPreserved": "REVIEWED",
+    "institutionSelectedAndSaved": "koreg",
+    "preparedDocuments": 1,
+    "downloadVerified": true,
+    "downloadEnvironment": "SYNTHETIC_DEMO",
+    "deliveryStatus": "NOT_SENT",
+    "computedFeatures": 13,
+    "missingFeatures": 87,
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "documentWidth": 375,
+      "horizontalOverflow": false,
+      "primaryNavigationLinksVisible": 4,
+      "unwantedCopyFound": false
+    }
+  }
+}
