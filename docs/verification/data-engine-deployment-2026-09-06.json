@@ -1,0 +1,45 @@
+{
+  "checkedAt": "2026-09-06T09:17:53.3339253Z",
+  "applicationCommit": "45ad97279c6db7b2d828c04803988391238e89ff",
+  "buildId": "0d4e50c4-7ee5-45ea-bf57-41d1c762bb5f",
+  "imageDigest": "sha256:a9e2aa1e177ca810ea74890bd989c892fa948ace6ad4c40d4954778e6e2d13b5",
+  "origin": "https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app",
+  "endpoints": [
+    {
+      "path": "/",
+      "status": 200,
+      "cache": "no-store, must-revalidate, no-cache, max-age=0, private"
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "cache": "no-store, must-revalidate, no-cache, max-age=0, private"
+    },
+    {
+      "path": "/judge-demo",
+      "status": 200,
+      "cache": "no-store, must-revalidate, no-cache, max-age=0, private"
+    },
+    {
+      "path": "/borrower?entry=sample",
+      "status": 200,
+      "cache": "no-store, must-revalidate, no-cache, max-age=0, private"
+    },
+    {
+      "path": "/review",
+      "status": 200,
+      "cache": "no-store, must-revalidate, no-cache, max-age=0, private"
+    },
+    {
+      "path": "/healthz",
+      "status": 404,
+      "cache": ""
+    },
+    {
+      "path": "/api/demo/modeling",
+      "status": 200,
+      "cache": "no-store, public, max-age=300, stale-while-revalidate=3600"
+    }
+  ],
+  "note": "Public application pages and the existing read-only API returned 200; the full synthetic API flow passed 23 checks. /healthz returned 404 and is not used as a passing public health probe."
+}

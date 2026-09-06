@@ -1,0 +1,70 @@
+{
+  "origin": "https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app",
+  "interviewId": "d7022eb2-7be9-4aec-8295-c01c64aae651",
+  "checks": [
+    "빈 인터뷰: COMPUTED 0 / MISSING 100 / Evidence 0",
+    "data-review 익명 접근 차단",
+    "실제 답변 1 → LIVE 갱신",
+    "실제 답변 2 → LIVE 갱신",
+    "실제 답변 3 → LIVE 갱신",
+    "23,000,000 KRW: Canonical → fin_sales_avg_3m",
+    "비율은 기존 서버 산식: 고정비 0.31 / 반복고객 0.50",
+    "수집되지 않은 신용정보는 null / MISSING",
+    "100개 Feature의 modelCandidate:false 유지",
+    "Feature → selected revision → 원문 Evidence",
+    "Signal → source Feature → canonical → Evidence",
+    "3답변 FINAL: INCOMPLETE / 평가·신용등급 미생성",
+    "종료 시점 Feature 고정",
+    "Recovery 교차 출처 저장 차단",
+    "Mission 1: append-only Evidence / 동일 요청 중복 방지",
+    "Mission 2: append-only Evidence / 동일 요청 중복 방지",
+    "Mission 3: append-only Evidence / 동일 요청 중복 방지",
+    "3개 미션 실제 기록 상태",
+    "담당자 검토는 추가 확인 상태만 기록",
+    "새 Evidence와 검토 후 FINAL hash/Feature 불변",
+    "담당자 목록: Coverage / Action / Review 연결",
+    "방문자별 data-review 격리",
+    "방문자별 recovery 격리"
+  ],
+  "providers": [
+    {
+      "status": "APPLIED",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "inputTokens": 1550,
+      "outputTokens": 147,
+      "stopReason": "tool_use"
+    },
+    {
+      "status": "APPLIED",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "inputTokens": 1559,
+      "outputTokens": 153,
+      "stopReason": "tool_use"
+    },
+    {
+      "status": "APPLIED",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "inputTokens": 1631,
+      "outputTokens": 140,
+      "stopReason": "tool_use"
+    }
+  ],
+  "metrics": {
+    "confirmed": 4,
+    "needed": 7,
+    "evidence": 5,
+    "computed": 13,
+    "missing": 87,
+    "notCalculable": 0,
+    "totalFeatures": 100,
+    "totalInformation": 11,
+    "evidenceCovered": 4,
+    "resolvedRequired": 3,
+    "totalRequired": 8
+  },
+  "finalHash": "sha256:4898de24a8b0432efebf303aef4a147f1444a3dede07fac57124fccab4d2c968",
+  "newEvidence": 3
+}

@@ -63,7 +63,19 @@
 
 배포 전 SQLite backup API로 전용 디스크의 `/data/backups/review-before-engine-abcfd9b.db`에 일관된 백업을 만들었다. `quick_check=ok`, SHA-256 `5184c7582fb4cb172e69cf6e774cab29701f4ef8cbfa82237f6ad09ab48325e9`다.
 
-최종 보완 이미지와 공개 재검증 결과는 배포 완료 후 이 절에 추가한다.
+최종 보완 배포:
+
+- 애플리케이션 커밋: `45ad97279c6db7b2d828c04803988391238e89ff` (`feature/service-review-completion`, 원격 push 완료).
+- Cloud Build: `0d4e50c4-7ee5-45ea-bf57-41d1c762bb5f`, SUCCESS, 2026-09-06 14:51 KST 완료.
+- 이미지: `asia-northeast3-docker.pkg.dev/abis-web-platform/donghaeng/app:0d4e50c4-7ee5-45ea-bf57-41d1c762bb5f`.
+- Digest: `sha256:a9e2aa1e177ca810ea74890bd989c892fa948ace6ad4c40d4954778e6e2d13b5`.
+- VM 시작 스크립트 exit 0, `donghaeng-review.service` active, 실제 container 이미지 일치.
+- 공개 `/`, `/about`, `/judge-demo`, `/borrower?entry=sample`, `/review`, 기존 읽기 API 모두 HTTP 200. 외부 `/healthz`는 404를 반환해 정상 health 증적으로 계산하지 않는다. 실제 화면과 인증·인터뷰·저장 API 흐름으로 애플리케이션 상태를 확인했다.
+- 최종 이미지의 공개 API **23개 검사 통과**. 3개 답변 모두 실제 Anthropic `APPLIED/tool_use` 응답, Canonical 23,000,000 → Feature 23,000,000, FINAL 고정, 새 Evidence 3개, CSRF·방문자 격리 확인.
+- 배포 전 브라우저에서 만든 FINAL·Action·새 Evidence 3개·담당자 검토 완료가 배포 후 재접속에서도 유지됨을 확인했다. 모바일 390×844에서 메뉴 4개 노출, 가로 넘침 없음, 같은 원문에 연결된 Canonical 2개와 Feature 표시, 검토 완료 선택값 유지 및 브라우저 오류 로그 없음도 확인했다.
+- 실행 증적: [공개 데이터 엔진 23개 검사](verification/data-engine-public-2026-09-06.json), [배포 및 공개 접속 검사](verification/data-engine-deployment-2026-09-06.json). 방문자 쿠키나 API 키는 증적에 포함하지 않았다.
+
+코드는 기존 `origin/main` (`d627a4a`)과 `origin/feature/demo-scenario` (`aee1dda`)를 포함한다. 원래 작업 폴더의 미커밋·스테이징 변경은 유지하고 별도 release worktree에서 통합했다. 이 보고서와 실행 증적의 후속 커밋은 문서만 변경하며 배포된 애플리케이션 커밋은 위 값으로 고정한다.
 
 ## E. 남은 한계와 정직한 범위
 
