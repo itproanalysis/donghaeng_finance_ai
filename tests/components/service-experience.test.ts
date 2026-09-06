@@ -27,14 +27,17 @@ describe("one real service with role-specific alley journeys", () => {
     expect(borrower).toContain("interviewId={id}");
     expect(borrower).toContain("autoplay");
   });
-  it("keeps fixture code off public entries and redirects older demo links", () => {
+  it("keeps old static interviews off public entries and restores the server-backed review desk", () => {
     for (const path of ["components/service-overview.tsx", "components/borrower-interview-start.tsx", "components/login-form.tsx"]) {
       expect(source(path)).not.toContain('href="/demo');
       expect(source(path)).not.toContain("local-demo@donghaeng.ai");
     }
     expect(source("app/demo/page.tsx")).toContain('redirect("/")');
     expect(source("app/demo/borrower/page.tsx")).toContain('redirect("/borrower")');
-    expect(source("app/demo/admin/page.tsx")).toContain('redirect("/interviews")');
+    expect(source("app/demo/admin/page.tsx")).toContain("AdminDemo");
+    expect(source("app/demo/admin/page.tsx")).toContain("getModelingCase");
+    expect(source("app/demo/admin/page.tsx")).toContain("InstitutionConsultation");
+    expect(source("app/demo/admin/page.tsx")).not.toContain("redirect(");
   });
   it("requires explicit industry choice and displays actual operational next actions", () => {
     expect(source("components/start-interview-button.tsx")).toContain('useState<SohoIndustryCode | "">("")');

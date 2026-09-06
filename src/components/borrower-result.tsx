@@ -146,7 +146,7 @@ export function BorrowerResult({ snapshot }: { snapshot: FinalInterviewView }) {
             담당자와 답변·목표·준비자료를 검토할 때 이 기록을 사용할 수 있습니다.
           </p>
         </div>
-        <Link className="dh-button" href={`/consultation/${snapshot.interviewId}`}>금융기관 상담 준비 <ArrowRight size={17} /></Link>
+        <Link className="dh-button" href={`/demo/admin?interview=${snapshot.interviewId}`}>금융기관 상담 준비 <ArrowRight size={17} /></Link>
       </section>
       <p className="dh-footnote">
         이 결과는 인터뷰에서 확인한 내용입니다. 대출 승인·거절이나 신용등급을

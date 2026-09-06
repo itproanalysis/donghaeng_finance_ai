@@ -12,7 +12,7 @@ import styles from "@/app/data-engine.module.css";
 
 const REVIEW_LABELS = { PENDING: "검토 전", NEEDS_INFORMATION: "추가 확인 필요", REVIEWED: "검토 완료" } as const;
 const ThreeRecoveryJourneyScene = dynamic(() => import("./three-recovery-journey-scene"), { ssr: false });
-export function RecoveryJourney({ interviewId, operator = false }: { interviewId: string; operator?: boolean }) {
+export function RecoveryJourney({ interviewId, operator = false, onChanged, onReviewDirtyChange }: { interviewId: string; operator?: boolean; onChanged?: (state: RecoveryState) => void; onReviewDirtyChange?: (dirty: boolean) => void }) {
   const [state, setState] = useState<RecoveryState | null>(null);
   const [dataReview, setDataReview] = useState<DataReview | null>(null);
   const [candidateId, setCandidateId] = useState("");
@@ -47,7 +47,8 @@ export function RecoveryJourney({ interviewId, operator = false }: { interviewId
     commandRef.current = recoveryCommand(commandRef.current, action, values);
     try {
       const result = await readApiEnvelope(await authenticatedFetch(`/api/interviews/${interviewId}/recovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(commandRef.current.body) })) as RecoveryState;
-      setState(result); commandRef.current = null;
+      setState(result); commandRef.current = null; onChanged?.(result);
+      if (action === "REVIEW") onReviewDirtyChange?.(false);
       setSaved(action === "ADD_EVIDENCE" ? "실행 기록을 저장했습니다." : action === "SELECT_ACTION" ? "선택한 계획을 저장했습니다." : "담당자 검토 기록을 저장했습니다.");
       if (action === "ADD_EVIDENCE") { setTitle(""); setNote(""); setObservedOn(""); setMissionId(Math.min(3, missionId + 1)); }
     } catch (error) {
@@ -75,7 +76,7 @@ export function RecoveryJourney({ interviewId, operator = false }: { interviewId
       </select></label><p>{mission.description}</p><button type="button" className={styles.textButton} disabled={busy} onClick={() => { setTitle(mission.exampleTitle); setNote(mission.exampleNote); setObservedOn(new Date().toISOString().slice(0, 10)); }}>합성 예시 기록 불러오기</button><label>자료 또는 행동 이름<input value={title} required maxLength={120} onChange={(event) => setTitle(event.target.value)} disabled={busy} /></label><label>기록 기준일<input type="date" value={observedOn} required onChange={(event) => setObservedOn(event.target.value)} disabled={busy} /></label><label>구체적인 기록<textarea value={note} required minLength={10} maxLength={2000} onChange={(event) => setNote(event.target.value)} disabled={busy} /></label><button className={styles.primary} disabled={busy || !title.trim() || note.trim().length < 10 || !observedOn} type="submit">{busy ? "저장 중…" : "실행 기록 저장"}</button></form>}
       <section aria-label="새 Evidence 원문"><h3>실행 기록 · {state.evidence.length}개</h3>{!state.evidence.length && <p className={styles.small}>아직 남긴 실행 기록이 없습니다.</p>}{state.evidence.map((evidence) => <article key={evidence.id}><small>Mission {evidence.missionId} · {evidence.observedOn} · 자기보고 기록</small><h4>{evidence.title}</h4><p>{evidence.note}</p><code>{evidence.id}</code><details><summary>저장·무결성 정보</summary><p>저장 시각 {evidence.createdAt}<br />연결 FINAL {evidence.finalSnapshotId}</p><code>{evidence.contentHash}</code><p>인터뷰 종료 원본과 구분된 append-only 자기보고 기록입니다. 사업 성과 검증이나 자동 재평가를 뜻하지 않습니다.</p></details></article>)}</section>
       <p className={styles.scope}>이 기록은 향후 재평가 시 새로운 Evidence로 활용될 수 있습니다.</p>
-      <section><h3>검토 상태 · {REVIEW_LABELS[state.review.status]}</h3>{state.review.note && <p>{state.review.note}</p>}<p className={styles.small}>검토 기록 {state.review.revision}{state.review.reviewedAt && ` · ${state.review.reviewedAt}`}</p>{operator && <form onSubmit={(event) => { event.preventDefault(); void mutate("REVIEW", { status: reviewStatus, note: reviewNote, expectedRevision: state.review.revision }); }}><label>검토 상태<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value)} disabled={busy}><option value="NEEDS_INFORMATION">추가 확인 필요</option><option value="REVIEWED">검토 완료</option></select></label><label>확인한 내용 또는 보완 요청<textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} required maxLength={2000} disabled={busy} /></label><button type="submit" className={styles.primary} disabled={busy || !reviewNote.trim()}>검토 기록 저장</button><p className={styles.small}>정보 검토 상태만 기록합니다. 대출 승인·거절 판단이 아닙니다.</p></form>}</section>
+      <section><h3>검토 상태 · {REVIEW_LABELS[state.review.status]}</h3>{state.review.note && <p>{state.review.note}</p>}<p className={styles.small}>검토 기록 {state.review.revision}{state.review.reviewedAt && ` · ${state.review.reviewedAt}`}</p>{operator && <form onChange={() => onReviewDirtyChange?.(true)} onSubmit={(event) => { event.preventDefault(); void mutate("REVIEW", { status: reviewStatus, note: reviewNote, expectedRevision: state.review.revision }); }}><label>검토 상태<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value)} disabled={busy}><option value="NEEDS_INFORMATION">추가 확인 필요</option><option value="REVIEWED">검토 완료</option></select></label><label>확인한 내용 또는 보완 요청<textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} required maxLength={2000} disabled={busy} /></label><button type="submit" className={styles.primary} disabled={busy || !reviewNote.trim()}>검토 기록 저장</button><p className={styles.small}>정보 검토 상태만 기록합니다. 대출 승인·거절 판단이 아닙니다.</p></form>}</section>
       {!operator && <InstitutionHandoff interviewId={interviewId} />}
     </>}
   </section>;

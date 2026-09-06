@@ -46,9 +46,9 @@ export function AppHeader({ publicReview = false }: { publicReview?: boolean } =
   const pathname = usePathname();
   const isBorrower = pathname.startsWith("/borrower");
   const isIntroduction = pathname === "/about";
-  const isEngine = pathname === "/" || isIntroduction || pathname.startsWith("/judge-demo") || pathname.startsWith("/recovery") || pathname.startsWith("/review") || pathname.startsWith("/consultation");
+  const isEngine = pathname === "/demo/admin" || pathname === "/" || isIntroduction || pathname.startsWith("/judge-demo") || pathname.startsWith("/recovery") || pathname.startsWith("/review") || pathname.startsWith("/consultation");
 
-  if (pathname === "/login" || pathname.startsWith("/demo")) {
+  if (pathname === "/login" || (pathname.startsWith("/demo") && pathname !== "/demo/admin")) {
     return null;
   }
 
@@ -67,7 +67,7 @@ export function AppHeader({ publicReview = false }: { publicReview?: boolean } =
           <nav className="dh-header-nav" aria-label="주요 화면 이동">
             <Link href="/about" aria-current={isIntroduction ? "page" : undefined}>서비스 소개</Link>
             <Link href="/judge-demo" aria-current={pathname.startsWith("/judge-demo") ? "page" : undefined}>사례 체험</Link>
-            <Link href="/borrower?entry=sample" aria-current={isBorrower ? "page" : undefined}>인터뷰 시작</Link>
+            {isBorrower ? <Link href="/borrower?entry=sample" aria-current="page">인터뷰 시작</Link> : <Link href="/demo/admin" aria-current={pathname === "/demo/admin" ? "page" : undefined}>기관 검토자료</Link>}
             <Link href="/review" aria-current={pathname.startsWith("/review") ? "page" : undefined}>결과·상담 준비</Link>
           </nav>
           {(isBorrower || isIntroduction) && (

@@ -616,6 +616,12 @@ async function main() {
     const page = await fetch(`${origin}${path}`, { headers: { cookie } });
     assert(page.status === 200 && (await page.text()).includes(marker), `${path} 실제 서비스 화면을 렌더링하지 못했습니다.`);
   }
+  for (const path of ["/demo/admin", "/modeling?case=case_operating_drop&review=final"]) {
+    const response = await fetch(`${origin}${path}`, { headers: { cookie }, redirect: "manual" });
+    const html = await response.text();
+    assert(response.status === 200 && html.includes('id="modeling-review-report"') && html.includes("금융기관 검토"), `기존 금융기관 검토 경로가 검토서를 열지 못했습니다: ${path}`);
+    assert(html.includes("54") && html.includes("80") && !html.includes("상환 안정성이 양호"), `검토서 근거와 표현 오류: ${path}`);
+  }
   const oldDemo = await fetch(`${origin}/demo/borrower`, { headers: { cookie } });
   assert(new URL(oldDemo.url).pathname === "/borrower", "기존 시연 경로가 실제 사장님 화면으로 연결되지 않았습니다.");
   const emptyOperations = expectSuccess(await apiRequest(origin, "/api/interviews", { cookie }), 200);

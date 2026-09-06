@@ -51,7 +51,7 @@ const TABS: Array<{ id: ModelingTab; number: string; label: string }> = [
   { id: "cb", number: "06", label: "신용정보" },
   { id: "goals", number: "07", label: "목표·기록" },
   { id: "reevaluation", number: "08", label: "재평가" },
-  { id: "report", number: "09", label: "검토 요약" },
+  { id: "report", number: "09", label: "기관 검토자료" },
 ];
 
 const PIPELINE = [
@@ -201,7 +201,7 @@ export function ModelingReview({
 }: ModelingReviewProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const requestedTab = searchParams.get("tab");
+  const requestedTab = searchParams.get("tab") ?? (searchParams.get("review") === "final" ? "report" : null);
   const activeTab: ModelingTab = TABS.find((tab) => tab.id === requestedTab)?.id ?? "summary";
   const [shareStatus, setShareStatus] = useState("");
   const [shareFallback, setShareFallback] = useState("");
@@ -311,10 +311,10 @@ export function ModelingReview({
     <main id="main-content" className={styles.page}>
       <section className={styles.hero} aria-labelledby="modeling-heading">
         <div className={styles.heroCopy}>
-          <h1 id="modeling-heading">사업·행동 평가</h1>
-          <p className={styles.lead}>사업 현황을 변수로 정리하고, 목표 수행에 따른 변화를 다시 평가합니다.</p>
+          <h1 id="modeling-heading">{activeTab === "report" ? "금융기관 검토자료" : "사업·행동 평가"}</h1>
+          <p className={styles.lead}>{activeTab === "report" ? "사업 현황·평가 근거·수행자료·담당자 의견을 한 검토서로 정리합니다." : "사업 현황을 변수로 정리하고, 목표 수행에 따른 변화를 다시 평가합니다."}</p>
           <div className={styles.heroActions}>
-            <Link href="/about">서비스 소개</Link><span>합성 사례 · 규칙 기반 평가</span>
+            <Link href="/about">서비스 소개</Link><Link href={`/demo/admin?case=${selectedCase.caseId}`}>금융기관 검토실</Link><span>합성 사례 · 규칙 기반 평가</span>
           </div>
         </div>
         <aside className={styles.casePicker} aria-label="검증 사례 선택">

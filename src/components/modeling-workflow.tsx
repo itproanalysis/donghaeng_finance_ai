@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import { ArrowRight, Download, Printer } from "lucide-react";
 import type { ModelingBundle, ModelingCase, ModelingAxis } from "@/server/modeling-demo";
 import { displayModelValue as value, getCaseGoal, getScoreChanges, readReviewDraft, type ModelingReviewDraft } from "@/domain/modeling-workflow";
+import { ModelingInstitutionReport } from "./modeling-institution-report";
 import styles from "@/app/modeling/workflow.module.css";
 
 type View = "goals" | "reevaluation" | "report";
@@ -35,6 +36,13 @@ export function ModelingWorkflow({ view, selectedCase, cases, reevaluation, mode
   const rawDraft = useSyncExternalStore(subscribe, () => { try { return localStorage.getItem(key); } catch { return null; } }, serverSnapshot);
   const draft = useMemo(() => readReviewDraft(rawDraft), [rawDraft]);
   const [feedback, setFeedback] = useState("");
+  const [opinionDirty, setOpinionDirty] = useState(false);
+  useEffect(() => {
+    if (!opinionDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [opinionDirty]);
 
   function save(patch: Partial<ModelingReviewDraft>) {
     const next = { ...draft, ...patch, updatedAt: new Date().toISOString() };
@@ -42,6 +50,7 @@ export function ModelingWorkflow({ view, selectedCase, cases, reevaluation, mode
       localStorage.setItem(key, JSON.stringify(next));
       window.dispatchEvent(new Event("modeling-review-saved"));
       setFeedback("이 브라우저에 저장했습니다.");
+      setOpinionDirty(false);
     } catch { setFeedback("브라우저 저장소를 사용할 수 없습니다. 저장하려면 이 사이트의 저장소를 허용해 주세요."); }
   }
 
@@ -54,11 +63,13 @@ export function ModelingWorkflow({ view, selectedCase, cases, reevaluation, mode
   }
 
   function downloadReport() {
+    if (opinionDirty) return;
     const report = {
       reportType: "SYNTHETIC_CASE_REVIEW", caseId: selectedCase.caseId, title: selectedCase.title,
       modelVersion, mockData: true, initialAssessment: initialCase.scorecard,
       currentAssessment: selectedCase.scorecard, goal: { feature: goal.feature ?? null, target: goal.target?.value ?? null, horizonDays: goal.horizon?.value ?? null },
       followup: isFollowup && followup ? { ...reevaluation, scorecard: followup.scorecard } : null,
+      sourceSummary: selectedCase.sourceSummary, featureSummary: selectedCase.featureSummary, interviewConversion: selectedCase.interviewConversion, exportedAt: new Date().toISOString(),
       features: selectedCase.features, cbContext: selectedCase.cbContrast, operatorDraft: draft,
       limitations: "합성 사례의 규칙 기반 상담·심사 보조자료. 신용등급·연체확률·대출 승인 결과가 아닙니다. 검토 메모는 점수에 반영되지 않으며 기관 전송은 수행하지 않습니다.",
     };
@@ -70,8 +81,6 @@ export function ModelingWorkflow({ view, selectedCase, cases, reevaluation, mode
   }
 
   const changed = followup ? getScoreChanges(initialCase, followup) : [];
-  const scoreCase = isFollowup && followup ? followup : initialCase;
-  const pendingFeatures = selectedCase.features.filter((feature) => feature.usedInScore && ["MISSING", "REFUSED", "UNDECIDED"].includes(feature.status));
   const numericChanges = followup ? initialCase.features.flatMap((feature) => {
     const next = followup.features.find((row) => row.code === feature.code);
     if (!next || typeof feature.value !== "number" || typeof next.value !== "number" || feature.value === next.value || feature.source === "INTERVIEW" || !feature.usedInScore) return [];
@@ -115,19 +124,12 @@ export function ModelingWorkflow({ view, selectedCase, cases, reevaluation, mode
     </>}
 
     {view === "report" && <>
-      <article id="modeling-review-report" className={styles.report}>
-        <header className={styles.heading}><span>동행금융 · 합성 사례 검토자료</span><h2>기관 검토용 요약</h2><p>{selectedCase.title} · {isFollowup ? "재평가" : "최초 평가"}</p></header>
-        <section><h3>1. 평가 결과와 산출 범위</h3><div className={styles.reportAxes}><Axis axis={scoreCase.scorecard.currentSituation} label="현재 상황" /><Axis axis={scoreCase.scorecard.improvement} label="개선가능성" /></div><p>신용정보(CB)와 함께 검토할 사업·행동 지표입니다. 현재 모형은 연체확률·대출 한도·금리를 산출하지 않습니다.</p></section>
-        <section><h3>2. 목표 및 수행자료</h3><p>{goal.feature?.label ?? "목표 미확인"}: {value(goal.feature?.value, goal.feature?.code)} → 목표 {value(goal.target?.value, goal.feature?.code)} · {value(goal.horizon?.value, "horizon_days")}</p><p>{isFollowup && followup ? `후속 거래자료 ${reevaluation.monthlyRecords.length}개월 반영 · 최근 3개월 ${value(reevaluation.after, reevaluation.goalFeature)} · ${reevaluation.reached === true ? "목표 달성" : "목표 미달"}` : "이 요약은 최초 평가 기준입니다. 후속 자료 반영 결과는 재평가에서 확인합니다."}</p><p>담당자 확인 기록: 목표 {draft.goalConfirmed ? "확인" : "대기"} / 수행자료 {draft.recordsReviewed ? "확인" : "대기"}</p></section>
-        <section><h3>3. 추가 확인할 평가자료</h3><p>직접 평가에 쓰이는 변수 중 {pendingFeatures.length}개가 미확인·거절·미결정 상태입니다.</p>{pendingFeatures.length > 0 && <ul className={styles.pending}>{pendingFeatures.map((feature) => <li key={feature.code}>{feature.label} · {value(feature.value)}</li>)}</ul>}<p>별도 기관 검토 전에는 자료의 진위·최신성, 고객의 제공 동의와 기관별 제출 요건을 확인해야 합니다.</p></section>
-        <section><h3>4. 담당자 검토 의견</h3><p><strong>{decisions[draft.disposition]}</strong>{draft.updatedAt && <small> · 저장 {new Date(draft.updatedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })}</small>}</p><p className={styles.savedNote}>{draft.note || "아직 작성된 검토 의견이 없습니다."}</p></section>
-        <footer>모형 {modelVersion} · 합성 데이터 · 실제 고객 심사·대출중개·기관 전송을 수행한 자료가 아닙니다.</footer>
-      </article>
-      <form className={styles.opinionForm} onSubmit={saveOpinion} key={`${key}:${draft.updatedAt}`}>
+      <ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} />
+      <form className={styles.opinionForm} onSubmit={saveOpinion} onChange={() => setOpinionDirty(true)} key={`${key}:${draft.updatedAt}`}>
         <h3>검토 의견 기록</h3><label htmlFor="review-disposition">후속 검토 상태</label><select id="review-disposition" name="disposition" defaultValue={draft.disposition}>{Object.entries(decisions).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
         <label htmlFor="review-note">검토 메모</label><textarea id="review-note" name="note" rows={4} maxLength={2000} defaultValue={draft.note} placeholder="보완할 자료, 변수 해석 시 유의점과 다음 조치를 기록하세요." /><p className={styles.note}>이 브라우저에만 저장됩니다. 메모는 평가 점수에 반영되지 않습니다.</p><button type="submit" className={styles.primary}>검토 의견 저장</button>
       </form>
-      <div className={styles.actions}><button type="button" className={styles.button} onClick={() => window.print()}><Printer size={16} /> 요약 인쇄 · PDF 저장</button><button type="button" className={styles.button} onClick={downloadReport}><Download size={16} /> 요약·근거 JSON 받기</button></div>
+      <p className={styles.note} role="status">{opinionDirty ? "검토 의견을 저장한 뒤 최종 자료를 내려받으세요." : "저장한 의견과 현재 선택한 사례를 최종 자료에 포함합니다."}</p><div className={styles.actions}><button type="button" className={styles.button} disabled={opinionDirty} onClick={() => window.print()}><Printer size={16} /> 검토자료 인쇄 · PDF 저장</button><button type="button" className={styles.button} disabled={opinionDirty} onClick={downloadReport}><Download size={16} /> 최종 검토자료 받기</button></div>
     </>}
     <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p>
   </div>;

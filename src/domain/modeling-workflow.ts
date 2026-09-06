@@ -9,7 +9,7 @@ export function displayModelValue(value: ModelingValue | undefined, code = ""): 
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return "미확인";
     const percentage = /ratio|growth|change|share|cv|recovery|drawdown/.test(code);
-    const unit = percentage ? "%" : /day_count|horizon_days/.test(code) ? "일" : /transaction_count/.test(code) ? "건" : /sales_avg|outflow|balance|ticket|budget|cashflow_avg/.test(code) ? "원" : "";
+    const unit = percentage ? "%" : /day_count|horizon_days|buffer_days/.test(code) ? "일" : /transaction_count/.test(code) ? "건" : /sales_avg|outflow|balance|ticket|budget|cashflow_avg/.test(code) ? "원" : "";
     return `${(percentage ? value * 100 : value).toLocaleString("ko-KR", { maximumFractionDigits: 2 })}${unit}`;
   }
   if (Array.isArray(value)) return value.map((part) => displayModelValue(part)).join(", ");

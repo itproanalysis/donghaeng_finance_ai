@@ -2,7 +2,7 @@
 
 동행금융AI는 소상공인의 비정형 사업 정보를 AI 인터뷰로 수집하고, 이를 근거 추적 가능한 금융 Feature로 변환하여 기존 금융정보의 공백을 보완하는 웹서비스입니다.
 
-[사례 체험 바로가기](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/judge-demo) · [서비스 소개](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/about) · [최종 통합 구현·검증 기록](docs/DATA_ENGINE_RELEASE_2026-09-06.md) · [금융기관 상담 연결 개선](docs/INSTITUTION_HANDOFF_2026-09-06.md)
+[금융기관 검토자료 만들기](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/demo/admin) · [사례 체험](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/judge-demo) · [서비스 소개](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/about) · [금융기관 검토실 복원·검증](docs/INSTITUTION_REVIEW_FINAL_2026-09-06.md)
 
 ```mermaid
 flowchart LR
@@ -15,7 +15,7 @@ flowchart LR
     H --> A[사업자 Action 선택]
     A --> R[Recovery Journey]
     R --> N[새 Evidence · 향후 재검토 자료]
-    H --> D[금융기관 상담 준비서]
+    H --> D[금융기관 검토자료 · 담당자 의견]
     N --> D
     D --> O[기관 선택 · 공식 상담 창구]
 ```
@@ -31,7 +31,11 @@ flowchart LR
 | `/borrower` · `/borrower/interviews/:id` | 기존 실제 음성·텍스트 인터뷰와 서버 데이터 생성 현황 |
 | `/recovery/:id` | FINAL 이후 자발적 Action 선택, 3개 미션, append-only 자기보고 Evidence |
 | `/review` · `/review/:id` | Evidence/Feature Coverage, Missingness, Signal, Action, 추가 확인 필요·검토 완료 |
+| `/demo/admin` | 복원한 금융기관 검토실. 기존 94개 변수 사례의 사업 현황·평가 산식·원문·목표·6개월 수행자료·담당자 의견과 최종 검토서 |
+| `/demo/admin?interview=:id` | 직접 진행한 인터뷰의 FINAL·100개 변수·원문·실행 기록·담당자 검토 의견을 하나의 자료로 확인·저장·내보내기 |
 | `/consultation/:id` | 결과·원문 근거·100개 변수·계획·실행 기록을 묶은 상담 준비서, 기관 선택, 저장, 인쇄/PDF·JSON, 공식 상담 안내 |
+
+기존 공유 주소 `/modeling?case=case_operating_drop&review=final`도 검토서로 바로 연결됩니다. `/demo/admin`의 잘못된 상담 목록 리다이렉트를 제거하고, 원래 검토자료 화면을 기존 `ModelingWorkflow`와 서버 산출물로 복원했습니다. 최초·후속 자료의 분모와 누락 상태를 함께 표시하며, 기존 브라우저에 저장한 검토 의견을 그대로 사용합니다. 직접 진행한 인터뷰는 서버의 상담 패키지와 append-only 담당자 검토 API를 재사용합니다. 두 자료의 94개/100개 변수 계약은 구분합니다.
 
 **Competition Demo / Synthetic Data.** 브라우저별로 체험 기록을 보관합니다. 실제 고객정보를 입력하지 않습니다. 본 서비스는 대출 승인·거절, 신용등급, 승인·부도 확률을 생성하지 않습니다. 학습된 신용모델·금융기관 데이터 연동·자동 신용 재평가·증빙 파일 진위 확인은 구현 범위에 포함되지 않습니다. 음성·외부 AI 처리 동의는 직접 선택합니다.
 
@@ -49,7 +53,7 @@ flowchart LR
 
 ## GCP 서비스
 
-[심사용 공개 웹사이트](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/) — 첫 화면의 **사례 체험**에서 발화→Canonical→Evidence→Feature→Signal→계획 선택을 확인하고, **결과·상담 준비**에서 자료를 내려받아 기관의 공식 상담 안내로 이동할 수 있습니다. **서비스 소개**는 목적과 사용자/운영자 과정을 설명합니다. 심사용 별도 DB·방문자별 격리·사용량 제한을 적용했고 실제 운영 자료와 합치지 않습니다.
+[심사용 공개 웹사이트](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/) — 첫 화면의 **사례 체험**에서 발화→Canonical→Evidence→Feature→Signal→계획 선택을 확인합니다. **기관 검토자료**에서 기존 금융기관 검토실을 바로 열고, **결과·상담 준비**에서 자신의 인터뷰 기록으로 검토자료를 만들 수 있습니다. **서비스 소개**는 목적과 사용자/운영자 과정을 설명합니다. 심사용 별도 DB·방문자별 격리·사용량 제한을 적용했고 실제 운영 자료와 합치지 않습니다.
 
 [소유자 전용 실제 서비스](https://donghaeng-finance-ai-jy5k5cvnjq-du.a.run.app/) — 허용된 본인 Google 계정과 IAP가 필요합니다. 공개 심사 서비스와 VM·DB·서비스 계정을 분리합니다.
 
@@ -66,7 +70,7 @@ flowchart LR
 - `/api/demo/modeling`과 `/api/demo/modeling/:caseId`는 빌드 시 Python `modeling/build.py`·`scorecard.py`를 실행해 만든 `modeling_web_v1` 산출물을 제공합니다. 브라우저가 점수나 lineage를 역추론하지 않습니다. 10개 사례의 Python/Web parity, 전후 산식·분모와 artifact checksum을 테스트합니다.
 
 - 공개 첫 화면은 **사업 정보 수집과 근거 추적 가능한 Feature 생성**을 중심으로 3분 데모·서비스 소개를 안내합니다. 기존 모델링 사례 비교는 보조 실험 링크에서 확인합니다.
-- `/interviews`의 **상담 대장**에서 권한이 있는 기록을 상태·이름으로 찾아 이어봅니다. 공개 방문자는 자신의 브라우저에 속한 기록을 확인합니다. `/demo`, `/demo/borrower`, `/demo/admin`은 실제 화면으로 리다이렉트합니다.
+- `/interviews`의 **상담 대장**에서 권한이 있는 기록을 상태·이름으로 찾아 이어봅니다. 공개 방문자는 자신의 브라우저에 속한 기록을 확인합니다. `/demo`, `/demo/borrower`는 실제 인터뷰 화면으로 리다이렉트하며, `/demo/admin`은 복원한 금융기관 검토자료 페이지입니다.
 - 실제 완료 화면은 사업 정보·답변 근거·미확인 항목·개선 후보를 보여 줍니다. 관리자 평가 상세의 **개선안·상담 초안**에서는 담당자·점검 시점·확인 자료·검토 기관을 서버에 명시적으로 저장하고 다시 불러옵니다. 동시 수정은 버전 충돌로 보호하며, 초안 저장은 FINAL 원본 변경이나 금융기관 전송이 아닙니다.
 - 보호된 개발 환경에서는 호칭·사업체명·업종을 입력하며, 공개 환경은 가상 사업자 프로필로 채팅·음성을 시작합니다. 동의는 직접 선택하며 사업 수치나 답변을 자동으로 넣지 않습니다.
 - 질문은 확인된 정보·누락값·근거를 바탕으로 서버가 선택합니다. 질문·답변 이력을 기본으로 보여 주며, 사업 현황은 별도 탭에서 확인합니다. 등록된 시연은 최종 답변을 Python 모형에 연결해 사업·행동 점수를 산출합니다.
