@@ -1,0 +1,81 @@
+{
+  "origin": "https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app",
+  "interviewId": "9e40cb55-9f90-4670-a8ba-4ffd6a5c6bf6",
+  "checks": [
+    "빈 인터뷰: COMPUTED 0 / MISSING 100 / Evidence 0",
+    "data-review 익명 접근 차단",
+    "상담 준비서는 FINAL 확인 후 제공",
+    "상담 준비서 익명 접근 차단",
+    "실제 답변 1 → LIVE 갱신",
+    "실제 답변 2 → LIVE 갱신",
+    "실제 답변 3 → LIVE 갱신",
+    "23,000,000 KRW: Canonical → fin_sales_avg_3m",
+    "비율은 기존 서버 산식: 고정비 0.31 / 반복고객 0.50",
+    "수집되지 않은 신용정보는 null / MISSING",
+    "100개 Feature의 modelCandidate:false 유지",
+    "Feature → selected revision → 원문 Evidence",
+    "Signal → source Feature → canonical → Evidence",
+    "3답변 FINAL: INCOMPLETE / 평가·신용등급 미생성",
+    "종료 시점 Feature 고정",
+    "미션·계획 선택 없이도 현재 결과로 상담 준비",
+    "Recovery 교차 출처 저장 차단",
+    "Mission 1: append-only Evidence / 동일 요청 중복 방지",
+    "Mission 2: append-only Evidence / 동일 요청 중복 방지",
+    "Mission 3: append-only Evidence / 동일 요청 중복 방지",
+    "3개 미션 실제 기록 상태",
+    "담당자 검토는 추가 확인 상태만 기록",
+    "기관 선택·일부 준비자료 저장",
+    "상담 자료: 저장된 기관·원문·100개 변수·선택·실행 기록 결합",
+    "상담 자료에서도 누락·근거·FINAL 원본 유지",
+    "금융기관 상담 준비 화면 접근",
+    "새 Evidence와 검토 후 FINAL hash/Feature 불변",
+    "담당자 목록: Coverage / Action / Review 연결",
+    "방문자별 data-review 격리",
+    "방문자별 recovery 격리",
+    "방문자별 consultation-package 격리"
+  ],
+  "providers": [
+    {
+      "status": "APPLIED",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "inputTokens": 1550,
+      "outputTokens": 151,
+      "stopReason": "tool_use"
+    },
+    {
+      "status": "APPLIED",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "inputTokens": 1559,
+      "outputTokens": 155,
+      "stopReason": "tool_use"
+    },
+    {
+      "status": "APPLIED",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "inputTokens": 1631,
+      "outputTokens": 140,
+      "stopReason": "tool_use"
+    }
+  ],
+  "metrics": {
+    "confirmed": 4,
+    "needed": 7,
+    "evidence": 5,
+    "computed": 13,
+    "missing": 87,
+    "notCalculable": 0,
+    "totalFeatures": 100,
+    "totalInformation": 11,
+    "evidenceCovered": 4,
+    "resolvedRequired": 3,
+    "totalRequired": 8
+  },
+  "finalHash": "sha256:c21165aebc1106f6ae420ee7040ac4c0f6c7c21a0856ea2d04edd9bb4ce85432",
+  "newEvidence": 3,
+  "checkedAt": "2026-09-06T13:29:15.665Z",
+  "applicationCommit": "7277f35",
+  "buildId": "3bc1ec4d-2e7d-425d-905e-217fe519046a"
+}

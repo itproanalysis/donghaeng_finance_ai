@@ -1,0 +1,149 @@
+{
+  "origin": "https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app",
+  "checkedAt": "2026-09-06T13:26:46.528Z",
+  "applicationCommit": "7277f35",
+  "buildId": "3bc1ec4d-2e7d-425d-905e-217fe519046a",
+  "routes": [
+    {
+      "path": "/demo/admin",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": {
+        "tabLists": 1,
+        "tabs": 5,
+        "currentDocumentSidebar": true
+      },
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/modeling?case=case_operating_drop&review=final",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": {
+        "tabLists": 1,
+        "tabs": 5,
+        "currentDocumentSidebar": true
+      },
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/modeling?case=case_operating_drop&tab=report&section=evidence",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": {
+        "tabLists": 1,
+        "tabs": 5,
+        "currentDocumentSidebar": true
+      },
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/demo/admin?case=case_operating_drop_after",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": {
+        "tabLists": 1,
+        "tabs": 5,
+        "currentDocumentSidebar": true
+      },
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/demo/admin?case=case_no_answer",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": {
+        "tabLists": 1,
+        "tabs": 5,
+        "currentDocumentSidebar": true
+      },
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": null,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": null,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/review",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": null,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/judge-demo",
+      "status": 200,
+      "restoredContent": true,
+      "workspace": null,
+      "unwantedLoginCopy": false
+    }
+  ],
+  "modelingParity": [
+    {
+      "caseId": "case_customer_drop",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_ticket_drop",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_operating_drop",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_operating_drop_after",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_no_answer",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_cost_pressure",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_demand_shift",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_interior",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_volatile",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_new_low",
+      "features": 94,
+      "parity": true
+    }
+  ],
+  "numericTolerance": {
+    "absolute": 1e-9,
+    "relative": 1e-12
+  },
+  "maxAbsoluteDifference": 1.862645149230957e-9,
+  "allPassed": true
+}

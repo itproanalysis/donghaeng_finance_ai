@@ -43,7 +43,20 @@
 
 ## 배포
 
-로컬 검증을 완료했으며 공개 심사 환경에 반영한 뒤 빌드·실행 이미지와 공개 경로 검증 결과를 아래에 기록한다.
+- 애플리케이션 커밋 **`7277f35`**, `feature/service-review-completion` push 완료.
+- Cloud Build **`3bc1ec4d-2e7d-425d-905e-217fe519046a` SUCCESS**, 2026-09-06 22:25:21 KST 빌드 완료.
+- 이미지 digest `sha256:0bfcd2125ad843ca6fa3e8d6b94334e47e72b55a2b01517b41f6dab53901b7c6`. 공개 심사 VM `donghaeng-review-app`에 적용했다. 시작 스크립트 exit 0, `donghaeng-review.service` active, 실행 이미지 일치를 확인했다.
+- 기존 공유 주소·단계 직접 주소·최초/후속/미응답 사례와 홈·소개·결과·시연 총 **9개 공개 경로 HTTP 200**. 검토자료 경로의 상위 단계 5개와 요약 영역, 불필요한 로그인 홍보 문구 없음을 확인했다.
+- 공개 10개 사례의 94개 변수·평가·상태·근거를 로컬과 대조했다. 점수와 반영 분모, 원문은 정확히 일치했다. 변수·lineage의 Linux/Windows 수치 말단 차이만 절대 `1e-9` + 상대 `1e-12` 허용오차로 비교했다. 최대 절대 차이는 `1.862645149230957e-9`다.
+- 배포 후 **공개 인터뷰 API 31개 검사 통과**. 실제 Anthropic 답변 3개 모두 `APPLIED/tool_use`. 23,000,000원 → Canonical → Feature, 근거 추적, MISSING, FINAL 불변, 실행 기록, 상담 준비 저장, 방문자 격리를 확인했다.
+- 공개 화면에서 9월 5일에 저장했던 담당자 의견과 목표·수행자료 확인 상태를 그대로 읽었다. 새로 받은 94개 변수 JSON(105,640 bytes)의 평가·원문·담당자 의견이 배포 전 파일과 일치했다.
+- 배포 전 직접 인터뷰에서 새로 받은 100개 변수 JSON(142,506 bytes)의 전체 review·Recovery·상담 초안·기관 정보가 이전 파일과 일치했다. 13개 COMPUTED·87개 MISSING, 실행 기록 3개 ID, 검토 의견, 기관 선택, 일부 준비자료, FINAL hash를 보존했다.
+- 공개 `/consultation/:id`가 같은 화면의 **자료 내보내기** 단계에서 열리고 저장한 지역신용보증재단·매출/비용 준비 상태가 표시됐다.
+- 공개 모바일 390×844에서 5개 단계가 두 줄로 모두 보였다. 문서 폭과 본문 폭 375px, 가로 넘침 없음, 표시 패널 1개, 오류 메시지 없음을 확인했다. 브라우저 화면 크기를 복원했다.
+
+공개 주소: [금융기관 검토자료](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/demo/admin), [기존 공유 주소](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/modeling?case=case_operating_drop&review=final).
+
+실행 증적: [공개 경로·10개 사례 대조](verification/institution-workspace-public-2026-09-06.json), [공개 인터뷰 API](verification/institution-workspace-engine-public-2026-09-06.json), [다운로드·기록 보존·모바일·상담 준비 연결](verification/institution-workspace-browser-2026-09-06.json).
 
 ## 현재 범위
 
