@@ -7,11 +7,11 @@
 | 목적 | 주요 파일 |
 | --- | --- |
 | 첫 화면·한 페이지 소개 | `src/components/engine-introduction.tsx`, `service-overview.tsx`, `app-header.tsx`, `src/app/about/page.tsx`, `layout.tsx`, `data-engine.module.css`, `service-polish.css` |
-| 실제 3분 기술 데모 | `src/app/judge-demo/page.tsx`, `src/components/judge-demo.tsx`, `src/domain/judge-demo.ts` |
+| 실제 3분 기술 데모 | `src/app/judge-demo/page.tsx`, `src/components/judge-demo.tsx`, `judge-demo-progress.ts`, `src/domain/judge-demo.ts` |
 | 원문·Canonical·Feature·Signal·Missingness | `src/components/data-review-panel.tsx`, `src/domain/data-review.ts`, `src/server/data-review.ts`, `interview-service.ts` |
 | 기존 사업자·담당자 화면 연결 | `borrower-interview-room.tsx`, `borrower-result.tsx`, `final-interview-record.tsx`, `evaluation-report.tsx`, `api-adapter.ts` |
 | FINAL artifact 보존 | `src/domain/final-snapshot-v1.ts`, `src/server/interview-service.ts` |
-| Action·Mission·새 Evidence·검토 | `src/components/recovery-journey.tsx`, `three-recovery-journey-scene.tsx`, `src/domain/recovery-journey.ts`, `src/server/recovery-service.ts`, `migrations/018_recovery_evidence.sql` |
+| Action·Mission·새 Evidence·검토 | `src/components/recovery-journey.tsx`, `recovery-command.ts`, `three-recovery-journey-scene.tsx`, `src/domain/recovery-journey.ts`, `src/server/recovery-service.ts`, `migrations/018_recovery_evidence.sql` |
 | 금융기관 관점 목록·상세 | `src/components/data-review-operator.tsx`, `src/app/review/page.tsx`, `src/app/review/[id]/page.tsx` |
 | 공개 진입 | `src/app/borrower/page.tsx`, `borrower-interview-start.tsx`; 공개 환경의 프로필 입력을 합성 사례로 통일 |
 | 계약·검증·설명 | `contracts/openapi.json`, `scripts/verify-data-engine.mjs`, `scripts/e2e-smoke.mjs`, `tests/server/data-review.test.ts`, 관련 기존 테스트, README·ARCHITECTURE·FEATURE_SCHEMA_V2 |
@@ -40,7 +40,7 @@
 
 - `npm run typecheck`: 통과.
 - `npm run lint`: 통과.
-- `npm test`: **106개 파일 / 763개 테스트 통과**. 기존 테스트 파일을 유지하고 첫 화면·합성 진입·migration의 의도된 변경에 맞춰 기대값을 갱신했다.
+- `npm test`: **108개 파일 / 768개 테스트 통과**. 기존 테스트 파일을 유지하고 첫 화면·합성 진입·migration의 의도된 변경에 맞춰 기대값을 갱신했다. 미완료 인터뷰 명령 재개와 저장 응답 유실 후 Recovery 중복 방지 회귀 검사도 포함한다.
 - `npm run build`: 통과. 신규 화면 4개와 API 3개가 route manifest에 포함된다.
 - `npm run test:e2e`: 통과. 기존 strict-tool adapter 18회, 오디오 WS 재연결/STT metadata, correction, SSE replay, 8개 core·11개 acceptance FINAL/evaluation, forced-incomplete, tenant·CSRF·동의, 상담 초안 재기동 보존을 확인했다.
 - 새 데이터 엔진 HTTP E2E: **21개 검사 통과**. 실제 OpenAPI 응답 schema도 AJV로 검증했다.
@@ -48,6 +48,8 @@
 - 3답변 기준 **13 COMPUTED / 87 MISSING / 0 NOT_CALCULABLE**, 고정비 비율 **0.31**, 반복고객 **0.50**. 미연결 신용정보는 `null/MISSING`이다.
 - 새 Evidence 3개를 저장하고 같은 명령을 재전송해 중복이 없는지 확인했다. FINAL hash·Feature 불변, tenant 격리, append-only UPDATE/DELETE 차단, CAS 충돌도 검증했다.
 - 브라우저에서 실제 버튼으로 3답변→Feature Explorer·원문→Signal Why→FINAL→Action→Mission 3개→담당자 보완 요청까지 확인했다. 모바일 390×844에서 첫 화면과 Recovery, Three.js 장면 및 가로 넘침 없음을 확인했다.
+- 추가 검토에서 공개 모바일 메뉴 가림, 재진입 시 검토 완료 상태의 선택값 초기화, 미완료 발화의 진행 수 오집계를 수정했다. 같은 발화의 여러 Evidence와 Canonical·Feature를 함께 표시하며 서버 값은 재계산하지 않는다.
+- Recovery는 응답 유실 뒤 최신 상태를 읽어도 원래 요청 ID·본문·CAS 버전으로 재시도한다. 명시적인 버전 충돌 거절이 있을 때만 새 요청으로 전환한다.
 
 로컬 음성 E2E는 실제 WebSocket/adapter와 검증용 STT 공급자를 사용한다. 사람의 실제 마이크 음성 품질을 이번 자동 검사만으로 검증했다고 주장하지 않는다.
 
@@ -57,7 +59,11 @@
 
 공개 주소: https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/judge-demo
 
-배포 커밋·이미지·health·공개 환경 실제 처리 결과는 배포 검증 후 이 절에 기록한다.
+1차 통합 커밋 `abcfd9bddd0af224fdd689ca14389aa68173f6d6`을 `feature/service-review-completion`에 push하고 Cloud Build `b9c8bc61-d48b-4892-9c49-5125378cc56e` 이미지를 공개 VM에 배포했다. `systemd active`와 실제 공개 API 23개 검사를 확인했다. 3개 답변 모두 `provider=anthropic`, `status=APPLIED`, `stopReason=tool_use`로 처리되었다.
+
+배포 전 SQLite backup API로 전용 디스크의 `/data/backups/review-before-engine-abcfd9b.db`에 일관된 백업을 만들었다. `quick_check=ok`, SHA-256 `5184c7582fb4cb172e69cf6e774cab29701f4ef8cbfa82237f6ad09ab48325e9`다.
+
+최종 보완 이미지와 공개 재검증 결과는 배포 완료 후 이 절에 추가한다.
 
 ## E. 남은 한계와 정직한 범위
 

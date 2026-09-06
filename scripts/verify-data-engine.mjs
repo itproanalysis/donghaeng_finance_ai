@@ -18,16 +18,17 @@ export async function requestEngine(origin, path, options = {}) {
   if (options.mutationOrigin) headers.set("origin", options.mutationOrigin);
   if (options.body !== undefined) headers.set("content-type", "application/json");
   const response = await fetch(`${origin}${path}`, { method: options.method ?? "GET", headers, body: options.body === undefined ? undefined : JSON.stringify(options.body), redirect: "manual", signal: AbortSignal.timeout(45_000) });
-  return { response, payload: await response.json() };
+  return { response, payload: await response.json().catch(() => null) };
 }
 
 export async function verifyDataEngine({ origin, cookie, request = requestEngine }) {
   const checks = [];
+  const providers = [];
   const check = (name, condition) => { assert(condition, name); checks.push(name); };
   const runId = randomUUID();
   async function api(path, body, schema, expectedStatus = 200) {
     const result = await request(origin, path, { cookie, method: body === undefined ? "GET" : "POST", mutationOrigin: origin, body });
-    assert(result.response.status === expectedStatus && !result.payload.error, `${path}: HTTP ${result.response.status} ${JSON.stringify(result.payload.error)}`);
+    assert(result.response.status === expectedStatus && result.payload && !result.payload.error, `${path}: HTTP ${result.response.status} ${JSON.stringify(result.payload?.error)}`);
     if (schema) { const validate = validators[schema]; assert(validate(result.payload), `${schema}: ${JSON.stringify(validate.errors)}`); }
     return result.payload.data;
   }
@@ -42,6 +43,8 @@ export async function verifyDataEngine({ origin, cookie, request = requestEngine
   for (const [index, text] of JUDGE_DEMO.answers.entries()) {
     const result = await api(`${base}/messages`, { text, clientMessageId: `${runId}-${index}`, expectedVersion: live.session.version, currentQuestionInfoCode: live.nextQuestion?.infoCode ?? null });
     live = result.snapshot;
+    const metadata = result.processing?.metadata;
+    providers.push({ status: result.processing?.status ?? null, provider: metadata?.provider ?? null, model: metadata?.model ?? null, inputTokens: metadata?.inputTokens ?? null, outputTokens: metadata?.outputTokens ?? null, stopReason: metadata?.stopReason ?? null });
     check(`실제 답변 ${index + 1} → LIVE 갱신`, live.snapshotType === "PREVIEW" && live.session.version > index + 1);
   }
   const review = await api(`${base}/data-review`, undefined, "DataReviewSuccessEnvelope");
@@ -61,7 +64,7 @@ export async function verifyDataEngine({ origin, cookie, request = requestEngine
   check("종료 시점 Feature 고정", frozen.featureArtifactOrigin === "FROZEN_FINAL" && JSON.stringify(frozen.features) === JSON.stringify(review.features));
   const recoveryPath = `${base}/recovery`;
   const crossOrigin = await request(origin, recoveryPath, { cookie, method: "POST", mutationOrigin: "https://attacker.invalid", body: { action: "SELECT_ACTION", candidateId: "SKIP", clientCommandId: `${runId}-csrf` } });
-  check("Recovery 교차 출처 저장 차단", crossOrigin.response.status === 403 && crossOrigin.payload.error?.code === "CSRF_REJECTED");
+  check("Recovery 교차 출처 저장 차단", crossOrigin.response.status === 403 && (!crossOrigin.payload || crossOrigin.payload.error?.code === "CSRF_REJECTED"));
   await api(recoveryPath, { action: "SELECT_ACTION", candidateId: frozen.candidates[0].id, clientCommandId: `${runId}-select` }, "RecoverySuccessEnvelope");
   let recovery;
   for (const mission of RECOVERY_MISSIONS) {
@@ -77,7 +80,7 @@ export async function verifyDataEngine({ origin, cookie, request = requestEngine
   check("새 Evidence와 검토 후 FINAL hash/Feature 불변", frozen.finalHash === reloaded.finalHash && JSON.stringify(frozen.features) === JSON.stringify(reloaded.features));
   const list = await api("/api/data-reviews", undefined, "DataReviewListSuccessEnvelope");
   check("담당자 목록: Coverage / Action / Review 연결", list.items.some((item) => item.id === interviewId && item.metrics.computed === frozen.metrics.computed && item.planSelected === "SELECTED" && item.reviewStatus === "NEEDS_INFORMATION"));
-  return { interviewId, checks, metrics: frozen.metrics, finalHash: frozen.finalHash, newEvidence: recovery.evidence.length };
+  return { interviewId, checks, providers, metrics: frozen.metrics, finalHash: frozen.finalHash, newEvidence: recovery.evidence.length };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -89,3 +89,9 @@ html[data-auth-mode="public-review"] .evaluation-page .evaluation-footer { box-s
   #modeling-review-report { margin: 0; box-shadow: none; }
   @page { size: A4; margin: 16mm; }
 }
+
+/* Engine navigation stays available in the public mobile layout as well. */
+@media (max-width: 700px) {
+  html[data-auth-mode="public-review"] .app-header--engine { height: auto; }
+  html[data-auth-mode="public-review"] .app-header--engine .dh-header-nav a:nth-child(n) { display: block; }
+}

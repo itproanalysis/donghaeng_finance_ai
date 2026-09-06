@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ArrowRight } from "lucide-react";
-import { authenticatedFetch, createClientCommandId, readApiEnvelope } from "./api-adapter";
+import { ApiRequestError, authenticatedFetch, readApiEnvelope } from "./api-adapter";
+import { recoveryCommand, type RecoveryCommandReceipt } from "./recovery-command";
 import { RECOVERY_MISSIONS, type RecoveryState } from "@/domain/recovery-journey";
 import type { DataReview } from "@/domain/data-review";
 import styles from "@/app/data-engine.module.css";
@@ -24,7 +25,7 @@ export function RecoveryJourney({ interviewId, operator = false }: { interviewId
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
-  const commandRef = useRef<{ key: string; id: string } | null>(null);
+  const commandRef = useRef<RecoveryCommandReceipt | null>(null);
   const locked = useRef(false);
   const refresh = useCallback(async () => {
     const results = await Promise.all([
@@ -36,21 +37,24 @@ export function RecoveryJourney({ interviewId, operator = false }: { interviewId
   useEffect(() => {
     let active = true;
     Promise.all([authenticatedFetch(`/api/interviews/${interviewId}/recovery`, { cache: "no-store" }).then(readApiEnvelope), authenticatedFetch(`/api/interviews/${interviewId}/data-review`, { cache: "no-store" }).then(readApiEnvelope)])
-      .then(([state, review]) => { if (active) { setState(state as RecoveryState); setDataReview(review as DataReview); } })
+      .then(([state, review]) => { if (active) { const saved = state as RecoveryState; setState(saved); setDataReview(review as DataReview); setMissionId(RECOVERY_MISSIONS.find((item) => !saved.completedMissionIds.includes(item.id))?.id ?? 3); setReviewStatus(saved.review.status === "REVIEWED" ? "REVIEWED" : "NEEDS_INFORMATION"); } })
       .catch((error: Error) => { if (active) setError(error.message); });
     return () => { active = false; };
   }, [interviewId]);
   async function mutate(action: string, values: Record<string, unknown>) {
     if (locked.current) return;
     locked.current = true; setBusy(true); setError(null); setSaved(null);
-    const key = JSON.stringify({ action, ...values });
-    if (commandRef.current?.key !== key) commandRef.current = { key, id: createClientCommandId("recovery") };
+    commandRef.current = recoveryCommand(commandRef.current, action, values);
     try {
-      const result = await readApiEnvelope(await authenticatedFetch(`/api/interviews/${interviewId}/recovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...values, clientCommandId: commandRef.current.id }) })) as RecoveryState;
+      const result = await readApiEnvelope(await authenticatedFetch(`/api/interviews/${interviewId}/recovery`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(commandRef.current.body) })) as RecoveryState;
       setState(result); commandRef.current = null;
       setSaved(action === "ADD_EVIDENCE" ? "NEW EVIDENCE · 자기보고 실행기록을 서버에 저장했습니다." : action === "SELECT_ACTION" ? "선택 기록을 저장했습니다. 신용판단에는 사용하지 않습니다." : "담당자 검토 기록을 저장했습니다.");
       if (action === "ADD_EVIDENCE") { setTitle(""); setNote(""); setObservedOn(""); setMissionId(Math.min(3, missionId + 1)); }
-    } catch (error) { setError(error instanceof Error ? error.message : "기록을 저장하지 못했습니다."); }
+    } catch (error) {
+      // A definitive CAS rejection did not write anything; retry after refresh uses a new version.
+      if (error instanceof ApiRequestError && ["RECOVERY_REVISION_CONFLICT", "REVIEW_REVISION_CONFLICT"].includes(error.code ?? "")) commandRef.current = null;
+      setError(error instanceof Error ? error.message : "기록을 저장하지 못했습니다.");
+    }
     finally { locked.current = false; setBusy(false); }
   }
   const chosen = state?.selection?.choice;

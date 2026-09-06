@@ -46,8 +46,11 @@ export function DataReviewContent({ review, compact = false }: { review: DataRev
     && `${item.name} ${item.definition.description}`.toLowerCase().includes(search.toLowerCase()));
   const linkedEvidence = review.evidence.filter((item) => review.features.some((feature) => feature.evidenceIds.includes(item.id)));
   const selectedEvidence = review.evidence.find((item) => item.id === evidenceId) ?? linkedEvidence.at(-1) ?? review.evidence.filter((item) => item.transcriptSegmentId).at(-1);
-  const matchingInfo = review.canonical.filter((item) => selectedEvidence && item.selected?.evidenceIds.includes(selectedEvidence.id));
-  const matchingFeatures = review.features.filter((item) => selectedEvidence && item.evidenceIds.includes(selectedEvidence.id));
+  // Several canonical values may cite different excerpts of the same server transcript segment.
+  const utteranceEvidence = selectedEvidence ? review.evidence.filter((item) => item.id === selectedEvidence.id || (selectedEvidence.transcriptSegmentId && item.transcriptSegmentId === selectedEvidence.transcriptSegmentId)) : [];
+  const utteranceEvidenceIds = new Set(utteranceEvidence.map((item) => item.id));
+  const matchingInfo = review.canonical.filter((item) => item.selected?.evidenceIds.some((id) => utteranceEvidenceIds.has(id)));
+  const matchingFeatures = review.features.filter((item) => item.evidenceIds.some((id) => utteranceEvidenceIds.has(id)));
   function inspect(name: string) { setSelectedName(name); setFocus("features"); }
   const sections = [["trace", "원문 → 구조화"], ["features", "Feature Explorer"], ["signals", "개선가능성 Signal"]];
   if (compact) return <><header className={styles.sectionTitle}><h2>실시간 데이터 생성</h2><span className={styles.status}>LIVE · v{review.version}</span></header><dl className={styles.metrics}>{[["현재 확인됨", metrics.confirmed], ["확인 필요", metrics.needed], ["근거 확보", metrics.evidence], ["Feature 생성", metrics.computed]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><details><summary>원문 → Canonical → Feature · 산식과 근거 펼치기</summary><DataReviewContent review={review} /></details></>;
@@ -64,7 +67,7 @@ export function DataReviewContent({ review, compact = false }: { review: DataRev
     <nav className={styles.tabs} aria-label="데이터 검증 단계">{sections.map(([id, label]) => <button key={id} aria-pressed={focus === id} onClick={() => setFocus(id)}>{label}</button>)}</nav>
     {focus === "trace" && <section className={styles.traceArea}>
       <div className={styles.traceSteps} key={review.version}>
-        <article><span className={styles.eyebrow}>01 · ORIGINAL EVIDENCE</span><h3>사업자의 원문</h3>{selectedEvidence ? <><blockquote>{selectedEvidence.excerpt ?? selectedEvidence.originalText}</blockquote><small>Evidence #{review.evidence.indexOf(selectedEvidence) + 1} · {selectedEvidence.kind} · 인터뷰 진술</small><code>{selectedEvidence.id}</code>{selectedEvidence.originalText && <details><summary>전체 발화 보기</summary><p>{selectedEvidence.originalText}</p></details>}</> : <p>첫 답변을 보내면 실제 원문 Evidence가 여기에 연결됩니다.</p>}</article>
+        <article><span className={styles.eyebrow}>01 · ORIGINAL EVIDENCE</span><h3>사업자의 원문</h3>{selectedEvidence ? <><blockquote>{selectedEvidence.originalText ?? selectedEvidence.excerpt}</blockquote><small>같은 발화에 연결된 Evidence {utteranceEvidence.length}개 · 인터뷰 진술</small><details><summary>항목별 발췌와 Evidence ID</summary>{utteranceEvidence.map((item) => <div key={item.id}><small>Evidence #{review.evidence.indexOf(item) + 1} · {infoLabel(item.infoCode)} · {item.kind}</small><p>{item.excerpt ?? "원문 연결 기록"}</p><code>{item.id}</code></div>)}</details></> : <p>첫 답변을 보내면 실제 원문 Evidence가 여기에 연결됩니다.</p>}</article>
         <ArrowRight className={styles.flowArrow} aria-hidden="true" />
         <article><span className={styles.eyebrow}>02 · CANONICAL INFORMATION</span><h3>구조화된 정보</h3>{matchingInfo.length ? matchingInfo.map((item) => <div className={styles.traceItem} key={item.infoCode}><code>{item.infoCode}</code><strong>{formatInformationValue(item.selected?.value) ?? item.valueState}</strong><small>SOURCE: INTERVIEW · STATUS: {item.status}</small><small>Revision {item.selected?.revision} · {item.selected?.verification}</small></div>) : <p>선택한 원문에 연결된 확정 값이 없습니다. 상태와 선택 revision은 아래에서 확인합니다.</p>}</article>
         <ArrowRight className={styles.flowArrow} aria-hidden="true" />
