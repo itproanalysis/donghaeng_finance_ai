@@ -40,4 +40,16 @@
 
 ## 배포
 
-복원한 애플리케이션의 GCP 배포 결과와 공개 URL 검증은 완료 후 이 문서에 기록한다. 이전 상담 준비 기능과 배포 이력은 [상담 연결 개선 기록](INSTITUTION_HANDOFF_2026-09-06.md)에 보존한다.
+- 애플리케이션 커밋 `c440f0b`, `feature/service-review-completion` push 완료.
+- Cloud Build `1b59de73-8770-4d1a-a949-85a9af2dfbed` SUCCESS. 2026-09-06 21:40:40 KST 빌드 완료.
+- 이미지 digest `sha256:3b07dc06b8081b49eebadfc4f783491b7302751480d84f31d7e7a5ad9ab6b326`. 공개 심사 VM `donghaeng-review-app`의 시작 스크립트 exit 0, `donghaeng-review.service` active, 실행 이미지 일치.
+- `/demo/admin`, 기존 `review=final` 주소, 후속·미응답 검토서, 첫 화면·소개·결과·사례 체험 총 8개 공개 경로가 HTTP 200과 기대 화면을 반환했다. 확인 경로에서 가입·구글 로그인 홍보 문구는 없었다.
+- 공개 10개 사례의 94개 변수·상태·근거·원문·평가를 로컬 산출물과 대조했다. 점수와 반영 분모는 정확히 일치했다. Linux/Windows 수치 연산의 소수점 말단 차이만 최대 `1.862645149230957e-9` 있었으며, 변수·lineage 숫자는 절대 `1e-9` + 상대 `1e-12` 허용오차로 비교했다. 원문·상태·메타데이터는 정확히 비교했다. 서버 산출값은 변경하지 않았다.
+- 배포 후 공개 인터뷰 API 31개 검사 통과. 합성 답변 3개 모두 실제 Anthropic `APPLIED/tool_use`. 원문→Canonical→Feature→Signal→실행 기록→검토 패키지, FINAL 불변, 방문자별 격리를 확인했다.
+- 공개 검토실에서 9월 5일에 저장했던 검토 의견과 목표·수행자료 확인 상태가 유지됐다. 이 내용을 포함한 94개 변수 JSON(105,640 bytes)을 실제로 내려받았다.
+- 배포 전 인터뷰의 원문, 13개 COMPUTED·87개 MISSING, 실행 기록 3개 ID, `REVIEWED` 상태, 선택 기관과 일부 준비자료, FINAL hash가 모두 유지됐다. 복원한 `/demo/admin?interview=:id`에서 JSON(142,506 bytes)을 내려받아 검증했다.
+- 공개 인터뷰 검토서의 모바일 390×844, 페이지 폭 375px, 가로 넘침 없음과 오류 메시지 없음을 확인하고 브라우저 화면 크기를 복원했다.
+
+공개 주소: [금융기관 검토자료](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/demo/admin), [기존 공유 주소](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/modeling?case=case_operating_drop&review=final).
+
+실행 증적: [공개 경로·10개 사례 대조](verification/institution-review-public-2026-09-06.json), [공개 인터뷰 API 31개 검사](verification/institution-review-engine-public-2026-09-06.json), [다운로드·기록 보존·모바일](verification/institution-review-browser-2026-09-06.json). 이전 상담 준비 기능과 배포 이력은 [상담 연결 개선 기록](INSTITUTION_HANDOFF_2026-09-06.md)에 보존한다.

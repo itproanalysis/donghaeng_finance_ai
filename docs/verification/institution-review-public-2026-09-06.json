@@ -1,0 +1,114 @@
+{
+  "origin": "https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app",
+  "checkedAt": "2026-09-06T12:42:59.307Z",
+  "applicationCommit": "c440f0b",
+  "buildId": "1b59de73-8770-4d1a-a949-85a9af2dfbed",
+  "routes": [
+    {
+      "path": "/demo/admin",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/modeling?case=case_operating_drop&review=final",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/demo/admin?case=case_operating_drop_after",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/demo/admin?case=case_no_answer",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/about",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/review",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    },
+    {
+      "path": "/judge-demo",
+      "status": 200,
+      "restoredContent": true,
+      "unwantedLoginCopy": false
+    }
+  ],
+  "modelingParity": [
+    {
+      "caseId": "case_customer_drop",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_ticket_drop",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_operating_drop",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_operating_drop_after",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_no_answer",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_cost_pressure",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_demand_shift",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_interior",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_volatile",
+      "features": 94,
+      "parity": true
+    },
+    {
+      "caseId": "case_new_low",
+      "features": 94,
+      "parity": true
+    }
+  ],
+  "numericTolerance": {
+    "absolute": 1e-9,
+    "relative": 1e-12
+  },
+  "maxAbsoluteDifference": 1.862645149230957e-9,
+  "allPassed": true
+}

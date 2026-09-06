@@ -1,0 +1,38 @@
+{
+  "checkedAt": "2026-09-06T12:47:39.608Z",
+  "buildId": "1b59de73-8770-4d1a-a949-85a9af2dfbed",
+  "imageDigest": "sha256:3b07dc06b8081b49eebadfc4f783491b7302751480d84f31d7e7a5ad9ab6b326",
+  "startupExit": 0,
+  "service": "active",
+  "oldBrowserReviewPreserved": true,
+  "modelingDownload": {
+    "name": "case_operating_drop-review (1).json",
+    "bytes": 105640,
+    "features": 94,
+    "goalConfirmed": true,
+    "recordsReviewed": true,
+    "existingNotePreserved": true
+  },
+  "interviewDownload": {
+    "name": "동행금융_금융기관검토자료_v5 (1).json",
+    "bytes": 142506,
+    "interviewId": "d547767b-9718-4ea7-a390-7ef5f2510425",
+    "features": 100,
+    "computed": 13,
+    "missing": 87,
+    "originalFinalHashPreserved": true,
+    "executionRecordsPreserved": 3,
+    "reviewStatus": "REVIEWED",
+    "institution": "koreg",
+    "documents": 1,
+    "deliveryStatus": "NOT_SENT"
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844,
+    "documentWidth": 375,
+    "horizontalOverflow": false,
+    "unwantedLoginCopy": false
+  },
+  "pdfRenderingVerified": false
+}
