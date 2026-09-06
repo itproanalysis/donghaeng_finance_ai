@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } fr
 import { ArrowRight, Download, Printer } from "lucide-react";
 import type { ModelingBundle, ModelingCase, ModelingAxis } from "@/server/modeling-demo";
 import { displayModelValue as value, getCaseGoal, getScoreChanges, readReviewDraft, type ModelingReviewDraft } from "@/domain/modeling-workflow";
-import { ModelingInstitutionReport } from "./modeling-institution-report";
+import { ModelingInstitutionReport, MODELING_REVIEW_LABELS } from "./modeling-institution-report";
+import { InstitutionReviewWorkspace } from "./institution-review-workspace";
+import reviewStyles from "@/app/institution-review.module.css";
 import styles from "@/app/modeling/workflow.module.css";
 
 type View = "goals" | "reevaluation" | "report";
@@ -124,13 +126,22 @@ export function ModelingWorkflow({ view, selectedCase, cases, reevaluation, mode
     </>}
 
     {view === "report" && <>
-      <ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} />
-      <form className={styles.opinionForm} onSubmit={saveOpinion} onChange={() => setOpinionDirty(true)} key={`${key}:${draft.updatedAt}`}>
-        <h3>검토 의견 기록</h3><label htmlFor="review-disposition">후속 검토 상태</label><select id="review-disposition" name="disposition" defaultValue={draft.disposition}>{Object.entries(decisions).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
-        <label htmlFor="review-note">검토 메모</label><textarea id="review-note" name="note" rows={4} maxLength={2000} defaultValue={draft.note} placeholder="보완할 자료, 변수 해석 시 유의점과 다음 조치를 기록하세요." /><p className={styles.note}>이 브라우저에만 저장됩니다. 메모는 평가 점수에 반영되지 않습니다.</p><button type="submit" className={styles.primary}>검토 의견 저장</button>
-      </form>
-      <p className={styles.note} role="status">{opinionDirty ? "검토 의견을 저장한 뒤 최종 자료를 내려받으세요." : "저장한 의견과 현재 선택한 사례를 최종 자료에 포함합니다."}</p><div className={styles.actions}><button type="button" className={styles.button} disabled={opinionDirty} onClick={() => window.print()}><Printer size={16} /> 검토자료 인쇄 · PDF 저장</button><button type="button" className={styles.button} disabled={opinionDirty} onClick={downloadReport}><Download size={16} /> 최종 검토자료 받기</button></div>
+      <InstitutionReviewWorkspace
+        title={selectedCase.title} context={`${isFollowup ? "6개월 후 자료" : "최초 분석"} · 합성 거래자료`}
+        status={MODELING_REVIEW_LABELS[draft.disposition]}
+        metrics={[{ label: "값이 있는 변수", value: `${selectedCase.featureSummary.valueCount} / ${selectedCase.featureSummary.total}` }, { label: "인터뷰 원문", value: `${selectedCase.interviewConversion.items.filter((item) => item.evidencePresent).length}개` }, { label: "의견 기록", value: draft.updatedAt ? "저장됨" : "작성 전" }]}
+        notice={opinionDirty ? "작성 중인 의견을 먼저 저장하세요." : feedback || (draft.updatedAt ? "저장된 의견을 최종 자료에 포함합니다." : "의견 작성 전에도 현재 자료를 받을 수 있습니다.")}
+        actions={<><button type="button" disabled={opinionDirty} onClick={downloadReport}><Download size={15} />최종 검토자료 받기</button><button type="button" disabled={opinionDirty} onClick={() => window.print()}><Printer size={15} />검토자료 인쇄·PDF</button></>}
+        panels={{
+          overview: <ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} section="overview" />,
+          evidence: <><ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} section="evidence" /><button type="button" className={reviewStyles.quietButton} onClick={() => onNavigate("impact", selectedCase.caseId)}>94개 변수의 전체 평가 과정<ArrowRight size={14} /></button></>,
+          plan: <><ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} section="plan" /><fieldset className={reviewStyles.checks}><legend>담당자 확인 기록</legend><label><input type="checkbox" checked={draft.goalConfirmed} disabled={!goal.ready || opinionDirty} onChange={(event) => save({ goalConfirmed: event.target.checked })} />기록된 목표를 확인했습니다.</label><label><input type="checkbox" checked={draft.recordsReviewed} disabled={!followup || opinionDirty} onChange={(event) => save({ recordsReviewed: event.target.checked })} />수행자료를 확인했습니다.</label></fieldset></>,
+          opinion: <><h2>담당자 의견</h2><p className={reviewStyles.sectionLead}>보완할 자료와 다음 확인 사항을 기록하세요.</p><ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} section="opinion" /><form className={reviewStyles.form} onSubmit={saveOpinion} onChange={() => setOpinionDirty(true)} key={`${key}:${draft.updatedAt}`}><label htmlFor="review-disposition">후속 검토 상태<select id="review-disposition" name="disposition" defaultValue={draft.disposition}>{Object.entries(decisions).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label><label htmlFor="review-note">검토 메모<textarea id="review-note" name="note" rows={5} maxLength={2000} defaultValue={draft.note} placeholder="추가로 확인할 자료와 검토 의견을 입력하세요." /></label><p className={reviewStyles.muted}>이 브라우저에 저장됩니다. 메모는 평가값에 반영되지 않습니다.</p><button type="submit">검토 의견 저장</button></form></>,
+          export: <><h2>자료 내보내기</h2><p className={reviewStyles.sectionLead}>현재 선택한 자료와 저장된 담당자 의견을 한 검토서로 정리합니다.</p><dl className={reviewStyles.facts}><div><dt>검토 대상</dt><dd>{selectedCase.title}</dd></div><div><dt>자료 시점</dt><dd>{isFollowup ? "6개월 후" : "최초 분석"}</dd></div></dl><ul><li>사업 현황과 주요 변수</li><li>94개 변수, 평가 산식과 원문 근거</li><li>목표와 확보한 수행자료</li><li>미확인 항목과 저장된 담당자 의견</li></ul><ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} section="opinion" /><p className={reviewStyles.muted}>‘최종 검토자료 받기’는 근거 데이터를 포함한 JSON 파일을 만듭니다. 문서는 ‘검토자료 인쇄·PDF’에서 저장할 수 있습니다.</p><p className={reviewStyles.boundary}>Competition Demo / Synthetic Data. 기관에 자동 전송하거나 대출 신청을 접수하지 않습니다.</p></>,
+        }}
+      />
+      <div className={reviewStyles.printOnly}><ModelingInstitutionReport selectedCase={selectedCase} initialCase={initialCase} reevaluation={reevaluation} modelVersion={modelVersion} draft={draft} /></div>
     </>}
-    <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p>
+    {view !== "report" && <p className={styles.feedback} role="status" aria-live="polite">{feedback}</p>}
   </div>;
 }

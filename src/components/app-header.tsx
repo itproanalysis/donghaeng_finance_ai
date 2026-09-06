@@ -46,7 +46,7 @@ export function AppHeader({ publicReview = false }: { publicReview?: boolean } =
   const pathname = usePathname();
   const isBorrower = pathname.startsWith("/borrower");
   const isIntroduction = pathname === "/about";
-  const isEngine = pathname === "/demo/admin" || pathname === "/" || isIntroduction || pathname.startsWith("/judge-demo") || pathname.startsWith("/recovery") || pathname.startsWith("/review") || pathname.startsWith("/consultation");
+  const isEngine = pathname === "/demo/admin" || pathname === "/modeling" || pathname === "/" || isIntroduction || pathname.startsWith("/judge-demo") || pathname.startsWith("/recovery") || pathname.startsWith("/review") || pathname.startsWith("/consultation");
 
   if (pathname === "/login" || (pathname.startsWith("/demo") && pathname !== "/demo/admin")) {
     return null;

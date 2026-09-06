@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AdminDemo } from "@/components/admin-demo";
 import { InstitutionConsultation } from "@/components/institution-consultation";
 import { DEFAULT_MODELING_CASE_ID, getModelingBundle, getModelingCase, isModelingCaseId } from "@/server/modeling-demo";
-import styles from "@/app/data-engine.module.css";
+import styles from "@/app/institution-review.module.css";
 
 export const metadata: Metadata = { title: "금융기관 검토자료", description: "사업 현황, 변수별 평가 근거, 수행자료와 담당자 의견을 정리하는 검토서입니다." };
 export default async function Page({ searchParams }: { searchParams: Promise<{ case?: string; interview?: string }> }) {

@@ -39,6 +39,7 @@ import type {
 import styles from "@/app/modeling/modeling.module.css";
 import { ModelingResults, ScoreAccounting } from "@/components/modeling-results";
 import { ModelingWorkflow } from "@/components/modeling-workflow";
+import { AdminDemo } from "@/components/admin-demo";
 
 type ModelingTab = "summary" | "data" | "features" | "impact" | "score" | "cb" | "goals" | "reevaluation" | "report";
 
@@ -307,12 +308,14 @@ export function ModelingReview({
     setSelectedItem(item);
   };
 
+  if (activeTab === "report") return <AdminDemo selectedCase={selectedCase} cases={allCases ?? [selectedCase]} reevaluation={reevaluation} modelVersion={model.version} />;
+
   return (
     <main id="main-content" className={styles.page}>
       <section className={styles.hero} aria-labelledby="modeling-heading">
         <div className={styles.heroCopy}>
-          <h1 id="modeling-heading">{activeTab === "report" ? "금융기관 검토자료" : "사업·행동 평가"}</h1>
-          <p className={styles.lead}>{activeTab === "report" ? "사업 현황·평가 근거·수행자료·담당자 의견을 한 검토서로 정리합니다." : "사업 현황을 변수로 정리하고, 목표 수행에 따른 변화를 다시 평가합니다."}</p>
+          <h1 id="modeling-heading">사업·행동 평가</h1>
+          <p className={styles.lead}>사업 현황을 변수로 정리하고, 목표 수행에 따른 변화를 다시 평가합니다.</p>
           <div className={styles.heroActions}>
             <Link href="/about">서비스 소개</Link><Link href={`/demo/admin?case=${selectedCase.caseId}`}>금융기관 검토실</Link><span>합성 사례 · 규칙 기반 평가</span>
           </div>
@@ -590,7 +593,7 @@ export function ModelingReview({
           </>
         ) : null}
 
-        {activeTab === "goals" || activeTab === "reevaluation" || activeTab === "report" ? (
+        {activeTab === "goals" || activeTab === "reevaluation" ? (
           <ModelingWorkflow
             key={selectedCase.caseId}
             view={activeTab}
@@ -606,11 +609,11 @@ export function ModelingReview({
         ) : null}
         <nav className={styles.reviewSequence} aria-label="분석 순서 이동">
           <span>{TABS.findIndex((tab) => tab.id === activeTab) + 1} / {TABS.length} · {TABS.find((tab) => tab.id === activeTab)?.label}</span>
-          {activeTab !== "report" ? <button type="button" onClick={() => {
+          <button type="button" onClick={() => {
             setActiveTab(TABS[TABS.findIndex((tab) => tab.id === activeTab) + 1].id);
             document.getElementById("modeling-content")?.scrollIntoView({ block: "start" });
             document.getElementById("modeling-content")?.focus({ preventScroll: true });
-          }}>다음 · {TABS[TABS.findIndex((tab) => tab.id === activeTab) + 1].label} <ArrowRight size={17} /></button> : <Link href="/">서비스 첫 화면 <ArrowRight size={17} /></Link>}
+          }}>다음 · {TABS[TABS.findIndex((tab) => tab.id === activeTab) + 1].label} <ArrowRight size={17} /></button>
         </nav>
       </section>
 

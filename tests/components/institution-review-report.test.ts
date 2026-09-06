@@ -5,14 +5,32 @@ import { ModelingInstitutionReport } from "@/components/modeling-institution-rep
 import { EMPTY_REVIEW } from "@/domain/modeling-workflow";
 import { getModelingBundle, getModelingCase } from "@/server/modeling-demo";
 
-function report(caseId: string, note = "") {
+function report(caseId: string, note = "", section: "overview" | "evidence" | "plan" | "opinion" | "all" = "all") {
   const bundle = getModelingBundle();
   const selectedCase = getModelingCase(caseId)!;
   const initialCase = getModelingCase(caseId === bundle.reevaluation.afterCase ? bundle.reevaluation.beforeCase : caseId)!;
-  return renderToStaticMarkup(createElement(ModelingInstitutionReport, { selectedCase, initialCase, reevaluation: bundle.reevaluation, modelVersion: bundle.model.version, draft: { ...EMPTY_REVIEW, note } }));
+  return renderToStaticMarkup(createElement(ModelingInstitutionReport, { selectedCase, initialCase, reevaluation: bundle.reevaluation, modelVersion: bundle.model.version, draft: { ...EMPTY_REVIEW, note }, section }));
 }
 
 describe("restored financial institution review dossier", () => {
+  it("keeps the overview concise while the complete document retains every review section", () => {
+    const overview = report("case_operating_drop", "검토 의견", "overview");
+    expect(overview).toContain("24,000,000원");
+    expect(overview).toContain("54 ÷ 80 × 100");
+    expect(overview).not.toContain("<table");
+    expect(overview).not.toContain("검토 의견");
+    const complete = report("case_operating_drop", "검토 의견");
+    expect(complete).toContain("검토 의견");
+    expect(complete).toContain("own_operating_day_drop_reason");
+    expect(complete).toContain("목표와 수행자료");
+  });
+  it("shows traceable evidence and missingness in its own section without duplicating the summary", () => {
+    const evidence = report("case_no_answer", "", "evidence");
+    expect(evidence).toContain("MISSING");
+    expect(evidence).toContain("원천자료");
+    expect(evidence).not.toContain("주요 변수");
+    expect(evidence).not.toContain("담당자 검토 의견");
+  });
   it("shows original review sections with authoritative values and traceable inputs", () => {
     const html = report("case_operating_drop", "영업일 자료의 기간을 추가 확인합니다.");
     expect(html).toContain('id="modeling-review-report"');

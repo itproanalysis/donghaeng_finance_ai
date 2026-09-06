@@ -9,10 +9,11 @@ import { recoveryCommand, type RecoveryCommandReceipt } from "./recovery-command
 import { RECOVERY_MISSIONS, type RecoveryState } from "@/domain/recovery-journey";
 import type { DataReview } from "@/domain/data-review";
 import styles from "@/app/data-engine.module.css";
+import reviewStyles from "@/app/institution-review.module.css";
 
 const REVIEW_LABELS = { PENDING: "검토 전", NEEDS_INFORMATION: "추가 확인 필요", REVIEWED: "검토 완료" } as const;
 const ThreeRecoveryJourneyScene = dynamic(() => import("./three-recovery-journey-scene"), { ssr: false });
-export function RecoveryJourney({ interviewId, operator = false, onChanged, onReviewDirtyChange }: { interviewId: string; operator?: boolean; onChanged?: (state: RecoveryState) => void; onReviewDirtyChange?: (dirty: boolean) => void }) {
+export function RecoveryJourney({ interviewId, operator = false, onChanged, onReviewDirtyChange, reviewOnly = false }: { interviewId: string; operator?: boolean; reviewOnly?: boolean; onChanged?: (state: RecoveryState) => void; onReviewDirtyChange?: (dirty: boolean) => void }) {
   const [state, setState] = useState<RecoveryState | null>(null);
   const [dataReview, setDataReview] = useState<DataReview | null>(null);
   const [candidateId, setCandidateId] = useState("");
@@ -60,6 +61,14 @@ export function RecoveryJourney({ interviewId, operator = false, onChanged, onRe
   }
   const chosen = state?.selection?.choice;
   const mission = RECOVERY_MISSIONS.find((item) => item.id === missionId)!;
+  if (reviewOnly) return <>
+    <h2>담당자 의견</h2><p className={reviewStyles.sectionLead}>확인한 범위와 보완할 자료를 기록합니다.</p>
+    {error && <p role="alert">{error} <button type="button" className={reviewStyles.quietButton} disabled={busy} onClick={() => void refresh().catch((error: Error) => setError(error.message))}>최신 기록 불러오기</button></p>}
+    {saved && <p className={reviewStyles.muted} role="status">{saved}</p>}
+    {!state && !error && <p role="status">검토 기록을 불러오는 중입니다.</p>}
+    {state && <><span className={reviewStyles.badge}>{REVIEW_LABELS[state.review.status]}</span><p className={reviewStyles.savedNote}>{state.review.note || "아직 작성한 검토 의견이 없습니다."}</p><p className={reviewStyles.muted}>검토 기록 {state.review.revision}{state.review.reviewedAt && ` · ${new Date(state.review.reviewedAt).toLocaleString("ko-KR")}`}</p>
+      <form className={reviewStyles.form} onChange={() => onReviewDirtyChange?.(true)} onSubmit={(event) => { event.preventDefault(); void mutate("REVIEW", { status: reviewStatus, note: reviewNote, expectedRevision: state.review.revision }); }}><label>검토 상태<select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value)} disabled={busy}><option value="NEEDS_INFORMATION">추가 확인 필요</option><option value="REVIEWED">검토 완료</option></select></label><label>확인한 내용 또는 보완 요청<textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} required maxLength={2000} disabled={busy} placeholder="확인한 자료와 추가 검토할 사항을 입력하세요." /></label><button type="submit" disabled={busy || !reviewNote.trim()}>검토 기록 저장</button><p className={reviewStyles.muted}>저장한 의견은 검토 이력으로 추가됩니다. 인터뷰 종료 원본이나 평가값을 변경하지 않습니다.</p></form></>}
+  </>;
   return <section className={styles.mission} id="recovery" aria-label={operator ? "사업자 Action과 담당자 검토" : "Recovery Journey"}>
     <p className={styles.eyebrow}>{operator ? "담당자 검토" : "개선 계획과 실행 기록"}</p><h2>{operator ? "사업자의 계획과 실행 기록" : "계획을 선택하고 진행 내용을 남기세요."}</h2>
     {error && <div className={styles.notice} role="alert">{error} <button disabled={busy} onClick={() => void refresh().catch((error: Error) => setError(error.message))}>최신 기록 불러오기</button></div>}

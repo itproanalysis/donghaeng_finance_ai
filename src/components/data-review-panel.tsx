@@ -32,7 +32,7 @@ export function DataReviewPanel({ interviewId, version, compact = false, onLoade
   </section>;
 }
 
-export function DataReviewContent({ review, compact = false }: { review: DataReview; compact?: boolean }) {
+export function DataReviewContent({ review, compact = false, embedded = false }: { review: DataReview; compact?: boolean; embedded?: boolean }) {
   const unique = useId().replace(/:/g, "");
   const [group, setGroup] = useState("all");
   const [filter, setFilter] = useState("all");
@@ -56,11 +56,13 @@ export function DataReviewContent({ review, compact = false }: { review: DataRev
   if (compact) return <><header className={styles.sectionTitle}><h2>실시간 데이터 생성</h2><span className={styles.status}>LIVE · v{review.version}</span></header><dl className={styles.metrics}>{[["현재 확인됨", metrics.confirmed], ["확인 필요", metrics.needed], ["근거 확보", metrics.evidence], ["Feature 생성", metrics.computed]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><details><summary>원문 → Canonical → Feature · 산식과 근거 펼치기</summary><DataReviewContent review={review} /></details></>;
 
   return <>
+    {embedded ? <><h2>변수와 원문 근거</h2><p className={styles.small}>원문에서 구조화된 정보와 변수로 이어지는 경로를 확인합니다.</p></> : <>
     <header className={styles.sectionTitle}><div><p className={styles.eyebrow}>사업 정보 분석</p><h2>정리된 정보와 변수별 근거</h2></div><span className={styles.status}>{review.snapshotType === "FINAL" ? "FINAL" : "LIVE"} · v{review.version}</span></header>
     <dl className={styles.metrics} aria-label="서버 정보 생성 현황" aria-live="polite">
       {[["현재 확인됨", metrics.confirmed], ["확인 필요", metrics.needed], ["근거 확보", metrics.evidence], ["Feature 생성", metrics.computed]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
     </dl>
     <p className={styles.small}>필수 정보 {metrics.resolvedRequired}/{metrics.totalRequired}개 정리 · 근거가 연결된 정보 {metrics.evidenceCovered}/{metrics.totalInformation}개</p>
+    </>}
     <div className={styles.missingness}><strong>현재 Feature 상태</strong><span>COMPUTED <b>{metrics.computed}</b></span><span>MISSING <b>{metrics.missing}</b></span><span>NOT CALCULABLE <b>{metrics.notCalculable}</b></span><p>확인하지 못한 정보는 추정하지 않습니다. 정보 부족(MISSING)은 0과 구분합니다.</p></div>
     {!review.enabled && <p className={styles.notice}>Feature v2가 비활성화되어 있습니다. 원천 기록만 확인할 수 있습니다.</p>}
     {review.snapshotType === "FINAL" && <details className={styles.integrity}><summary>FINAL 보존 정보 · {review.featureArtifactOrigin === "FROZEN_FINAL" ? "종료 시점 Feature 고정" : "이전 버전 기록"}</summary><p>{review.featureArtifactOrigin === "FROZEN_FINAL" ? "원문·Canonical·Feature와 hash를 종료 시점에 함께 저장했습니다. 이후 실행기록은 이 원본을 변경하지 않습니다." : "기존 FINAL에는 v2가 저장되지 않아 보존된 Canonical에서 서버가 투영한 결과입니다. 원본 FINAL은 변경하지 않았습니다."}</p><code>{review.finalHash ?? "이전 형식: hash 표시 미지원"}</code></details>}
