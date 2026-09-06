@@ -47,7 +47,7 @@ export function OperatorSessionStatus({ publicReview = false }: { publicReview?:
     };
   }, [pathname, publicReview]);
 
-  if (pathname === "/modeling" && publicReview) return <span className="operator-session"><ShieldCheck size={14} aria-hidden="true" /> 로그인 없이 분석 열람</span>;
+  if (pathname === "/modeling" && publicReview) return null;
 
   if (needsLogin) {
     if (publicReview) return <span className="operator-session" role="status">연결 확인이 필요합니다 · 새로고침해 주세요</span>;

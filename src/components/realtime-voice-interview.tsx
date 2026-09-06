@@ -52,7 +52,7 @@ function realtimeStatusLabel(
 ): string {
   if (connection === "CONNECTING") return "실시간 통화 연결 중";
   if (connection === "ERROR") return "실시간 연결 확인 필요";
-  if (uxState === "AI_SPEAKING") return "동행 AI가 말하고 있어요";
+  if (uxState === "AI_SPEAKING") return "질문을 읽고 있습니다";
   if (uxState === "LISTENING") return "사장님 말씀을 듣고 있어요";
   if (uxState === "TRANSCRIBING") return "말씀을 바로 옮기고 있어요";
   if (uxState === "AI_THINKING") return "답변을 반영하고 있어요";

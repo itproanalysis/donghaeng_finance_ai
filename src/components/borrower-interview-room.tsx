@@ -668,7 +668,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
     : speechPreparing
       ? "다음 말을 준비하고 있어요"
       : speaking
-        ? "동행 AI가 이야기하고 있어요"
+        ? "질문을 읽고 있습니다"
         : audioUxState === "LISTENING"
           ? "사장님 말씀을 듣고 있어요"
           : audioUxState === "TRANSCRIBING"
@@ -813,7 +813,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
               <div>
                 <strong>
                   {pendingCommand.processingState === "PROCESSING"
-                    ? "저장된 답변을 AI가 정리하고 있어요"
+                    ? "저장된 답변을 정리하고 있습니다"
                     : "저장된 답변의 AI 정리가 필요해요"}
                 </strong>
                 <p>사장님의 답변은 이미 안전하게 저장됐습니다. 새 답변으로 보내지 않고 같은 기록을 이어서 처리합니다.</p>

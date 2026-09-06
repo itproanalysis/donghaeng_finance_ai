@@ -95,3 +95,8 @@ html[data-auth-mode="public-review"] .evaluation-page .evaluation-footer { box-s
   html[data-auth-mode="public-review"] .app-header--engine { height: auto; }
   html[data-auth-mode="public-review"] .app-header--engine .dh-header-nav a:nth-child(n) { display: block; }
 }
+@media print {
+  body:has(#institution-package-print) *:has(#institution-package-print) { display:block !important; position:static !important; padding:0 !important; margin:0 !important; width:auto !important; max-width:none !important; min-height:0 !important; background:white !important; border:0 !important; }
+  body:has(#institution-package-print) *:has(#institution-package-print) > :not(:has(#institution-package-print)):not(#institution-package-print), body:has(#institution-package-print) > :not(:has(#institution-package-print)) { display:none !important; }
+  #institution-package-print { display:block !important; }
+}

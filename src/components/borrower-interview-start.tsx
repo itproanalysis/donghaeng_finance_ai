@@ -200,7 +200,7 @@ export function BorrowerInterviewStart({ publicReview = false, sampleEntry = fal
             <div className="borrower-methods__heading"><p>{businessName} · {INDUSTRY_OPTIONS.find((option) => option.code === industryCode)?.label} · {selectedFocus.label}</p></div>
             {usingSample && <p className="borrower-sample-note">체험용 가상 가게입니다. 이름·업종만 준비했으며, 사업 수치와 인터뷰 답변은 채우지 않았습니다.</p>}
             {scenario && <div className="demo-scenario-notice"><strong>답변에서 평가까지 · 합성 시연</strong><p>{demoSet === "control" ? "사유·목표를 답하지 않은 대조 사례" : "영업일 사유와 목표를 확인한 사례"}입니다. 등록된 대본을 선택해 입력하고, 같은 합성 거래자료에 결합한 2축 점수를 확인합니다.</p><Link href={`/borrower?scenario=operating-day&demoSet=${demoSet === "control" ? "primary" : "control"}`}>{demoSet === "control" ? "사유·목표 확인 사례로 변경" : "사유·목표 미확인 사례로 변경"}</Link></div>}
-            {publicReview && !usingSample && <p className="borrower-sample-note">가입 없이 이용하며, 마이크가 없어도 채팅으로 진행할 수 있습니다.</p>}
+            {publicReview && !usingSample && <p className="borrower-sample-note">마이크가 없어도 채팅으로 진행할 수 있습니다.</p>}
             <label className="borrower-consent">
               <input ref={consentRef} type="checkbox" checked={cloudConsent} disabled={starting !== null} onChange={(event) => { setCloudConsent(event.target.checked); setError(null); }} />
               <span>제 답변을 질문 정리와 다음 질문 준비를 위해 외부 AI로 처리하는 것에 동의합니다.<small>채팅은 Claude, 음성은 OpenAI Realtime을 우선 사용합니다. 답변은 인터뷰 기록에 저장되며 대출 승인·거절이나 신용등급을 자동으로 판단하지 않습니다.</small></span>

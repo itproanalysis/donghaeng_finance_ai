@@ -612,7 +612,7 @@ async function main() {
   expectSuccess(login, 201);
   const cookie = cookieFrom(login.response);
 
-  for (const [path, marker] of [["/", "Financial Features"], ["/about", "AI / SERVER / HUMAN"], ["/judge-demo", "Competition Demo / Synthetic Data"], ["/review", "데이터 검토"], ["/borrower", "borrower-start"], ["/interviews", "operations-board"], ["/interview-evaluations", "evaluation-list-page"], ["/modeling?case=case_operating_drop", "modeling-heading"]]) {
+  for (const [path, marker] of [["/", "금융상담을 준비하세요"], ["/about", "AI / SERVER / HUMAN"], ["/judge-demo", "Competition Demo / Synthetic Data"], ["/review", "사업 정보와 상담 준비"], ["/borrower", "borrower-start"], ["/interviews", "operations-board"], ["/interview-evaluations", "evaluation-list-page"], ["/modeling?case=case_operating_drop", "modeling-heading"]]) {
     const page = await fetch(`${origin}${path}`, { headers: { cookie } });
     assert(page.status === 200 && (await page.text()).includes(marker), `${path} 실제 서비스 화면을 렌더링하지 못했습니다.`);
   }

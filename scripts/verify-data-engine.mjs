@@ -6,10 +6,11 @@ import Ajv2020 from "ajv/dist/2020.js";
 import { createBorrowerRequiredInformationList } from "../src/components/borrower-interview-preferences.ts";
 import { JUDGE_DEMO } from "../src/domain/judge-demo.ts";
 import { RECOVERY_MISSIONS } from "../src/domain/recovery-journey.ts";
+import { CONSULTATION_DOCUMENTS, emptyConsultationDraft } from "../src/domain/consultation-draft.ts";
 
 const contract = JSON.parse(readFileSync(new URL("../contracts/openapi.json", import.meta.url), "utf8"));
 const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: false });
-const validators = Object.fromEntries(["DataReviewSuccessEnvelope", "RecoverySuccessEnvelope", "DataReviewListSuccessEnvelope"].map((name) => [name, ajv.compile({ $schema: contract.jsonSchemaDialect, components: contract.components, $ref: `#/components/schemas/${name}` })]));
+const validators = Object.fromEntries(["DataReviewSuccessEnvelope", "RecoverySuccessEnvelope", "DataReviewListSuccessEnvelope", "ConsultationPackageSuccessEnvelope"].map((name) => [name, ajv.compile({ $schema: contract.jsonSchemaDialect, components: contract.components, $ref: `#/components/schemas/${name}` })]));
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 
 export async function requestEngine(origin, path, options = {}) {
@@ -39,6 +40,10 @@ export async function verifyDataEngine({ origin, cookie, request = requestEngine
   check("빈 인터뷰: COMPUTED 0 / MISSING 100 / Evidence 0", initial.metrics.computed === 0 && initial.metrics.missing === 100 && initial.metrics.evidence === 0);
   const unauthenticated = await request(origin, `${base}/data-review`);
   check("data-review 익명 접근 차단", unauthenticated.response.status === 401);
+  const unfinished = await request(origin, `${base}/consultation-package`, { cookie });
+  check("상담 준비서는 FINAL 확인 후 제공", unfinished.response.status === 409 && unfinished.payload?.error?.code === "FINAL_REQUIRED");
+  const noPackageSession = await request(origin, `${base}/consultation-package`);
+  check("상담 준비서 익명 접근 차단", noPackageSession.response.status === 401);
   await api(`${base}/consents`, { purpose: "CLOUD_AI_PROCESSING", consentVersion: "cloud-ai-processing-v1", granted: true, expiresAt: null }, null, 201);
   for (const [index, text] of JUDGE_DEMO.answers.entries()) {
     const result = await api(`${base}/messages`, { text, clientMessageId: `${runId}-${index}`, expectedVersion: live.session.version, currentQuestionInfoCode: live.nextQuestion?.infoCode ?? null });
@@ -62,6 +67,8 @@ export async function verifyDataEngine({ origin, cookie, request = requestEngine
   check("3답변 FINAL: INCOMPLETE / 평가·신용등급 미생성", completed.snapshot.completionStatus === "INCOMPLETE" && completed.evaluation === null);
   const frozen = await api(`${base}/data-review`, undefined, "DataReviewSuccessEnvelope");
   check("종료 시점 Feature 고정", frozen.featureArtifactOrigin === "FROZEN_FINAL" && JSON.stringify(frozen.features) === JSON.stringify(review.features));
+  const beforeAction = await api(`${base}/consultation-package`, undefined, "ConsultationPackageSuccessEnvelope");
+  check("미션·계획 선택 없이도 현재 결과로 상담 준비", beforeAction.recovery.selection === null && beforeAction.recovery.evidence.length === 0 && beforeAction.deliveryStatus === "NOT_SENT");
   const recoveryPath = `${base}/recovery`;
   const crossOrigin = await request(origin, recoveryPath, { cookie, method: "POST", mutationOrigin: "https://attacker.invalid", body: { action: "SELECT_ACTION", candidateId: "SKIP", clientCommandId: `${runId}-csrf` } });
   check("Recovery 교차 출처 저장 차단", crossOrigin.response.status === 403 && (!crossOrigin.payload || crossOrigin.payload.error?.code === "CSRF_REJECTED"));
@@ -76,6 +83,13 @@ export async function verifyDataEngine({ origin, cookie, request = requestEngine
   check("3개 미션 실제 기록 상태", JSON.stringify(recovery.completedMissionIds) === "[1,2,3]");
   const reviewed = await api(recoveryPath, { action: "REVIEW", status: "NEEDS_INFORMATION", note: "합성 검증: 누락된 입력과 자료의 기준 기간 추가 확인 필요", expectedRevision: 0, clientCommandId: `${runId}-review` }, "RecoverySuccessEnvelope");
   check("담당자 검토는 추가 확인 상태만 기록", reviewed.review.status === "NEEDS_INFORMATION" && reviewed.review.revision === 1);
+  const draft = await request(origin, `${base}/consultation-draft`, { cookie, method: "PUT", mutationOrigin: origin, body: { expectedRevision: 0, data: { ...emptyConsultationDraft(), institutionId: "koreg", documents: [CONSULTATION_DOCUMENTS[0]], reviewed: true } } });
+  check("기관 선택·일부 준비자료 저장", draft.response.status === 200 && draft.payload?.data?.revision === 1);
+  const prepared = await api(`${base}/consultation-package`, undefined, "ConsultationPackageSuccessEnvelope");
+  check("상담 자료: 저장된 기관·원문·100개 변수·선택·실행 기록 결합", prepared.draft.data.institutionId === "koreg" && prepared.draft.revision === 1 && prepared.draft.data.documents.length === 1 && prepared.review.features.length === 100 && prepared.review.evidence.length === frozen.evidence.length && prepared.recovery.evidence.length === 3 && prepared.recovery.selection.choice.id === frozen.candidates[0].id && prepared.deliveryStatus === "NOT_SENT");
+  check("상담 자료에서도 누락·근거·FINAL 원본 유지", prepared.review.metrics.missing === frozen.metrics.missing && prepared.review.finalHash === frozen.finalHash && JSON.stringify(prepared.review.features) === JSON.stringify(frozen.features));
+  const consultationPage = await fetch(`${origin}/consultation/${interviewId}`, { headers: { cookie }, redirect: "manual" });
+  check("금융기관 상담 준비 화면 접근", consultationPage.status === 200 && (await consultationPage.text()).includes("금융기관 상담 준비"));
   const reloaded = await api(`${base}/data-review`, undefined, "DataReviewSuccessEnvelope");
   check("새 Evidence와 검토 후 FINAL hash/Feature 불변", frozen.finalHash === reloaded.finalHash && JSON.stringify(frozen.features) === JSON.stringify(reloaded.features));
   const list = await api("/api/data-reviews", undefined, "DataReviewListSuccessEnvelope");
@@ -96,7 +110,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   assert(other.response.ok, "두 번째 방문자 세션 생성 실패");
   const otherCookie = other.response.headers.get("set-cookie")?.split(";", 1)[0];
   assert(otherCookie, "두 번째 방문자 세션 쿠키가 없습니다.");
-  for (const suffix of ["data-review", "recovery"]) {
+  for (const suffix of ["data-review", "recovery", "consultation-package"]) {
     const isolated = await requestEngine(origin, `/api/interviews/${result.interviewId}/${suffix}`, { cookie: otherCookie });
     assert(isolated.response.status === 404, `방문자 격리 실패: ${suffix}`);
     result.checks.push(`방문자별 ${suffix} 격리`);

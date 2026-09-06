@@ -11,6 +11,7 @@ import { ConsultationMemoExport } from "@/components/consultation-memo-export";
 import { linkedConsultationEvidence } from "@/components/consultation-memo";
 import { readableInformationText } from "@/components/operator-language";
 import { DataReviewPanel } from "@/components/data-review-panel";
+import { InstitutionHandoff } from "@/components/institution-handoff";
 
 import {
   formatDateTime,
@@ -57,7 +58,8 @@ export function FinalInterviewRecord({ snapshot }: { snapshot: FinalInterviewVie
         </div>
       </section>
       <DataReviewPanel interviewId={snapshot.interviewId} version={snapshot.version} />
-      <p><Link href={`/review/${snapshot.interviewId}`}>사업자 선택 Action · 새 Evidence · 검토 상태</Link></p>
+      <InstitutionHandoff interviewId={snapshot.interviewId} />
+      <p><Link href={`/review/${snapshot.interviewId}`}>선택한 계획·실행 기록·검토 상태</Link></p>
       <ConsultationMemoExport snapshot={snapshot} />
 
       {snapshot.completionStatus === "INCOMPLETE" && (

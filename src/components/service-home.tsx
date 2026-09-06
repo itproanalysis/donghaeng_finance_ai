@@ -22,7 +22,7 @@ export function ServiceHome() {
           <Link href="/modeling?case=case_operating_drop&tab=impact">평가 사례 살펴보기 <ArrowRight size={18} /></Link>
           <Link href="/about">서비스 소개</Link>
         </div>
-        <p className={styles.access}>가입·Google 로그인 없이 이용</p>
+
       </div>
       <article className={styles.example} aria-label="영업일 감소 사례의 분석 결과 예시">
         <header><span>분석 예시</span><small>합성 사례 03</small></header>
@@ -62,7 +62,7 @@ export function ServiceHome() {
 
     <section className={styles.experience} aria-labelledby="home-experience-heading">
       <div><h2 id="home-experience-heading">내 사업 현황 입력 체험</h2><p>가상 카페로 시작해 답변을 직접 입력하고 정리된 상담 기록을 확인합니다.</p></div>
-      <nav aria-label="직접 입력 체험"><Link href="/borrower?entry=sample">가입 없이 바로 체험 <ArrowRight size={16} /></Link><Link href="/borrower?scenario=operating-day">답변 → 변수 → 점수 시연 <ArrowRight size={16} /></Link><Link href="/interviews">내 상담 기록</Link></nav>
+      <nav aria-label="직접 입력 체험"><Link href="/borrower?entry=sample">인터뷰 시작 <ArrowRight size={16} /></Link><Link href="/borrower?scenario=operating-day">답변 → 변수 → 점수 시연 <ArrowRight size={16} /></Link><Link href="/interviews">내 상담 기록</Link></nav>
     </section>
     <footer className={styles.footer}>
       <p>합성 사례로 평가·목표·재평가·검토 요약을 제공합니다. 등록된 시연은 답변을 합성 거래자료에 연결합니다. 일반 상담의 은행 연동과 대출중개는 제공하지 않습니다.</p>

@@ -2164,6 +2164,112 @@
           }
         }
       }
+    },
+    "/interviews/{id}/consultation-package": {
+      "get": {
+        "operationId": "getInstitutionConsultationPackage",
+        "tags": [
+          "Interviews"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          }
+        ],
+        "description": "Read a tenant-scoped consultation package after FINAL. Keeps missing values, source evidence and immutable final features. Includes the saved consultation draft for ADMIN/INTERVIEWER only. Does not send data externally, submit an application, or create a credit decision.",
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped authoritative projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsultationPackageSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7553,6 +7659,122 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/DataReviewList"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "ConsultationPackage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "preparedAt",
+          "environment",
+          "deliveryStatus",
+          "canEditDraft",
+          "review",
+          "recovery",
+          "draft",
+          "institutions"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": "institution_consultation_v1",
+            "type": "string"
+          },
+          "preparedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "SYNTHETIC_DEMO",
+              "WORKSPACE"
+            ]
+          },
+          "deliveryStatus": {
+            "type": "string",
+            "const": "NOT_SENT"
+          },
+          "canEditDraft": {
+            "type": "boolean"
+          },
+          "review": {
+            "$ref": "#/components/schemas/DataReview"
+          },
+          "recovery": {
+            "$ref": "#/components/schemas/RecoveryState"
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConsultationDraftRecord"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "institutions": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "name",
+                "category",
+                "url",
+                "description"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "enum": [
+                    "semas",
+                    "koreg",
+                    "kodit"
+                  ]
+                },
+                "name": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "pattern": "^https://"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read-only composition of the authoritative final data review, latest recovery records and existing saved preparation draft. Not an institution submission. Operator draft remains null for non-operators."
+      },
+      "ConsultationPackageSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ConsultationPackage"
           },
           "error": {
             "type": "null"

@@ -7,6 +7,7 @@ import { buildImprovementCandidates } from "@/components/borrower-immersive-prom
 import { BORROWER_JOURNEY, JourneyNav } from "@/components/journey-nav";
 import { LiveModelingScorecard } from "@/components/live-modeling-scorecard";
 import { DataReviewPanel } from "@/components/data-review-panel";
+import { InstitutionHandoff } from "@/components/institution-handoff";
 import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
 import { ConsultationMemoExport } from "@/components/consultation-memo-export";
 import { groupConsultationInformation, linkedConsultationEvidence } from "@/components/consultation-memo";
@@ -36,7 +37,8 @@ export function BorrowerResult({ snapshot }: { snapshot: FinalInterviewView }) {
       </section>
       {snapshot.evaluationId && snapshot.businessName === OPERATING_DAY_DEMO_SCENARIO.persona.businessName && snapshot.borrowerName === OPERATING_DAY_DEMO_SCENARIO.persona.borrowerName && <section className="dh-panel"><LiveModelingScorecard key={snapshot.evaluationId} evaluationId={snapshot.evaluationId} /><Link href={`/interview-evaluations/${encodeURIComponent(snapshot.evaluationId)}`}>담당자 검토 화면 보기</Link></section>}
       <DataReviewPanel interviewId={snapshot.interviewId} version={snapshot.version} />
-      <section className="dh-panel"><h2>확인한 결과에서 다음 행동으로</h2><p>개선 Action은 사장님이 직접 선택합니다. 실행기록은 새 Evidence로 남길 수 있습니다.</p><Link className="dh-button" href={`/recovery/${snapshot.interviewId}`}>Recovery Journey · 선택과 실행기록 <ArrowRight size={17} /></Link><p><Link href={`/review/${snapshot.interviewId}`}>금융기관 관점에서 정보·근거 검토</Link></p></section>
+      <InstitutionHandoff interviewId={snapshot.interviewId} />
+      <section className="dh-panel"><h2>앞으로 할 일을 정해보세요.</h2><p>개선 계획은 직접 선택하고, 준비한 자료와 실행한 내용을 기록할 수 있습니다.</p><Link className="dh-button" href={`/recovery/${snapshot.interviewId}`}>개선 계획·실행 기록 <ArrowRight size={17} /></Link></section>
       <ConsultationMemoExport snapshot={snapshot} />
       {snapshot.completionStatus === "INCOMPLETE" && (
         <div className="dh-inline-note">
@@ -144,7 +146,7 @@ export function BorrowerResult({ snapshot }: { snapshot: FinalInterviewView }) {
             담당자와 답변·목표·준비자료를 검토할 때 이 기록을 사용할 수 있습니다.
           </p>
         </div>
-        <Link className="dh-button" href="/borrower">새 인터뷰 시작 <ArrowRight size={17} /></Link>
+        <Link className="dh-button" href={`/consultation/${snapshot.interviewId}`}>금융기관 상담 준비 <ArrowRight size={17} /></Link>
       </section>
       <p className="dh-footnote">
         이 결과는 인터뷰에서 확인한 내용입니다. 대출 승인·거절이나 신용등급을

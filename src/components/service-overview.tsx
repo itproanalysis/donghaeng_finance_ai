@@ -20,7 +20,7 @@ export function LegacyServiceOverview() {
         <AlleyEntranceScene />
         <div className="entrance-scene__veil" aria-hidden="true" />
         <div className="entrance-scene__copy">
-          <span className="entrance-sign">{publicReview ? "가입·Google 로그인 없이 이용" : "골목 상담소"}</span>
+          <span className="entrance-sign">{publicReview ? "사업 정보 상담" : "골목 상담소"}</span>
           <h1 id="entrance-heading">사장님,<br />어서 오세요.</h1>
           <p>가게의 숫자와 사정을 함께 살펴보고,<br />현재 상황과 개선가능성을 근거와 함께 정리합니다.</p>
           <Link className="entrance-introduction" href="/about">서비스 소개 <ArrowRight size={17} aria-hidden="true" /></Link>
@@ -32,7 +32,7 @@ export function LegacyServiceOverview() {
           </Link>
           <Link className="entrance-path entrance-path--operator" href={publicReview ? "/borrower?entry=sample" : "/interviews"}>
             <small>{publicReview ? "가상 카페 · 직접 답변하고 기록 확인" : "담당자 · 기록 확인과 상담 준비"}</small>
-            <span>{publicReview ? "가입 없이 바로 체험" : "상담 기록 살펴보기"} <ArrowRight size={21} aria-hidden="true" /></span>
+            <span>{publicReview ? "인터뷰 시작" : "상담 기록 살펴보기"} <ArrowRight size={21} aria-hidden="true" /></span>
           </Link>
         </nav>
         <p className="entrance-footnote">소상공인 금융 상담·평가 보조 서비스입니다. 대출 심사·승인을 대신하지 않습니다.</p>
@@ -40,7 +40,7 @@ export function LegacyServiceOverview() {
       {publicReview ? (
         <section className="review-guide" aria-labelledby="review-guide-title">
           <div><span className="dh-eyebrow">웹사이트 심사 안내</span><h2 id="review-guide-title">변수가 평가에 반영되는 과정부터.</h2>
-          <p>같은 금융데이터에서 맥락 변수를 결합하기 전·후의 결과를 비교하세요. 두 축 점수의 산식, 10개 평가항목의 배점, 변수별 근거를 로그인 없이 확인합니다.</p></div>
+          <p>같은 금융데이터에서 맥락 변수를 결합하기 전·후의 결과를 비교하세요. 두 축 점수의 산식, 10개 평가항목의 배점, 변수별 근거를 확인합니다.</p></div>
           <div className="review-guide__actions">
           <Link className="button button--primary" href="/modeling?case=case_operating_drop&tab=impact">변수와 평가 반영 보기 <ArrowRight size={16} /></Link>
           <Link className="button button--secondary" href="/borrower">직접 인터뷰하기 <ArrowRight size={16} /></Link>

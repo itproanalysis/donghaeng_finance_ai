@@ -2,7 +2,7 @@
 
 동행금융AI는 소상공인의 비정형 사업 정보를 AI 인터뷰로 수집하고, 이를 근거 추적 가능한 금융 Feature로 변환하여 기존 금융정보의 공백을 보완하는 웹서비스입니다.
 
-[3분 기술 데모 바로가기](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/judge-demo) · [서비스 소개](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/about) · [최종 통합 구현·검증 기록](docs/DATA_ENGINE_RELEASE_2026-09-06.md)
+[사례 체험 바로가기](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/judge-demo) · [서비스 소개](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/about) · [최종 통합 구현·검증 기록](docs/DATA_ENGINE_RELEASE_2026-09-06.md) · [금융기관 상담 연결 개선](docs/INSTITUTION_HANDOFF_2026-09-06.md)
 
 ```mermaid
 flowchart LR
@@ -15,9 +15,12 @@ flowchart LR
     H --> A[사업자 Action 선택]
     A --> R[Recovery Journey]
     R --> N[새 Evidence · 향후 재검토 자료]
+    H --> D[금융기관 상담 준비서]
+    N --> D
+    D --> O[기관 선택 · 공식 상담 창구]
 ```
 
-심사자는 `/judge-demo`에서 직접 합성 답변 3개를 전송합니다. 기존 `InterviewService`가 원문과 Canonical revision을 저장하고 `improvementFeatures`를 생성합니다. `Feature Explorer`에서 산식·기간·누락 정책·선택 revision·원문까지 확인한 뒤, 확인한 범위를 `INCOMPLETE FINAL`로 보존하고 개선 Action을 선택합니다. 미션의 기록을 저장해야 `NEW EVIDENCE`가 생기며 FINAL은 바뀌지 않습니다.
+심사자는 `/judge-demo`에서 직접 합성 답변 3개를 전송합니다. 기존 `InterviewService`가 원문과 Canonical revision을 저장하고 `improvementFeatures`를 생성합니다. `Feature Explorer`에서 산식·기간·누락 정책·선택 revision·원문까지 확인한 뒤, 확인한 범위를 `INCOMPLETE FINAL`로 보존하고 개선 Action을 선택합니다. 미션의 기록을 저장해야 `NEW EVIDENCE`가 생기며 FINAL은 바뀌지 않습니다. 결과가 저장되면 미션을 끝내지 않아도 금융기관 상담 준비서를 만들 수 있습니다. 기존 상담 초안 API로 기관과 준비자료를 저장하며, 원문 근거와 실행 기록은 서버의 `/api/interviews/:id/consultation-package`에서 읽어 인쇄/PDF 또는 JSON으로 받습니다. 기관에 자동 전송하거나 상담을 접수하는 기능은 아닙니다.
 
 예시 입력 **“최근 3개월 평균 매출은 2300만원입니다.”**는 서버에서 `monthly_average_sales = 23,000,000 KRW` → `fin_sales_avg_3m = 23,000,000`으로 연결됩니다. 3개 합성 답변 시나리오는 100개 중 **13개 COMPUTED, 87개 MISSING**입니다. 신용정보·거래 내역을 수집한 것처럼 채우지 않으며, Signal의 원시값을 신용점수나 성공 확률로 환산하지 않습니다.
 
@@ -28,8 +31,9 @@ flowchart LR
 | `/borrower` · `/borrower/interviews/:id` | 기존 실제 음성·텍스트 인터뷰와 서버 데이터 생성 현황 |
 | `/recovery/:id` | FINAL 이후 자발적 Action 선택, 3개 미션, append-only 자기보고 Evidence |
 | `/review` · `/review/:id` | Evidence/Feature Coverage, Missingness, Signal, Action, 추가 확인 필요·검토 완료 |
+| `/consultation/:id` | 결과·원문 근거·100개 변수·계획·실행 기록을 묶은 상담 준비서, 기관 선택, 저장, 인쇄/PDF·JSON, 공식 상담 안내 |
 
-**Competition Demo / Synthetic Data.** 가입·Google 로그인 없이 체험하며, 브라우저별 방문자 세션으로 기록을 격리합니다. 실제 고객정보를 입력하지 않습니다. 본 서비스는 대출 승인·거절, 신용등급, 승인·부도 확률을 생성하지 않습니다. 학습된 신용모델·금융기관 데이터 연동·자동 신용 재평가·증빙 파일 진위 확인은 구현 범위에 포함되지 않습니다. 음성·외부 AI 처리 동의는 직접 선택합니다.
+**Competition Demo / Synthetic Data.** 브라우저별로 체험 기록을 보관합니다. 실제 고객정보를 입력하지 않습니다. 본 서비스는 대출 승인·거절, 신용등급, 승인·부도 확률을 생성하지 않습니다. 학습된 신용모델·금융기관 데이터 연동·자동 신용 재평가·증빙 파일 진위 확인은 구현 범위에 포함되지 않습니다. 음성·외부 AI 처리 동의는 직접 선택합니다.
 
 [이전 기능 통합·배포 기록 (2026-09-06)](docs/RELEASE_2026-09-06.md)
 
@@ -45,7 +49,7 @@ flowchart LR
 
 ## GCP 서비스
 
-[심사용 공개 웹사이트](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/) — 가입·Google 로그인 없이 접속합니다. 첫 화면의 **3분 기술 데모**에서 발화→Canonical→Evidence→Feature→Signal→Action을, **서비스 소개**에서 목적과 사용자/운영자 Flow를 확인합니다. 심사용 별도 DB·방문자별 격리·사용량 제한을 적용했고 실제 운영 자료와 합치지 않습니다.
+[심사용 공개 웹사이트](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/) — 첫 화면의 **사례 체험**에서 발화→Canonical→Evidence→Feature→Signal→계획 선택을 확인하고, **결과·상담 준비**에서 자료를 내려받아 기관의 공식 상담 안내로 이동할 수 있습니다. **서비스 소개**는 목적과 사용자/운영자 과정을 설명합니다. 심사용 별도 DB·방문자별 격리·사용량 제한을 적용했고 실제 운영 자료와 합치지 않습니다.
 
 [소유자 전용 실제 서비스](https://donghaeng-finance-ai-jy5k5cvnjq-du.a.run.app/) — 허용된 본인 Google 계정과 IAP가 필요합니다. 공개 심사 서비스와 VM·DB·서비스 계정을 분리합니다.
 

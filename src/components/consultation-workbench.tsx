@@ -11,6 +11,7 @@ import {
   Sprout,
 } from "lucide-react";
 import { useRef, useState } from "react";
+import { INSTITUTION_DIRECTORY } from "@/domain/consultation-institutions";
 import { CONSULTATION_DOCUMENTS, CONSULTATION_OWNERS, CONSULTATION_PERIODS } from "@/domain/consultation-draft";
 import { useConsultationDraft } from "@/components/use-consultation-draft";
 
@@ -27,32 +28,7 @@ export interface ConsultationFact {
   status?: string;
 }
 
-const INSTITUTIONS = [
-  {
-    id: "semas",
-    name: "소상공인시장진흥공단",
-    category: "소상공인 지원·정책자금 상담",
-    url: "https://www.semas.or.kr/",
-    description:
-      "사업 목적에 맞는 지원사업과 정책자금의 공고·상담 경로를 확인합니다.",
-  },
-  {
-    id: "koreg",
-    name: "지역신용보증재단",
-    category: "지역별 보증 상담",
-    url: "https://www.koreg.or.kr/",
-    description:
-      "신용보증재단중앙회에서 사업장 소재지의 재단과 보증 상담 경로를 확인합니다.",
-  },
-  {
-    id: "kodit",
-    name: "신용보증기금",
-    category: "기업 보증·경영지원 상담",
-    url: "https://www.kodit.or.kr/",
-    description:
-      "보증과 경영지원 제도를 확인하고 담당 기관과 상담 범위를 검토합니다.",
-  },
-] as const;
+const INSTITUTIONS = INSTITUTION_DIRECTORY;
 const DOCUMENTS = CONSULTATION_DOCUMENTS;
 
 export function ConsultationWorkbench({

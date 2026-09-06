@@ -21,8 +21,10 @@ describe("alley atmosphere with real service entry points", () => {
     expect(html).toContain('href="/judge-demo"');
     expect(html).toContain('href="/about"');
     expect(html).toContain("Competition Demo / Synthetic Data");
-    expect(html).toContain("대출 승인·거절 또는 신용등급을 생성하지 않습니다");
-    expect(html.indexOf("AI 인터뷰")).toBeLessThan(html.indexOf("Recovery Mission"));
+    expect(html).toContain("대출 승인·거절 또는 신용등급을 산정하지 않습니다");
+    expect(html).toContain('href="/review"');
+    expect(html).toContain("금융기관 상담");
+    expect(html).not.toMatch(/Google|구글|가입 없이|로그인 없이/);
   });
   it("renders the original full-scene asset, service introduction and two entry routes", () => {
     const html = renderToStaticMarkup(createElement(LegacyServiceOverview));
