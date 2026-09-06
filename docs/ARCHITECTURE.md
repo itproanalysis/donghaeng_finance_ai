@@ -176,3 +176,24 @@ raw audio를 저장하는 schema나 파일 writer는 없습니다. Realtime audi
 - `contracts/asyncapi.json`: SSE event envelope와 audio WebSocket control/binary/server message 계약
 
 현재 20개 runtime Route Handler path는 모두 OpenAPI path와 대응하며 `tests/contracts`가 filesystem route path·HTTP method·schema·event drift를 검사합니다. 새 route나 event를 추가할 때도 같은 변경에서 계약과 test를 갱신해야 합니다.
+
+
+## 통합 데이터 생성·검토 여정 (2026-09-06)
+
+주요 공개 진입은 `/judge-demo`입니다. 기존 서버의 생성·동의·메시지·SSE·완료 명령을 그대로 사용하며, 전체 음성 인터뷰는 `/borrower/interviews/{id}`로 이어집니다. 3분 데모의 3답변은 전체 필수정보를 채우지 않으므로 `FORCE_INCOMPLETE`를 명시적으로 확인하고 저장합니다. 완전한 인터뷰의 기존 `COMPLETE`와 데이터 품질 평가는 유지합니다.
+
+| 단계 | 구현과 계약 |
+| --- | --- |
+| Interview | `JudgeDemo`, `BorrowerInterviewRoom`; 기존 POST interviews/consents/messages |
+| Evidence·Canonical | `InterviewService`, canonical revisions/evidence/outbox; 기존 SQLite transaction |
+| Feature·Missingness·Why | `improvement-feature-pipeline.ts` → `InterviewService.getDataReview` → `server/data-review.ts` 읽기 전용 투영 → `DataReviewPanel` |
+| FINAL | 기존 complete 명령; `improvementFeatures`도 종료 payload/hash에 저장, 이전 snapshot 수정 없음 |
+| Action | 기존 014 선택 ledger·allowlisted candidates; POST recovery SELECT_ACTION은 FINAL 이후만 허용 |
+| Mission | `RecoveryService`, migration 018; 별도 append-only `recovery_evidence`, FINAL FK·tenant·CAS·idempotency·hash |
+| Human Review | GET data-reviews 목록과 GET/POST recovery; INTERVIEWER/ADMIN의 NEEDS_INFORMATION 또는 REVIEWED만 허용 |
+
+HTTP 계약에는 `data-review`, `data-reviews`, `recovery`만 추가했습니다. 기존 경로와 응답 계약은 보존합니다. SSE 이벤트 종류·AsyncAPI는 바꾸지 않았습니다. `isBatchFinal` 알림 후 snapshot과 data-review를 다시 읽습니다. Recovery에는 별도 SSE를 추가하지 않았으며 저장 응답과 명시적 새로고침으로 최신 기록을 확인합니다.
+
+`frontend-prototype`의 Three.js 장면은 보존하고 `three-recovery-journey-scene.tsx`로 통합했습니다. FINAL 이후 Recovery 화면에서만 동적으로 로드하며, 미션 표시는 서버가 반환한 `completedMissionIds`를 따릅니다. 애니메이션 시간으로 기록 완료나 사업 성과를 생성하지 않습니다. WebGL 미지원·동작 줄이기 설정에서도 텍스트 미션을 사용할 수 있습니다.
+
+공개 데모는 기존 방문자 tenant 격리와 동의를 유지하며 가상 프로필로 시작합니다. protected owner의 Google IAP, 로컬 전체 개발 환경, 실제 음성 경로는 유지합니다. `/review`는 금융기관 관점의 합성 시연이며 실제 기관 계정 연동이 아닙니다.

@@ -9,6 +9,7 @@ import type {
 } from "./interview";
 import type { CanonicalInformationRecord } from "./information-values";
 import type { EvidenceLinkedSummary } from "./live-summary";
+import type { FeatureV2Set } from "./improvement-feature-pipeline";
 
 export const IMMUTABLE_FINAL_SCHEMA_VERSION = "dev-v1" as const;
 
@@ -25,6 +26,8 @@ export interface ImmutableFinalInterviewSnapshotV1 {
   business: BusinessProfile;
   informationItems: CanonicalInformationRecord[];
   features: LiveFeatureSet & { snapshotType: "FINAL" };
+  /** Absent only in historical snapshots created before v2 was frozen. */
+  improvementFeatures?: FeatureV2Set | null;
   goalSnapshot: GoalSnapshot;
   borrowerSummary: EvidenceLinkedSummary & { snapshotType: "FINAL" };
   transcript: TranscriptSegment[];

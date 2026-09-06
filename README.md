@@ -1,18 +1,51 @@
 # 동행금융AI
 
+동행금융AI는 소상공인의 비정형 사업 정보를 AI 인터뷰로 수집하고, 이를 근거 추적 가능한 금융 Feature로 변환하여 기존 금융정보의 공백을 보완하는 웹서비스입니다.
+
+[3분 기술 데모 바로가기](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/judge-demo) · [서비스 소개](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/about) · [최종 통합 구현·검증 기록](docs/DATA_ENGINE_RELEASE_2026-09-06.md)
+
+```mermaid
+flowchart LR
+    P[Problem · 정형 데이터의 정보 공백] --> I[AI Interview]
+    I --> C[Canonical Information]
+    E[원문 Evidence] --- C
+    C --> F[Feature Engineering]
+    F --> S[Improvement Signals]
+    S --> H[Human Review]
+    H --> A[사업자 Action 선택]
+    A --> R[Recovery Journey]
+    R --> N[새 Evidence · 향후 재검토 자료]
+```
+
+심사자는 `/judge-demo`에서 직접 합성 답변 3개를 전송합니다. 기존 `InterviewService`가 원문과 Canonical revision을 저장하고 `improvementFeatures`를 생성합니다. `Feature Explorer`에서 산식·기간·누락 정책·선택 revision·원문까지 확인한 뒤, 확인한 범위를 `INCOMPLETE FINAL`로 보존하고 개선 Action을 선택합니다. 미션의 기록을 저장해야 `NEW EVIDENCE`가 생기며 FINAL은 바뀌지 않습니다.
+
+예시 입력 **“최근 3개월 평균 매출은 2300만원입니다.”**는 서버에서 `monthly_average_sales = 23,000,000 KRW` → `fin_sales_avg_3m = 23,000,000`으로 연결됩니다. 3개 합성 답변 시나리오는 100개 중 **13개 COMPUTED, 87개 MISSING**입니다. 신용정보·거래 내역을 수집한 것처럼 채우지 않으며, Signal의 원시값을 신용점수나 성공 확률로 환산하지 않습니다.
+
+| 화면 | 확인할 내용 |
+| --- | --- |
+| `/` · `/about` | 정보 공백, 서비스 목적, 사업자·운영자 Flow, AI/서버/사람 역할 |
+| `/judge-demo` | 실제 메시지 API·SSE·LIVE → Canonical/Evidence → 7개 그룹 Feature Explorer → Why → FINAL |
+| `/borrower` · `/borrower/interviews/:id` | 기존 실제 음성·텍스트 인터뷰와 서버 데이터 생성 현황 |
+| `/recovery/:id` | FINAL 이후 자발적 Action 선택, 3개 미션, append-only 자기보고 Evidence |
+| `/review` · `/review/:id` | Evidence/Feature Coverage, Missingness, Signal, Action, 추가 확인 필요·검토 완료 |
+
+**Competition Demo / Synthetic Data.** 가입·Google 로그인 없이 체험하며, 브라우저별 방문자 세션으로 기록을 격리합니다. 실제 고객정보를 입력하지 않습니다. 본 서비스는 대출 승인·거절, 신용등급, 승인·부도 확률을 생성하지 않습니다. 학습된 신용모델·금융기관 데이터 연동·자동 신용 재평가·증빙 파일 진위 확인은 구현 범위에 포함되지 않습니다. 음성·외부 AI 처리 동의는 직접 선택합니다.
+
+[최신 Git 통합·배포 기록 (2026-09-06)](docs/RELEASE_2026-09-06.md)
+
 [2026-09-05 경쟁력 개선·제출 실행 계획](docs/WINNING_PLAN_2026-09-05.md) · [이번 개선 검증 기록](docs/SERVICE_IMPROVEMENTS_2026-09-05.md)
 
 [공개 화면 완성도 개선](docs/SERVICE_POLISH_2026-09-05.md) · [10개 사례의 모델링 산출 증적](docs/MODELING_EVIDENCE_2026-09-05.md)
 
 [기획안 10장에 맞춘 목표·수행기록·재평가·검토 요약 개선](docs/PLAN_ALIGNMENT_2026-09-05.md)
 
-카드·계좌·서류·CB 같은 정형 금융데이터에서 설명이 필요한 변화를 찾고, 소상공인의 인터뷰를 구조화 변수로 바꿔 함께 평가하는 심사 보조 애플리케이션입니다. Python 원본 모델이 30개 인터뷰 Feature를 포함한 94개 Vector를 만들고, 현재 상황과 개선가능성을 서로 합치지 않은 두 축으로 계산합니다.
+기존 `/modeling`의 Python 규칙 시제품은 별도 합성 거래자료와 94개 Vector를 사용하는 보조 실험입니다. 실제 인터뷰의 `feature_schema_v2` 100개 사전과 계약을 혼합하지 않습니다.
 
 > 이 앱은 대출 승인·거절, 공식·추정 신용등급, 연체·승인 확률을 만들지 않습니다. 모델링 화면은 고정 규칙 시제품과 합성 mock 10개를 설명하며 예측력이 검증된 학습모델이 아닙니다. 기존 A~E 표시는 별도의 `INTERVIEW_DATA_QUALITY_GRADE_DEV_V1`으로 인터뷰 정보의 충족도와 추적 가능성만 뜻합니다.
 
 ## GCP 서비스
 
-[심사용 공개 웹사이트](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/) — 가입·Google 로그인 없이 접속합니다. 첫 화면의 **서비스 소개**에서 목적과 사용자/운영자 Flow를, **평가 사례 살펴보기**에서 변수 결합 전후의 두 축 결과·산식·항목별 반영을 확인합니다. 심사용 별도 DB·방문자별 격리·사용량 제한을 적용했고 실제 운영 자료와 합치지 않습니다.
+[심사용 공개 웹사이트](https://donghaeng-finance-review-jy5k5cvnjq-du.a.run.app/) — 가입·Google 로그인 없이 접속합니다. 첫 화면의 **3분 기술 데모**에서 발화→Canonical→Evidence→Feature→Signal→Action을, **서비스 소개**에서 목적과 사용자/운영자 Flow를 확인합니다. 심사용 별도 DB·방문자별 격리·사용량 제한을 적용했고 실제 운영 자료와 합치지 않습니다.
 
 [소유자 전용 실제 서비스](https://donghaeng-finance-ai-jy5k5cvnjq-du.a.run.app/) — 허용된 본인 Google 계정과 IAP가 필요합니다. 공개 심사 서비스와 VM·DB·서비스 계정을 분리합니다.
 
@@ -22,22 +55,22 @@
 
 완료/불완전 종료 화면에서 원문 근거와 상태를 담은 상담 메모(TXT)를 내려받거나 브라우저에서 인쇄/PDF 저장을 요청할 수 있습니다. 거절·모름은 추가 확인 항목과 분리하고, 금융기관으로 자동 전송하지 않습니다.
 
-## 제공 기능
+## 기존 기능과 보조 실험
 
 - `/modeling`은 심사자가 설명 없이 전체 모델링 흐름을 검토하는 화면입니다. 7개 출처 묶음, 조건부 질문 6개, 인터뷰 Feature 30개, 전체 94개 검색·필터, 결합 Feature 16개, 현재 상황/개선가능성 각 5개 규칙, 원문→변수→구간→점수 lineage, CB 대조, 업종 benchmark의 `CONTEXT_ONLY` 경계와 동일 Feature 재평가를 제공합니다.
 - `/modeling?tab=impact`는 10개 사례 각각 정형 48개 변수를 고정한 전후 결과, 10개 평가항목 배점·분모, 94개 변수에서 평가 근거까지의 경로를 제공합니다. `/about`은 목적·전체 과정·사용자/운영자 Flow·현재 범위를 정리한 서비스 소개입니다.
 - `/api/demo/modeling`과 `/api/demo/modeling/:caseId`는 빌드 시 Python `modeling/build.py`·`scorecard.py`를 실행해 만든 `modeling_web_v1` 산출물을 제공합니다. 브라우저가 점수나 lineage를 역추론하지 않습니다. 10개 사례의 Python/Web parity, 전후 산식·분모와 artifact checksum을 테스트합니다.
 
-- 첫 화면은 **동행 골목길 입구**입니다. 사장님의 대화와 관리자의 사례 확인·근거 검토·상담 준비를 서로 다른 동선으로 안내합니다. 역할 선택부터 실제 서비스로 연결되며 별도 시연 인터뷰로 우회하지 않습니다.
-- `/interviews`의 **골목길 상담소**는 담당 기관에 저장된 인터뷰를 상태·이름으로 찾아 이어보는 관제판입니다. 골목/목록 보기, 다음 확인 항목, 페이지 이동, 조회 시각과 새로고침을 제공합니다. `/demo`, `/demo/borrower`, `/demo/admin`은 실제 화면으로 리다이렉트합니다. 기존 프로토타입 소스는 보존하지만 서비스 진입점에서는 사용하지 않습니다.
+- 공개 첫 화면은 **사업 정보 수집과 근거 추적 가능한 Feature 생성**을 중심으로 3분 데모·서비스 소개를 안내합니다. 기존 모델링 사례 비교는 보조 실험 링크에서 확인합니다.
+- `/interviews`의 **상담 대장**에서 권한이 있는 기록을 상태·이름으로 찾아 이어봅니다. 공개 방문자는 자신의 브라우저에 속한 기록을 확인합니다. `/demo`, `/demo/borrower`, `/demo/admin`은 실제 화면으로 리다이렉트합니다.
 - 실제 완료 화면은 사업 정보·답변 근거·미확인 항목·개선 후보를 보여 줍니다. 관리자 평가 상세의 **개선안·상담 초안**에서는 담당자·점검 시점·확인 자료·검토 기관을 서버에 명시적으로 저장하고 다시 불러옵니다. 동시 수정은 버전 충돌로 보호하며, 초안 저장은 FINAL 원본 변경이나 금융기관 전송이 아닙니다.
-- 사장님은 호칭·사업체명·업종을 입력하거나 공개 체험용 가상 카페를 선택해 채팅·음성을 시작합니다. 동의는 직접 선택하며 사업 수치나 답변을 자동으로 넣지 않습니다.
-- 질문은 현재 확인된 정보, 누락값, 근거와 품질을 바탕으로 서버가 다음 문항을 선택합니다. 사장님 화면에는 대화로 채워지는 6영역 사업 지도, 방금 정리된 한 줄, 개선 판, 근거 기반 선택 질문과 가정 질문, 서버 기록 기반 질문·답변 이력을 보여 줍니다.
+- 보호된 개발 환경에서는 호칭·사업체명·업종을 입력하며, 공개 환경은 가상 사업자 프로필로 채팅·음성을 시작합니다. 동의는 직접 선택하며 사업 수치나 답변을 자동으로 넣지 않습니다.
+- 질문은 확인된 정보·누락값·근거를 바탕으로 서버가 선택합니다. 질문·답변 이력을 기본으로 보여 주며, 사업 현황은 별도 탭에서 확인합니다. 등록된 시연은 최종 답변을 Python 모형에 연결해 사업·행동 점수를 산출합니다.
 - `OPENAI_API_KEY`가 설정된 음성 인터뷰는 `gpt-realtime-2.1`·`marin`과 브라우저 WebRTC로 직접 연결해 스트리밍 음성 입출력, semantic VAD, 자연스러운 끼어들기와 실시간 자막을 제공합니다. 브라우저에는 장기 API 키가 아니라 인터뷰·사용자별 rate limit이 적용된 단기 자격증명만 전달합니다.
 - Realtime 연결 오류는 재시도/권한 안내를 먼저 표시하고, 사용자가 선택한 경우에만 문장 단위 음성으로 전환합니다. 보조 STT/TTS는 실행 환경에 따라 로컬 모델 또는 서버에 설정된 OpenAI 경로를 사용합니다. 어느 경로에서도 임의 답변을 만들지 않습니다.
 - 인터뷰 Claude 기본은 고정 버전 `claude-sonnet-5`입니다. 서버가 상태·의존성·민감정보 순서로 안전한 다음 질문 후보를 최대 3개만 만들고, Sonnet은 그 안에서 하나를 고른 뒤 짧은 반응을 붙입니다. 요청은 `selectedInfoCode/reaction/question` 3필드·요청별 192토큰으로 제한하고 8초를 넘기면 서버 1순위 질문으로 즉시 이어갑니다.
 - Claude 사용 시 답변 원문을 먼저 저장하고, 별도 `CLOUD_AI_PROCESSING` 동의 후에만 짧은 대화 반응을 요청합니다. 정보 추출, 값, 근거, 상태전이와 평가는 Claude가 바꿀 수 없고 서버 결정론 결과만 적용됩니다. 음성 모드는 Claude를 기다리는 동안 캐시된 확인 멘트를 먼저 들려줘 침묵을 줄입니다.
-- 인터뷰 종료 전 사장님은 근거 기반 개선 후보 3개 또는 건너뛰기를 직접 선택합니다. 서버가 현재 snapshot으로 후보를 재검증한 뒤 비구속 append-only 기록으로만 저장하며 목표·평가·신용판단에는 사용하지 않습니다.
+- 기존 전체 인터뷰의 종료 확인 화면과 신규 분석 이후 Recovery 화면에서 사장님은 근거 기반 개선 후보 3개 또는 건너뛰기를 직접 선택합니다. 서버가 현재 snapshot으로 후보를 재검증한 뒤 비구속 append-only 기록으로만 저장하며 목표·평가·신용판단에는 사용하지 않습니다.
 - 음성 화면은 말끝부터 다음 질문·음성 재생까지의 최근 지연을 원문 없이 계측합니다. 사장님에게는 간단한 연결 상태만 보이고, 접힌 진단에서 latest/p50/p95와 안전 대체 경로 사용 여부를 확인할 수 있습니다.
 - PREVIEW 진행 상태는 SSE로 동기화하고, 완료 후에는 불변 FINAL snapshot만으로 데이터 품질 평가를 만듭니다.
 - 기존 실시간 인터뷰의 `feature_schema_v2`는 사업·재무·채무/신용·운영·사장님 계획·외부 맥락·개선가능성 변수를 null-safe artifact로 제공합니다. 이는 모델링 브랜치의 94개 `modeling_web_v1`과 이름·목적이 다른 별도 계약이며 둘을 같은 Vector처럼 섞지 않습니다. 현재 신용점수/승인 판단에는 사용하지 않으며 `ENABLE_FEATURE_V2=false`로 비활성화할 수 있습니다. 자세한 정의는 [feature_schema_v2](docs/FEATURE_SCHEMA_V2.md)를 참고하세요.

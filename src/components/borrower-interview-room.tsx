@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { AudioInterviewControls } from "@/components/audio-interview-controls";
 import { BorrowerCompletionReview } from "@/components/borrower-completion-review";
 import { BorrowerResult } from "@/components/borrower-result";
+import { DataReviewPanel } from "@/components/data-review-panel";
 import { canOfferBorrowerCompletion } from "@/components/borrower-completion";
 import { buildBorrowerConversationGuide } from "@/components/borrower-conversation-guide";
 import { buildBorrowerExperience } from "@/components/borrower-experience";
@@ -741,6 +742,7 @@ export function BorrowerInterviewRoom({ interviewId, initialMode, autoStartQuest
           ))}
         </ol>
       </nav>
+      <details className="borrower-data-engine" open><summary>LIVE · 발화에서 Feature까지</summary><DataReviewPanel interviewId={interviewId} version={snapshot.version} compact /></details>
       <div className="borrower-room__layout">
         <section className="borrower-conversation" aria-label="AI와 사장님의 대화">
           <div className="borrower-conversation__mode">

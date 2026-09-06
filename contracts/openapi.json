@@ -1724,6 +1724,446 @@
           }
         }
       }
+    },
+    "/interviews/{id}/data-review": {
+      "get": {
+        "operationId": "getInterviewDataReview",
+        "tags": [
+          "Interviews"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          }
+        ],
+        "description": "Read existing LIVE/FINAL feature_schema_v2 values, metadata, canonical revision-to-evidence lineage and missingness. New FINAL stores v2 immutably; historical projection is explicitly labeled.",
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped authoritative projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataReviewSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/interviews/{id}/recovery": {
+      "get": {
+        "operationId": "getRecoveryJourney",
+        "tags": [
+          "Interviews"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          }
+        ],
+        "description": "FINAL-only append-only intervention records. Evidence is SELF_REPORTED; no automatic reassessment.",
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped authoritative projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoverySuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "recordRecoveryJourney",
+        "tags": [
+          "Interviews"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Identifier"
+            }
+          }
+        ],
+        "description": "Same-origin mutation: server-allowlisted voluntary action, append-only new evidence with CAS/idempotency, or operator-only review. Existing FINAL/evaluation never changes.",
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped authoritative projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoverySuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoveryCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/data-reviews": {
+      "get": {
+        "operationId": "listInterviewDataReviews",
+        "tags": [
+          "Interviews"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "description": "Operator-role tenant-scoped paginated list, 12 rows per page. Coverage is server-derived; no approval score.",
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped authoritative projection",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataReviewListSuccessEnvelope"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Validated error; no cross-tenant details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -6344,6 +6784,775 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/EvaluationEvidenceProjection"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "DataReviewMetrics": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "confirmed",
+          "needed",
+          "evidence",
+          "computed",
+          "missing",
+          "notCalculable",
+          "totalFeatures",
+          "evidenceCovered",
+          "totalInformation",
+          "resolvedRequired",
+          "totalRequired"
+        ],
+        "properties": {
+          "confirmed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "needed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evidence": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "computed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "notCalculable": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalFeatures": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "evidenceCovered": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalInformation": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "resolvedRequired": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalRequired": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "FeatureV2Definition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "group",
+          "dtype",
+          "description",
+          "source",
+          "window",
+          "missingPolicy",
+          "direction",
+          "required",
+          "version",
+          "modelCandidate"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "group": {
+            "enum": [
+              "business",
+              "financial",
+              "credit",
+              "operation",
+              "owner",
+              "external",
+              "improvement"
+            ]
+          },
+          "dtype": {
+            "enum": [
+              "float",
+              "integer",
+              "boolean",
+              "category"
+            ]
+          },
+          "description": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "window": {
+            "enum": [
+              "3m",
+              "6m",
+              "12m",
+              null
+            ]
+          },
+          "missingPolicy": {
+            "const": "null_safe"
+          },
+          "direction": {
+            "enum": [
+              "positive_is_improvement",
+              "negative_is_improvement",
+              "context_only"
+            ]
+          },
+          "required": {
+            "const": false
+          },
+          "version": {
+            "const": "feature_schema_v2"
+          },
+          "modelCandidate": {
+            "const": false
+          }
+        }
+      },
+      "FeatureTrace": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "featureNames",
+          "infoCode",
+          "revisionId",
+          "evidenceIds"
+        ],
+        "properties": {
+          "featureNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "infoCode": {
+            "type": "string"
+          },
+          "revisionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReviewFeature": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "group",
+          "dtype",
+          "state",
+          "value",
+          "sourceFeatures",
+          "calculation",
+          "reason",
+          "version",
+          "modelCandidate",
+          "definition",
+          "traces",
+          "expectedInputs",
+          "missingInputs",
+          "evidenceIds",
+          "interpretation"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "group": {
+            "enum": [
+              "business",
+              "financial",
+              "credit",
+              "operation",
+              "owner",
+              "external",
+              "improvement"
+            ]
+          },
+          "dtype": {
+            "enum": [
+              "float",
+              "integer",
+              "boolean",
+              "category"
+            ]
+          },
+          "state": {
+            "enum": [
+              "COMPUTED",
+              "MISSING",
+              "NOT_CALCULABLE"
+            ]
+          },
+          "value": {
+            "type": [
+              "number",
+              "boolean",
+              "string",
+              "null"
+            ]
+          },
+          "sourceFeatures": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "calculation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "version": {
+            "const": "feature_schema_v2"
+          },
+          "modelCandidate": {
+            "const": false
+          },
+          "definition": {
+            "$ref": "#/components/schemas/FeatureV2Definition"
+          },
+          "traces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FeatureTrace"
+            }
+          },
+          "expectedInputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "missingInputs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interpretation": {
+            "type": "string"
+          }
+        }
+      },
+      "DataReview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interviewId",
+          "businessName",
+          "borrowerName",
+          "version",
+          "snapshotType",
+          "lifecycleStatus",
+          "finalHash",
+          "featureArtifactOrigin",
+          "schemaVersion",
+          "enabled",
+          "metrics",
+          "canonical",
+          "evidence",
+          "features",
+          "candidates",
+          "selection",
+          "summary"
+        ],
+        "properties": {
+          "interviewId": {
+            "type": "string"
+          },
+          "businessName": {
+            "type": "string"
+          },
+          "borrowerName": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "snapshotType": {
+            "enum": [
+              "PREVIEW",
+              "FINAL"
+            ]
+          },
+          "lifecycleStatus": {
+            "type": "string"
+          },
+          "finalHash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "featureArtifactOrigin": {
+            "enum": [
+              "LIVE_SERVER",
+              "FROZEN_FINAL",
+              "LEGACY_PROJECTION"
+            ]
+          },
+          "schemaVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/DataReviewMetrics"
+          },
+          "canonical": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Immutable selected canonical revision, complete revision history, typed value and evidence IDs; selected is null when absent."
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Existing EvidenceRef with originalText from the snapshot transcript; no fabricated document verification."
+            }
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewFeature"
+            }
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllowlistedImprovementCandidate"
+            }
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BorrowerImprovementSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "DataReviewSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DataReview"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "RecoveryEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "interviewId",
+          "finalSnapshotId",
+          "missionId",
+          "title",
+          "note",
+          "observedOn",
+          "createdAt",
+          "kind",
+          "eventType",
+          "contentHash"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "interviewId": {
+            "type": "string"
+          },
+          "finalSnapshotId": {
+            "type": "string"
+          },
+          "missionId": {
+            "enum": [
+              1,
+              2,
+              3
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "observedOn": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "SELF_REPORTED"
+          },
+          "eventType": {
+            "const": "NEW_EVIDENCE"
+          },
+          "contentHash": {
+            "type": "string"
+          }
+        }
+      },
+      "RecoveryState": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "interviewId",
+          "finalSnapshotId",
+          "selection",
+          "evidence",
+          "completedMissionIds",
+          "revision",
+          "review"
+        ],
+        "properties": {
+          "interviewId": {
+            "type": "string"
+          },
+          "finalSnapshotId": {
+            "type": "string"
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BorrowerImprovementSelection"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecoveryEvidence"
+            }
+          },
+          "completedMissionIds": {
+            "type": "array",
+            "items": {
+              "enum": [
+                1,
+                2,
+                3
+              ]
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "review": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "revision",
+              "note",
+              "reviewedAt"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "PENDING",
+                  "NEEDS_INFORMATION",
+                  "REVIEWED"
+                ]
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "note": {
+                "type": "string"
+              },
+              "reviewedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "RecoverySuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/RecoveryState"
+          },
+          "error": {
+            "type": "null"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/ApiMeta"
+          }
+        }
+      },
+      "RecoveryCommand": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "candidateId",
+              "clientCommandId"
+            ],
+            "properties": {
+              "action": {
+                "const": "SELECT_ACTION"
+              },
+              "candidateId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "clientCommandId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "missionId",
+              "title",
+              "note",
+              "observedOn",
+              "expectedRevision",
+              "clientCommandId"
+            ],
+            "properties": {
+              "action": {
+                "const": "ADD_EVIDENCE"
+              },
+              "missionId": {
+                "enum": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "note": {
+                "type": "string",
+                "minLength": 10,
+                "maxLength": 2000
+              },
+              "observedOn": {
+                "type": "string",
+                "format": "date"
+              },
+              "expectedRevision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "clientCommandId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "status",
+              "note",
+              "expectedRevision",
+              "clientCommandId"
+            ],
+            "properties": {
+              "action": {
+                "const": "REVIEW"
+              },
+              "status": {
+                "enum": [
+                  "NEEDS_INFORMATION",
+                  "REVIEWED"
+                ]
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "expectedRevision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "clientCommandId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^[A-Za-z0-9_.:-]+$"
+              }
+            }
+          }
+        ]
+      },
+      "DataReviewList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "hasMore",
+          "summary"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Existing InterviewOperationsItem plus server metrics, observed core signals, planSelected and reviewStatus."
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "object"
+          }
+        }
+      },
+      "DataReviewListSuccessEnvelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "data",
+          "error",
+          "meta"
+        ],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DataReviewList"
           },
           "error": {
             "type": "null"

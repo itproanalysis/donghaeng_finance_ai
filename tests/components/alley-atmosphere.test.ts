@@ -9,15 +9,23 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: navigation.push }),
 }));
 
-import { ServiceOverview } from "@/components/service-overview";
+import { LegacyServiceOverview, ServiceOverview } from "@/components/service-overview";
 import { BorrowerInterviewStart } from "@/components/borrower-interview-start";
 import { AppHeader } from "@/components/app-header";
 
 const source = (path: string) => readFileSync(new URL(`../../src/${path}`, import.meta.url), "utf8");
 
 describe("alley atmosphere with real service entry points", () => {
-  it("renders the original full-scene asset, service introduction and two entry routes", () => {
+  it("leads the integrated service with data generation and a safe synthetic interview", () => {
     const html = renderToStaticMarkup(createElement(ServiceOverview));
+    expect(html).toContain('href="/judge-demo"');
+    expect(html).toContain('href="/about"');
+    expect(html).toContain("Competition Demo / Synthetic Data");
+    expect(html).toContain("대출 승인·거절 또는 신용등급을 생성하지 않습니다");
+    expect(html.indexOf("AI 인터뷰")).toBeLessThan(html.indexOf("Recovery Mission"));
+  });
+  it("renders the original full-scene asset, service introduction and two entry routes", () => {
+    const html = renderToStaticMarkup(createElement(LegacyServiceOverview));
     expect(html).toContain("korean-alley-cafe-integrated-8k.webp");
     expect(html).toContain('href="/borrower"');
     expect(html).toContain('href="/interviews"');
@@ -44,10 +52,10 @@ describe("alley atmosphere with real service entry points", () => {
     const html = renderToStaticMarkup(createElement(AppHeader));
     expect(html).toContain("동행금융");
     expect(html).not.toMatch(/동행금융AI|AI 동행자|두 갈래 길 안내/);
-    if (path === "/") expect(html).toContain("app-header--entrance");
+    if (path === "/") expect(html).toContain("app-header--engine");
     else {
       expect(html).toContain("app-header--borrower");
-      expect(html).toContain("골목 입구로");
+      expect(html).toContain("홈으로");
       expect(html).toContain('href="/"');
     }
   });

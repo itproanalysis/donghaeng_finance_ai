@@ -64,6 +64,7 @@ import {
 } from "@/domain";
 
 import { ApplicationError } from "./errors";
+import { buildDataReview } from "./data-review";
 import { InterviewActivityRegistry } from "./interview-activity-registry";
 import { computeModelingScorecard } from "./modeling-scorecard";
 import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
@@ -665,6 +666,12 @@ export class InterviewService {
       );
     }
     return this.withFinalSession(snapshot, aggregate.lastEventSeq, principal.tenantId);
+  }
+
+  getDataReview(interviewId: string, principal: Principal) {
+    const snapshot = this.getInterviewSnapshot(interviewId, principal);
+    const stored = snapshot.snapshotType === "FINAL" ? this.repository.getFinalSnapshot<StoredFinalSnapshot>(interviewId) : null;
+    return buildDataReview(snapshot, this.repository.getBorrowerImprovementSelection(principal.tenantId, interviewId), Boolean(stored && "improvementFeatures" in stored && stored.improvementFeatures));
   }
 
   getRealtimeEvents(principal: Principal, interviewId: string, after: number) {
@@ -3096,6 +3103,7 @@ export class InterviewService {
       informationItems: live.canonicalInformationItems,
       legacyInformationItems: live.informationItems,
       features,
+      improvementFeatures: live.improvementFeatures,
       goalSnapshot: live.goalSnapshot,
       borrowerSummary: summary,
       transcript: this.repository.listTranscript(interviewId),
@@ -3650,7 +3658,9 @@ export class InterviewService {
         snapshot.interviewId,
       ),
       improvementFeatures:
-        canonicalItems.length === snapshot.informationItems.length
+        "improvementFeatures" in snapshot && snapshot.improvementFeatures
+          ? snapshot.improvementFeatures
+          : canonicalItems.length === snapshot.informationItems.length
           ? buildInterviewFeatureV2(canonicalItems, { enabled: isFeatureV2Enabled() })
           : null,
       session: {

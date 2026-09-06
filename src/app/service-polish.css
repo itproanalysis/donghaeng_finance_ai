@@ -1,4 +1,19 @@
 /* Public service surfaces share the same type, navigation and reading background. */
+body:has(.app-header--engine) { background: #f5f6f3; }
+.app-header--engine { position: sticky; top: 0; z-index: 20; height: 68px; background: #fff; color: #253c33; border-bottom: 1px solid #dce2dc; backdrop-filter: none; }
+.app-header--engine .app-header__inner { max-width: 1240px; margin: auto; padding-inline: 32px; }
+.app-header--engine .brand__name { color: #24513c; font-family: var(--font-sans), sans-serif; font-size: 22px; text-shadow: none; }
+.app-header--engine .dh-header-nav { display: flex; gap: 24px; align-items: center; }
+.app-header--engine .dh-header-nav a { font-size: 14px; color: #536e5c; white-space: nowrap; }
+.app-header--engine .dh-header-nav a[aria-current="page"] { color: #24513c; text-decoration: underline; text-underline-offset: 7px; }
+.app-header--engine .app-header__admin-link { display: none; }
+@media (max-width: 700px) {
+  .app-header--engine, html[data-auth-mode="public-review"] .app-header--engine { height: auto; min-height: 94px; }
+  .app-header--engine .app-header__inner { flex-wrap: wrap; gap: 12px; padding: 14px 18px 10px; }
+  .app-header--engine .brand { width: 100%; }
+  .app-header--engine .dh-header-nav, html[data-auth-mode="public-review"] .app-header--engine .dh-header-nav { width: 100%; gap: 18px; margin-left: 0; overflow-x: auto; padding-bottom: 6px; }
+  .app-header--engine .dh-header-nav a, html[data-auth-mode="public-review"] .app-header--engine .dh-header-nav a { display: block; font-size: 12px; }
+}
 html[data-auth-mode="public-review"] body { --font-display: var(--font-sans); --alley-bg: #f5f6f3; --alley-surface: #fff; --alley-surface-warm: #fff; --alley-surface-cream: #f5f7f2; --alley-border: #dce3d7; --alley-border-strong: #d1dbc9; --alley-border-accent: #d6e0ce; --alley-text-muted: #6c786b; --alley-text-gold: #547048; --shadow-alley: none; --shadow-alley-card: none; background: #f5f6f3; }
 html[data-auth-mode="public-review"] body:has(.app-header) { background: #f5f6f3; }
 html[data-auth-mode="public-review"] .app-header { position: sticky; top: 0; height: 68px; color: #253c33; background: #fff; border-bottom: 1px solid #dce2dc; backdrop-filter: none; box-shadow: none; }

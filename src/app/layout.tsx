@@ -27,11 +27,11 @@ const display = Gowun_Batang({
 
 export const metadata: Metadata = {
   title: {
-    default: "동행금융 | 사업·행동 평가",
+    default: "동행금융AI | 사업 이야기를 검증 가능한 데이터로",
     template: "%s | 동행금융",
   },
   description:
-    "금융자료와 사업 현황을 변수화하고, 목표 수행과 재평가 결과를 금융기관 검토 근거로 정리합니다.",
+    "소상공인의 비정형 사업 정보를 AI 인터뷰로 수집하고, 근거 추적 가능한 금융 Feature로 변환해 기존 금융정보의 공백을 보완합니다.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

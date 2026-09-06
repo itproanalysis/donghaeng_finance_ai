@@ -20,9 +20,11 @@ interface NavigationItem {
 }
 
 const navItems: NavigationItem[] = [
+  { href: "/judge-demo", label: "3분 기술 데모", icon: GitBranch, isActive: (pathname) => pathname.startsWith("/judge-demo") },
+  { href: "/review", label: "데이터 검토", icon: ClipboardCheck, isActive: (pathname) => pathname.startsWith("/review") },
   {
     href: "/modeling",
-    label: "사업·행동 평가",
+    label: "규칙 산출 실험",
     icon: GitBranch,
     isActive: (pathname) => pathname.startsWith("/modeling"),
   },
@@ -44,14 +46,15 @@ export function AppHeader({ publicReview = false }: { publicReview?: boolean } =
   const pathname = usePathname();
   const isBorrower = pathname.startsWith("/borrower");
   const isIntroduction = pathname === "/about";
+  const isEngine = pathname === "/" || isIntroduction || pathname.startsWith("/judge-demo") || pathname.startsWith("/recovery") || pathname.startsWith("/review");
 
   if (pathname === "/login" || pathname.startsWith("/demo")) {
     return null;
   }
 
-  if (pathname === "/" || isBorrower || isIntroduction) {
+  if (isEngine || isBorrower) {
     return (
-      <header className={`app-header app-header--simple ${isBorrower || isIntroduction ? "app-header--borrower" : "app-header--entrance"}`}>
+      <header className={`app-header app-header--simple ${isEngine ? "app-header--engine" : "app-header--borrower"}`}>
         <div className="app-header__inner">
           <Link className="brand" href="/" aria-label="동행금융 홈">
             <span className="brand__mark" aria-hidden="true">
@@ -63,14 +66,14 @@ export function AppHeader({ publicReview = false }: { publicReview?: boolean } =
           </Link>
           <nav className="dh-header-nav" aria-label="주요 화면 이동">
             <Link href="/about" aria-current={isIntroduction ? "page" : undefined}>서비스 소개</Link>
-            <Link href="/modeling?case=case_operating_drop&tab=impact">사업·행동 평가</Link>
-            <Link href="/borrower?entry=sample" aria-current={isBorrower ? "page" : undefined}>현황 입력</Link>
-            <Link href="/interviews">상담 대장</Link>
+            <Link href="/judge-demo" aria-current={pathname.startsWith("/judge-demo") ? "page" : undefined}>3분 기술 데모</Link>
+            <Link href="/borrower?entry=sample" aria-current={isBorrower ? "page" : undefined}>인터뷰 시작</Link>
+            <Link href="/review" aria-current={pathname.startsWith("/review") ? "page" : undefined}>데이터 검토</Link>
           </nav>
           {(isBorrower || isIntroduction) && (
             <Link className="app-header__admin-link" href="/">
               <ChevronLeft size={16} aria-hidden="true" />
-              {publicReview ? "홈으로" : "골목 입구로"}
+              홈으로
             </Link>
           )}
         </div>

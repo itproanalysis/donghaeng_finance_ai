@@ -4,8 +4,14 @@ import Link from "next/link";
 import { AlleyEntranceScene } from "@/components/alley-entrance-scene";
 import { isPublicReviewMode } from "@/server/public-review";
 import { ServiceHome } from "@/components/service-home";
+import { EngineHome } from "@/components/engine-introduction";
 
 export function ServiceOverview() {
+  return <EngineHome />;
+}
+
+/** Preserved entrance for the separate legacy modeling experiment. */
+export function LegacyServiceOverview() {
   const publicReview = isPublicReviewMode();
   if (publicReview) return <ServiceHome />;
   return (

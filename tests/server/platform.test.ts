@@ -64,9 +64,10 @@ describe("migration integrity", () => {
       "015_durable_audio_turn_leases",
       "016_consultation_drafts",
       "017_public_review",
+      "018_recovery_evidence",
     ]);
     expect(rows.every((row) => String(row.checksum).length === 64)).toBe(true);
-    expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(16);
+    expect(database.prepare("PRAGMA user_version").get()?.user_version).toBe(18);
   });
 
   it("refuses a changed migration checksum", () => {

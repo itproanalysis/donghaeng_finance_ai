@@ -59,3 +59,14 @@
 - null, 0, NaN, disabled flag 검증
 - canonical interview 변환 및 missingness report
 - live/final service API 통합 회귀
+
+
+## 심사 화면과 FINAL 보존 (2026-09-06)
+
+`GET /api/interviews/{id}/data-review`는 `InterviewService`의 `improvementFeatures`를 읽는 서버 투영입니다. 값은 재계산하지 않고 사전의 설명·window·missingPolicy, 파생 `sourceFeatures`, 선택된 Canonical revision, Evidence와 원문을 연결합니다. `/judge-demo`, 기존 사업자 LIVE/FINAL 화면, `/review/{id}`가 이 API를 공유합니다. 7개 그룹·100개 사전을 그대로 사용하고 `modelCandidate:false`를 유지합니다.
+
+새 FINAL에는 종료 시점의 `improvementFeatures`를 payload와 hash에 포함합니다. `FROZEN_FINAL` 표시는 이후 환경 flag를 바꿔도 저장 artifact가 바뀌지 않는다는 뜻입니다. 이전 FINAL에 artifact가 없으면 저장된 Canonical로 투영한 `LEGACY_PROJECTION`임을 명시합니다. 이전 FINAL을 덮어쓰지 않습니다.
+
+현재 6개 Signal은 신용 점수·개선 성공 확률이 아닙니다. 사용 가능한 입력에 대한 기존 산식의 값이며 일부 입력만 있어도 계산됩니다. UI는 원시값·사용한 입력·누락 입력을 함께 표시합니다. 특히 `imp_plan_specificity`, `imp_plan_feasibility`의 1은 계획의 완전성이나 성공을 뜻하지 않습니다. 평균의 분모는 확보된 입력에 한정됩니다.
+
+Recovery의 새 Evidence는 별도 append-only 저장소이며 FINAL 원본·v2 Feature·데이터 품질 평가를 변경하지 않습니다. 파일 업로드와 증빙 진위 확인, 자동 재평가를 제공하지 않습니다.

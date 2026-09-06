@@ -728,7 +728,7 @@ function nestedRecord(record: UnknownRecord, keys: string[]): UnknownRecord | nu
   return null;
 }
 
-function formatInformationValue(value: unknown): string | null {
+export function formatInformationValue(value: unknown): string | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "string") return value;
   if (typeof value === "boolean") return value ? "예" : "아니요";

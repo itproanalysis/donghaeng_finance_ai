@@ -10,6 +10,7 @@ import { ADMIN_JOURNEY, JourneyNav } from "@/components/journey-nav";
 import { ConsultationMemoExport } from "@/components/consultation-memo-export";
 import { linkedConsultationEvidence } from "@/components/consultation-memo";
 import { readableInformationText } from "@/components/operator-language";
+import { DataReviewPanel } from "@/components/data-review-panel";
 
 import {
   formatDateTime,
@@ -55,6 +56,8 @@ export function FinalInterviewRecord({ snapshot }: { snapshot: FinalInterviewVie
           </p>
         </div>
       </section>
+      <DataReviewPanel interviewId={snapshot.interviewId} version={snapshot.version} />
+      <p><Link href={`/review/${snapshot.interviewId}`}>사업자 선택 Action · 새 Evidence · 검토 상태</Link></p>
       <ConsultationMemoExport snapshot={snapshot} />
 
       {snapshot.completionStatus === "INCOMPLETE" && (

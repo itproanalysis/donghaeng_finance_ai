@@ -12,6 +12,6 @@ export default async function BorrowerPage({ searchParams }: { searchParams: Pro
   const query = await searchParams;
   const scenarioEntry = query.scenario === "operating-day";
   const demoSet = query.demoSet === "control" ? "control" : "primary";
-  const sampleEntry = publicReview && query.entry === "sample" && !scenarioEntry;
+  const sampleEntry = publicReview && !scenarioEntry;
   return <BorrowerInterviewStart key={scenarioEntry ? `scenario-${demoSet}` : sampleEntry ? "sample" : "own"} publicReview={publicReview} sampleEntry={sampleEntry} scenarioEntry={scenarioEntry} demoSet={demoSet} />;
 }

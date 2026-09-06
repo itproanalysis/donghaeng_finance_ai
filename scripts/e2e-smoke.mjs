@@ -11,6 +11,7 @@ import {
   encodeAudioFrame,
 } from "../src/realtime/audio-protocol.ts";
 import { createDevV1AcceptanceRequiredInformationItems } from "../src/domain/information-catalog.ts";
+import { verifyDataEngine } from "./verify-data-engine.mjs";
 
 const projectRoot = resolve(import.meta.dirname, "..");
 const tsxCli = resolve(projectRoot, "node_modules", "tsx", "dist", "cli.mjs");
@@ -611,7 +612,7 @@ async function main() {
   expectSuccess(login, 201);
   const cookie = cookieFrom(login.response);
 
-  for (const [path, marker] of [["/", "entrance-scene"], ["/borrower", "borrower-start"], ["/interviews", "operations-board"], ["/interview-evaluations", "evaluation-list-page"], ["/modeling?case=case_operating_drop", "modeling-heading"]]) {
+  for (const [path, marker] of [["/", "Financial Features"], ["/about", "AI / SERVER / HUMAN"], ["/judge-demo", "Competition Demo / Synthetic Data"], ["/review", "데이터 검토"], ["/borrower", "borrower-start"], ["/interviews", "operations-board"], ["/interview-evaluations", "evaluation-list-page"], ["/modeling?case=case_operating_drop", "modeling-heading"]]) {
     const page = await fetch(`${origin}${path}`, { headers: { cookie } });
     assert(page.status === 200 && (await page.text()).includes(marker), `${path} 실제 서비스 화면을 렌더링하지 못했습니다.`);
   }
@@ -1094,6 +1095,8 @@ async function main() {
   const completedOperations = expectSuccess(await apiRequest(origin, "/api/interviews?status=COMPLETE", { cookie }), 200);
   assert(completedOperations.items.some((item) => item.id === interviewId && item.evaluationId), "완료 기록에서 실제 평가로 이어지지 않습니다.");
 
+  const engineResult = await verifyDataEngine({ origin, cookie, request: apiRequest });
+  process.stdout.write(`Data engine E2E PASS: ${engineResult.checks.length} checks; ${engineResult.metrics.computed} computed, ${engineResult.metrics.missing} missing, ${engineResult.newEvidence} new evidence.\n`);
   process.stdout.write(
     `E2E PASS: modeling judge page/public API/94-feature boundary, real role routes/legacy redirects, operator queue, persisted consultation draft/restart/conflict, auth/tenant/CSRF, versioned cloud-AI consent, local Claude strict-tool adapter/metadata (${anthropicStubRequests.length} calls), audio WS reconnect/STT metadata, correction, SSE replay, 8-item core + 11-item acceptance FINAL/evaluation/list, forced incomplete (${origin})\n`,
   );

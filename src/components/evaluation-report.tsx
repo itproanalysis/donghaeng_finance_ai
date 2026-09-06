@@ -40,6 +40,7 @@ import {
 } from "@/components/api-adapter";
 import { ErrorState, LoadingState } from "@/components/request-state";
 import { LiveModelingScorecard } from "@/components/live-modeling-scorecard";
+import { DataReviewPanel } from "@/components/data-review-panel";
 import { ConsultationWorkbench } from "@/components/consultation-workbench";
 import { buildImprovementCandidates } from "@/components/borrower-immersive-prompts";
 import { ADMIN_JOURNEY, JourneyNav } from "@/components/journey-nav";
@@ -598,6 +599,9 @@ export function EvaluationReport({ evaluationId }: EvaluationReportProps) {
         <a href="#evidence-heading">03 근거 원문</a>
         <a href="#consultation">04 개선안·상담 초안</a>
       </nav>
+
+      <DataReviewPanel interviewId={evaluation.interviewId} version={evaluation.snapshotVersion} />
+      <p><Link href={`/review/${evaluation.interviewId}`}>사업자 선택 Action · 실행기록 · 담당자 검토</Link></p>
 
       <section className="evaluation-modeling-result" aria-label="답변을 반영한 사업·행동 평가">
         <LiveModelingScorecard key={evaluationId} evaluationId={evaluationId} />

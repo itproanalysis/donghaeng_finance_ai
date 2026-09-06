@@ -29,10 +29,10 @@ describe("public interview entry and consent boundary", () => {
     expect(html).toContain("인터뷰 시작");
   });
 
-  it("prefills only when the public visitor explicitly follows the sample entry", async () => {
+  it("keeps every public entry on a fictional profile while preserving the protected owner form", async () => {
     vi.stubEnv("DONGHAENG_AUTH_MODE", "public-review");
     const ownPage = await BorrowerPage({ searchParams: Promise.resolve({}) });
-    expect(ownPage.props.sampleEntry).toBe(false);
+    expect(ownPage.props.sampleEntry).toBe(true);
     const samplePage = await BorrowerPage({ searchParams: Promise.resolve({ entry: "sample" }) });
     expect(samplePage.props.sampleEntry).toBe(true);
   });

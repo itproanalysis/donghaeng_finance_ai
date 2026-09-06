@@ -6,6 +6,7 @@ import type { FinalInterviewView } from "@/components/api-adapter";
 import { buildImprovementCandidates } from "@/components/borrower-immersive-prompts";
 import { BORROWER_JOURNEY, JourneyNav } from "@/components/journey-nav";
 import { LiveModelingScorecard } from "@/components/live-modeling-scorecard";
+import { DataReviewPanel } from "@/components/data-review-panel";
 import { OPERATING_DAY_DEMO_SCENARIO } from "@/domain/demo-scenario";
 import { ConsultationMemoExport } from "@/components/consultation-memo-export";
 import { groupConsultationInformation, linkedConsultationEvidence } from "@/components/consultation-memo";
@@ -34,6 +35,8 @@ export function BorrowerResult({ snapshot }: { snapshot: FinalInterviewView }) {
         </div>
       </section>
       {snapshot.evaluationId && snapshot.businessName === OPERATING_DAY_DEMO_SCENARIO.persona.businessName && snapshot.borrowerName === OPERATING_DAY_DEMO_SCENARIO.persona.borrowerName && <section className="dh-panel"><LiveModelingScorecard key={snapshot.evaluationId} evaluationId={snapshot.evaluationId} /><Link href={`/interview-evaluations/${encodeURIComponent(snapshot.evaluationId)}`}>담당자 검토 화면 보기</Link></section>}
+      <DataReviewPanel interviewId={snapshot.interviewId} version={snapshot.version} />
+      <section className="dh-panel"><h2>확인한 결과에서 다음 행동으로</h2><p>개선 Action은 사장님이 직접 선택합니다. 실행기록은 새 Evidence로 남길 수 있습니다.</p><Link className="dh-button" href={`/recovery/${snapshot.interviewId}`}>Recovery Journey · 선택과 실행기록 <ArrowRight size={17} /></Link><p><Link href={`/review/${snapshot.interviewId}`}>금융기관 관점에서 정보·근거 검토</Link></p></section>
       <ConsultationMemoExport snapshot={snapshot} />
       {snapshot.completionStatus === "INCOMPLETE" && (
         <div className="dh-inline-note">

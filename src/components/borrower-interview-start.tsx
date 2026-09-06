@@ -215,7 +215,7 @@ export function BorrowerInterviewStart({ publicReview = false, sampleEntry = fal
             </div>
             {!scenario && <p className="borrower-methods__voice-note"><Headphones size={15} /> 음성 인터뷰에는 마이크가 필요합니다. 도중에 채팅으로 바꿀 수 있습니다.</p>}
             {starting && <p role="status">인터뷰 준비 중…</p>}
-            {scenario ? <Link className="borrower-text-button" href="/borrower">내 사업 현황 직접 입력하기</Link> : <button type="button" className="borrower-text-button" disabled={starting !== null} onClick={() => { setError(null); setShowMethods(false); }}>기본 정보 다시 수정하기</button>}
+            {publicReview ? <p className="borrower-sample-note">Competition Demo / Synthetic Data · 가상의 사업 상황으로 답변해 주세요. 실제 고객정보·실명·계좌번호는 입력하지 않습니다.</p> : scenario ? <Link className="borrower-text-button" href="/borrower">전체 인터뷰로 이동</Link> : <button type="button" className="borrower-text-button" disabled={starting !== null} onClick={() => { setError(null); setShowMethods(false); }}>기본 정보 다시 수정하기</button>}
           </section>
         )}
         {error && <p className="borrower-start__error" role="alert">{error}</p>}
